@@ -1,0 +1,37 @@
+# Dependências
+node_modules/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Ambiente (NUNCA versionar segredos)
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+*.err
+npm-debug.log*
+dev.*
+prod.*
+*.tsbuildinfo
+# Saída de `tsc` jogada na raiz pelos scripts antigos
+tsc_*.txt
+
+# Prisma / Banco
+backend/prisma/*.db
+backend/prisma/migrations/dev.db*
+
+# Uploads e mídia local
+backend/storage/
+services/media-server/storage/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

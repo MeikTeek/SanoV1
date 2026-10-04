@@ -1,0 +1,43 @@
+{
+  "name": "sano",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ecossistema privado centralizado estilo assistente pessoal (auth fechada, 2FA, auditoria e suite de ferramentas)",
+  "workspaces": [
+    "backend",
+    "frontend",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "npm run dev --workspace backend",
+    "dev:web": "npm run dev --workspace frontend",
+    "build": "npm run build --workspace backend && npm run build --workspace frontend",
+    "build:host": "npm run build:host --workspace backend",
+    "start:host": "npm run start:host --workspace backend",
+    "typecheck": "npm run build --workspace frontend",
+    "test": "npm run test --workspace backend",
+    "test:integration": "tsx --test tests/integration/chat.e2e.test.ts",
+    "test:e2ee": "tsx tests/integration/smoke.mjs",
+    "db:migrate": "npm run prisma:migrate --workspace backend",
+    "db:deploy": "npm run prisma:deploy --workspace backend",
+    "db:seed": "npm run seed --workspace backend",
+    "db:studio": "npm run prisma:studio --workspace backend",
+    "setup": "npm install && npm run db:deploy && npm run db:seed"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "tsx": "^4.19.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "allowScripts": {
+    "prisma@6.19.3": true,
+    "@prisma/client@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "argon2@0.41.1": true,
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true
+  }
+}

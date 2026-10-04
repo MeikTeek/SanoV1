@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id                 String    @id @default(uuid())
+  username           String    @unique
+  passwordHash       String
+  role               Role      @default(USER)
+  twoFactorSecret    String?   // criptografado (AES-256-GCM)
+  twoFactorEnabled   Boolean   @default(false)
+  active             Boolean   @default(true)
+  mustChangePassword Boolean   @default(true)
+  failedAttempts     Int       @default(0)
+  lockedUntil        DateTime?
+  tokenVersion       Int       @default(0) // incrementar = invalida todas as sessões
+  lastLoginAt        DateTime?
+  /// Nome de exibição — trocável pelo usuário (limite de 1x a cada 2 meses).
+  displayName        String?
+  /// Última troca de displayName; base do bloqueio de 2 meses.
+  nameChangedAt      DateTime?
+  /// Avatar em data URL (data:image/...;base64) para não exigir storage externo.
+  avatarDataUrl      String?
+  /// Bio do perfil público (estilo rede social). Texto puro, sem formatação.
+  bio                String?   @db.VarChar(280)
+  /// Chave pública ECDH P-256 (SPKI em base64) usada no E2EE do bate-papo.
+  chatPublicKey      String?
+  /// "Número" do usuário no bate-papo: muda a cada `chatNumberWindowHours`.
+  chatNumber         String?   @unique
+  /// Instante em que o `chatNumber` atual expira e será recalculado.
+  chatNumberUntil    DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  auditLogs     AuditLog[]
+  toolsData     ToolData[]
+  appointments  Appointment[]
+  training      TrainingProfile?
+  stats         PlayerStats?
+  missions      DailyMission[]
+  workoutLogs   WorkoutLog[]
+  dietPlans     DietPlan[]
+
+  /* Módulo 1 — Bate-papo criptografado */
+  /* `followers` = quem segue esta pessoa; `following` = quem ela segue.
+     Os nomes das relações no model User estão ligados aos lados CORRETOS do
+     model Follow: `Follow.following` (o alvo) e `Follow.follower` (o autor). */
+  followers     Follow[]   @relation("followers")
+  following     Follow[]   @relation("following")
+  chatMembers   ChatMember[]
+  chatMessages  ChatMessage[]
+}
+
+/// Seguição estilo rede social (Instagram). A chave composta impede seguir a
+/// si mesmo e seguir duas vezes a mesma pessoa.
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  // `follower` é quem segue → cai na lista `following` do User.
+  // `following` é quem é seguido → cai na lista `followers` do User.
+  follower  User @relation("following", fields: [followerId],  references: [id], onDelete: Cascade)
+  following User @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+/// Conversa individual ou grupo. `dmKey` (par de ids ordenado) garante que
+/// exista no máximo uma conversa direta entre duas pessoas.
+model ChatConversation {
+  id            String   @id @default(uuid())
+  kind          String   @default("DM") // DM | GROUP
+  name          String?  // apenas grupos
+  /// Chave "idA:idB" (ordenada) — única para conversas diretas.
+  dmKey         String?  @unique
+  createdById   String
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  members  ChatMember[]
+  messages ChatMessage[]
+
+  @@index([lastMessageAt])
+}
+
+model ChatMember {
+  id             String   @id @default(uuid())
+  conversationId String
+  userId         String
+  role           String   @default("MEMBER") // OWNER | MEMBER
+  lastReadAt     DateTime @default(now())
+  joinedAt       DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+}
+
+/// Mensagem criptografada. `envelope` é um blob opaco: chave pública efêmera do
+/// remetente + uma cópia do texto cifrado por destinatário. O servidor nunca
+/// tem a chave que abre isso. `meta` guarda apenas dados não sensíveis
+/// (tipo de mídia, tamanho, duração) para a UI renderizar antes de decifrar.
+model ChatMessage {
+  id             String   @id @default(uuid())
+  conversationId String
+  senderId       String
+  /// Gerado pelo cliente; evita mensagem duplicada em retentativa/reconexão.
+  clientId       String?
+  kind           String   @default("TEXT") // TEXT | IMAGE | AUDIO
+  envelope       Json
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, clientId])
+  @@index([conversationId, createdAt])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String
+  ip        String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model ToolData {
+  id        String   @id @default(uuid())
+  userId    String
+  tool      String   // ex: "agenda", "games", "trainer"
+  key       String
+  data      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tool, key])
+  @@index([userId, tool])
+}
+
+/// Compromisso da agenda. lembretes ficam no mesmo registro: `remindBefore` é
+/// quantos minutos antes avisar e `reminderSentAt` garante aviso único.
+model Appointment {
+  id             String    @id @default(uuid())
+  userId         String
+  title          String
+  description    String?
+  participants   String?   // "João e Maria"
+  startsAt       DateTime
+  endsAt         DateTime?
+  remindBefore   Int?      // em minutos; null = sem lembrete
+  reminderSentAt DateTime? // preenchido quando o aviso foi disparado
+  status         String    @default("PENDING") // PENDING | DONE | CANCELED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startsAt])
+  @@index([userId, status, startsAt])
+  @@index([reminderSentAt])
+}
+
+/* ===================== Módulo 5 — Trainer (Fase 4) ===================== */
+
+/// Perfil do jogador: a "ficha" criada no onboarding. Tudo que o motor de
+/// regras precisa para decidir o que é seguro prescrever.
+model TrainingProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  weightKg       Float
+  heightCm       Float
+  birthYear      Int
+  sex            String   // M | F | OTHER
+  goal           String   // HYPERTROPHY | WEIGHT_LOSS | CONDITIONING | HEALTH
+  equipment      String[] // ["academia", "peso-corporal", "elastico", "barra-fixa", "halteres"]
+  injuries       String[] // ["joelho", "lombar", "ombro"] — filtra exercícios proibidos
+  minutesPerDay  Int      @default(45)
+  restrictionNotes String?
+
+  // ── Adaptatividade: o que faz o plano variar de pessoa para pessoa ──
+  somatotype       String?  // ECTOMORPH | MESOMORPH | ENDOMORPH
+  experience       String   @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED
+  trainingDays     Int      @default(3)
+  sleepHours       Float    @default(7)
+  waterLiters      Float    @default(2)
+  mealsPerDay      Int      @default(3)
+  dietQuality      String   @default("FAIR") // POOR | FAIR | GOOD
+  dietNotes        String?
+  dietRestrictions String[]
+
+  onboardedAt    DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Plano alimentar calculado pelo código. A IA escreve os "~pratos", nunca as calorias.
+model DietPlan {
+  id        String   @id @default(uuid())
+  userId    String
+  day       String
+  kcal      Int
+  proteinG  Int
+  carbG     Int
+  fatG      Int
+  /// Texto em linguagem natural produzido pela IA (ou local, sem chave configurada).
+  meals     String?
+  /// Resumo numérico dos ajustes aplicados pelo motor (objetivo, sono, hidratação).
+  rationale Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+}
+
+/// Atributos RPG + progressão. Um registro por usuário (upsert).
+model PlayerStats {
+  userId        String   @id
+  strength      Float    @default(10) // parte superior / resistência muscular
+  agility       Float    @default(10) // cardio, flexibilidade
+  stamina       Float    @default(10) // HIIT, constância
+  vitality      Float    @default(10) // sono, hidratação, dieta
+  xp            Int      @default(0)
+  level         Int      @default(1)
+  streak        Int      @default(0)
+  /// Dia da última conclusão — base para calcular ofensiva e penalidade.
+  lastCompletedOn DateTime?
+  /// Atributos debuffados até esta data (Penalty Zone).
+  debuffUntil   DateTime?
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Missão diária gerada pelo motor determinístico.
+model DailyMission {
+  id        String   @id @default(uuid())
+  userId    String
+  /// Dia local (YYYY-MM-DD) ao qual a missão pertence — unicidade por usuário/dia.
+  day       String
+  title     String
+  /// Blocos da missão: exercício, alvo e série, gravados como JSON.
+  blocks    Json
+  /// Volume planejado em minutos, já ajustado ao tempo disponível do perfil.
+  plannedMinutes Int  @default(0)
+  completedAt DateTime?
+  xpAwarded Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  progress MissionProgress[]
+
+  @@unique([userId, day])
+  @@index([userId, createdAt])
+}
+
+/// Progresso de cada bloco dentro da missão do dia.
+model MissionProgress {
+  id        String   @id @default(uuid())
+  missionId String
+  /// Chave do bloco dentro do JSON (ex.: "flexoes").
+  blockKey  String
+  /// Quantas vezes o usuário marcou o bloco como concluído.
+  doneCount Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  mission DailyMission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+
+  @@unique([missionId, blockKey])
+}
+
+/// Registro bruto de treino — insumo do relatório semanal da IA.
+model WorkoutLog {
+  id        String   @id @default(uuid())
+  userId    String
+  day       String
+  exercise  String
+  sets      Int      @default(0)
+  reps      Int      @default(0)
+  loadKg    Float?
+  minutes   Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, day])
+}

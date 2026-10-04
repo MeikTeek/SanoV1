@@ -1,0 +1,62 @@
+name: Deploy (Discloud)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Copiar .env de produção
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          cp backend/.env.example backend/.env
+          {
+            echo "NODE_ENV=production"
+            echo "PORT=8080"
+            echo "DATABASE_URL=\"$DATABASE_URL\""
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "ENCRYPTION_KEY=$ENCRYPTION_KEY"
+            echo "FRONTEND_URL=${{ vars.FRONTEND_URL }}"
+            echo "COOKIE_SAMESITE=none"
+            echo "APP_NAME=Sano"
+          } >> backend/.env
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build da imagem da API
+        run: docker build -f infrastructure/docker/backend.Dockerfile -t ${{ vars.REGISTRY }}/sano-api:${{ github.sha }} .
+
+      - name: Build da imagem do frontend
+        run: docker build -f infrastructure/docker/frontend.Dockerfile -t ${{ vars.REGISTRY }}/sano-web:${{ github.sha }} .
+
+      - name: Enviar ao registry
+        run: |
+          echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ vars.REGISTRY }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
+          docker push ${{ vars.REGISTRY }}/sano-api:${{ github.sha }}
+          docker push ${{ vars.REGISTRY }}/sano-web:${{ github.sha }}
+
+      - name: Deploy no servidor
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+        run: |
+          echo "$SSH_KEY" > /tmp/deploy_key && chmod 600 /tmp/deploy_key
+          ssh -i /tmp/deploy_key -o StrictHostKeyChecking=no root@$SSH_HOST \
+            "cd /opt/sano && ./infrastructure/scripts/deploy.sh ${{ github.sha }}"

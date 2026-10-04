@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+
+# Logs de execução (dev/prod) — nunca versionados.
+*.log
+*.err
+dev.*
+prod.*

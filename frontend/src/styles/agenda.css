@@ -1,0 +1,29 @@
+.card h2 { margin: 0 0 12px; font-size: .78rem; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.card small { display: block; margin-top: 10px; }
+.agenda-form { align-items: center; }
+.agenda-form input[type='datetime-local'] { min-width: 190px; }
+.agenda-form input { flex: 2 1 180px; }
+.agenda-form select { flex: 0 0 auto; }
+.agenda-form button { flex: 0 0 auto; }
+
+.appt { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.appt:first-of-type { border-top: 0; }
+.appt-time { font-variant-numeric: tabular-nums; color: var(--accent); min-width: 92px; flex-shrink: 0; font-size: .9rem; }
+.appt-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.appt-body span { font-size: .8rem; }
+.appt-actions { display: flex; gap: 6px; }
+.appt.done .appt-body b { text-decoration: line-through; color: var(--muted); }
+.appt.past { opacity: .55; }
+
+/* Lembretes disparados enquanto o app está aberto */
+.reminders { position: fixed; top: 16px; right: 16px; z-index: 70; display: flex; flex-direction: column; gap: 8px; max-width: 340px; }
+.reminder { display: flex; align-items: center; gap: 10px; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius-sm); box-shadow: 0 8px 28px #000a; animation: slidein .25s ease-out; }
+.reminder .bell { font-size: 1.2rem; }
+.reminder > div { flex: 1; display: flex; flex-direction: column; font-size: .85rem; }
+.reminder button { flex-shrink: 0; padding: 4px 10px; }
+@keyframes slidein { from { opacity: 0; transform: translateX(20px); } }
+
+@media (max-width: 520px) {
+  .reminders { left: 12px; right: 12px; max-width: none; }
+  .appt { flex-wrap: wrap; }
+}

@@ -1,0 +1,101 @@
+/* ── Sistema / Trainer (Fase 4, módulo 5) ── */
+
+.trainer-grid { display: grid; grid-template-columns: minmax(260px, 340px) 1fr; gap: 16px; align-items: start; }
+@media (max-width: 860px) { .trainer-grid { grid-template-columns: 1fr; } }
+
+.card h2 { margin: 0 0 12px; font-size: .78rem; color: var(--muted); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.card h3 { margin: 18px 0 8px; font-size: .82rem; color: var(--text-dim); font-weight: 600; }
+.tab-title { text-transform: none !important; font-size: 1.15rem !important; color: var(--text) !important; letter-spacing: -.01em !important; }
+.center-text { text-align: center; }
+
+/* Nível e XP */
+.level-line { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.level-line b { font-size: 1.2rem; color: var(--accent); }
+.level-line .muted { flex: 1; font-size: .85rem; }
+.streak { font-size: .95rem; color: var(--warn); }
+.xp-bar { height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 4px; }
+.xp-bar > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .4s ease; }
+
+/* Radar */
+.radar { display: block; margin: 12px auto; }
+.radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-axis { stroke: var(--line); stroke-width: 1; }
+.radar-area { fill: rgba(0, 229, 255, .16); stroke: var(--accent); stroke-width: 2; transition: all .4s ease; }
+.radar-area.debuffed { fill: rgba(255, 93, 115, .16); stroke: var(--bad); }
+.radar-dot { fill: var(--accent); }
+.radar-area.debuffed + circle { fill: var(--bad); }
+.radar-label { fill: var(--muted); font-size: 10px; }
+.radar-value { fill: var(--text); font-size: 11px; font-weight: 700; }
+
+/* Mensagem do sistema / penalidade */
+.system-msg { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); animation: slidein .3s ease-out; }
+.system-msg p { flex: 1; margin: 0; white-space: pre-wrap; line-height: 1.5; }
+.sys-icon { color: var(--accent); font-size: 1.3rem; }
+.penalty { padding: 12px 14px; margin-bottom: 14px; border: 1px solid #ff5d7340; border-radius: var(--radius-sm); color: #ffb3bd; background: #ff5d730f; font-size: .9rem; }
+.penalty b { color: var(--bad); }
+
+/* Blocos do treino */
+.blocks { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.block { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); padding: 10px 12px; border-radius: var(--radius-sm); }
+.block:hover { background: var(--surface-3); }
+.block.done { opacity: .55; border-color: #1d5c3f; }
+.block-check { flex-shrink: 0; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--line); background: transparent; color: var(--accent); font-size: 1rem; display: grid; place-items: center; }
+.block-check:hover:not(:disabled) { border-color: var(--accent); filter: none; }
+.block-info { display: flex; flex-direction: column; flex: 1; font-size: .9rem; min-width: 0; }
+.block > .ghost { flex-shrink: 0; }
+
+/* Dieta */
+.macro-row { display: flex; flex-wrap: wrap; gap: 14px; margin: 10px 0; font-size: .85rem; }
+.macro-row b { color: var(--accent); font-size: 1.05rem; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.rationale { margin: 8px 0 0 18px; font-size: .82rem; color: var(--muted); line-height: 1.6; }
+
+/* Cronômetro */
+.timer-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: #000000cc; backdrop-filter: blur(3px); }
+.timer-card { width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.timer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
+.timer-name { margin: 0 0 10px; font-size: 1.2rem; }
+.timer-detail { font-size: .82rem; line-height: 1.55; color: var(--muted); margin-bottom: 12px; }
+.timer-detail p { margin: 0 0 6px; }
+.timer-detail b { color: var(--text); }
+.timer-detail .warn { color: var(--bad); }
+.timer-phase { text-align: center; font-size: .8rem; letter-spacing: 3px; color: var(--muted); }
+.timer-phase.rest { color: var(--warn); }
+.timer-phase.work { color: var(--accent); }
+.timer-clock { text-align: center; font-size: 3.4rem; font-weight: 700; margin: 4px 0 10px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.timer-bar { height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 16px; }
+.timer-bar > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); }
+
+/* Modal de detalhe */
+.modal-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 16px; background: #000000cc; }
+.modal { width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
+.modal section { margin-bottom: 14px; }
+.modal section b { display: block; color: var(--muted); font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.modal section b.warn { color: var(--bad); }
+.modal section p { margin: 0; line-height: 1.6; font-size: .9rem; }
+.img-section small { display: block; margin: 4px 0 10px; }
+.img-preview { display: flex; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.img-preview img { width: 180px; height: 180px; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.report { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; font-family: inherit; font-size: .9rem; line-height: 1.6; color: var(--text); }
+.ask-row { display: flex; gap: 8px; margin-top: 8px; }
+.ask-row input { flex: 1; }
+.ask-row button { flex-shrink: 0; }
+
+/* Onboarding */
+.goal-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.goal-option { display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--surface-2); border: 1px solid var(--line); color: var(--text); padding: 12px 14px; border-radius: var(--radius-sm); }
+.goal-option:hover { background: var(--surface-3); filter: none; }
+.goal-option.active { border-color: var(--accent); background: #00e5ff0f; }
+.goal-option b { font-size: .95rem; }
+.goal-option span { font-size: .82rem; color: var(--text-dim); }
+.goal-option small { font-size: .72rem; color: var(--accent); opacity: .85; margin-top: 2px; }
+.summary-box { display: flex; flex-direction: column; gap: 4px; margin-top: 16px; padding: 12px 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: .85rem; }
+.summary-box .warn { color: var(--bad); }
+.field-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.chip-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { background: var(--surface-2); border: 1px solid var(--line); color: var(--text-dim); padding: 8px 14px; border-radius: 99px; font-size: .85rem; font-weight: 500; }
+.chip:hover:not(:disabled) { background: var(--surface-3); color: var(--text); filter: none; }
+.chip.active { border-color: var(--accent); color: var(--accent); background: #00e5ff0f; }
+.chip.danger.active { border-color: var(--bad); color: var(--bad); background: #ff5d7312; }
+.nav-row { display: flex; gap: 10px; margin-top: 18px; }

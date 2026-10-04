@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: sano-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sano}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sano_dev_senha}
+      POSTGRES_DB: ${POSTGRES_DB:-sano}
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-sano} -d ${POSTGRES_DB:-sano}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  db_data:
