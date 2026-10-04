@@ -115,7 +115,11 @@ START=npm run start:host
 | `START` | Aplica migrations, garante o admin e sobe o servidor |
 | `MAIN` | Entry point gerado pelo build |
 
-O `START` aponta para `npm run start:host`, definido em `backend/package.json`:
+> ⚠️ **O `package.json` da raiz precisa ter a chave `"start"`.** O analisador da
+> Discloud procura exatamente esse nome; sem ele, o erro é
+> `Missing or empty start command`. Não basta ter `start:host`.
+
+O `npm start` da raiz aponta para o script `start:host` do backend, que faz:
 
 ```
 npm run migrate:host && node prisma/ensure-admin.js && node dist/server.js
@@ -123,7 +127,7 @@ npm run migrate:host && node prisma/ensure-admin.js && node dist/server.js
 
 Encadear com `&&` direto no `discloud.config` **não funciona** — o analisador
 rejeita comando composto. Por isso a cadeia mora no `package.json` e o config
-só referencia o script.
+só chama `npm start`.
 
 ### Por que o `MAIN` é `backend/dist/server.js`
 
