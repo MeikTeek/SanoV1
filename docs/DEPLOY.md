@@ -96,24 +96,30 @@ O arquivo já está na raiz do projeto:
 NAME=Sano
 TYPE=site
 ID=sano.discloud.app
-MAIN=backend/dist/server.js
+MAIN=src/index.js
 RAM=1500
 VERSION=latest
 BUILD=npm run build:host
-START=npm run start:host
+START=npm start
 ```
 
 > ⚠️ **Sem comentários no arquivo.** O analisador da Discloud (`DISPACK`) falha
 > com `Missing or empty start command` quando o arquivo tem linhas `#` ou
 > caracteres não-ASCII. A documentação fica aqui, não no config.
 
+> ⚠️ **O `MAIN` precisa existir no repositório.** A hospedagem empacota o
+> código em um zip e procura esse caminho **antes** de rodar o `BUILD`. Como
+> `dist/` está no `.gitignore`, `backend/dist/server.js` ainda não existe
+> nesse momento — o erro seria *"não foi encontrado dentro do zip"*.
+> Por isso o `MAIN` aponta para `src/index.js`, que é versionado.
+
 ### O que cada chave faz
 
 | Chave | Papel |
 |---|---|
 | `BUILD` | Compila backend (`tsc`) e frontend (`vite`) |
-| `START` | Aplica migrations, garante o admin e sobe o servidor |
-| `MAIN` | Entry point gerado pelo build |
+| `START` | Sobe o servidor via `npm start` |
+| `MAIN` | `src/index.js` — arquivo versionado que serve de entrada |
 
 > ⚠️ **O `package.json` da raiz precisa ter a chave `"start"`.** O analisador da
 > Discloud procura exatamente esse nome; sem ele, o erro é
