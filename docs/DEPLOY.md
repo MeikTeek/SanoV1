@@ -163,9 +163,14 @@ No painel da Discloud, em **Variáveis**:
 | `FRONTEND_URL` | `https://sano.discloud.app` |
 | `COOKIE_SAMESITE` | `strict` |
 | `APP_NAME` | `Sano` |
+| `ADMIN_USERNAME` | `admin` |
+| `ADMIN_PASSWORD` | senha forte (ex.: `"Sano#2026Forte!"`) |
 | `AI_API_KEY` | opcional (módulo de treino) |
 
 **`PORT` não é necessário** — a Discloud injeta automaticamente.
+
+> ⚠️ `ADMIN_PASSWORD` precisa de **aspas** no valor se tiver `#` ou espaço —
+> sem elas o dotenv pode truncar a senha silenciosamente.
 
 > ⚠️ `FRONTEND_URL` precisa ser **exatamente** o domínio do `ID`. O middleware
 > `originCheck` compara o header `Origin` com essa variável e bloqueia login de
@@ -177,14 +182,16 @@ No painel da Discloud, em **Variáveis**:
 2. Escolha a branch `main`
 3. A Discloud lê o `discloud.config` e executa `BUILD` → `START`
 
-Para criar o primeiro admin, a Discloud não dá shell — rode localmente:
+**O admin é criado sozinho.** O `START` roda `ensure-admin.js`, que cria o
+usuário `ADMIN_USERNAME` com a senha `ADMIN_PASSWORD` se ele ainda não existir.
+Como a Discloud não dá terminal, não existe passo manual — e o script é
+idempotente, então rodar em todo boot não duplica nada.
 
-```bash
-npm run db:deploy   # migrations (idempotente)
-npm run db:seed     # usa ADMIN_USERNAME/ADMIN_PASSWORD do seu .env
-```
+Depois acesse `https://sano.discloud.app`, faça login e siga o fluxo de primeiro
+acesso (trocar senha + ativar 2FA).
 
-Depois acesse `https://sano.discloud.app` e faça login.
+> ⚠️ Sem `ADMIN_PASSWORD` o script apenas avisa e segue — um deploy de
+> atualização continua funcionando com o admin que já existe.
 
 ## 6. Problemas do build
 

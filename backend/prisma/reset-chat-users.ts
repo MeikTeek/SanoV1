@@ -1,10 +1,9 @@
 /**
- * Recria os usuários de teste `alice` e `bob` com um segredo TOTP estável.
+ * Cria os usuários de teste `alice` e `bob` com um segredo TOTP estável, e
+ * remove qualquer admin de teste sobrando (ex.: `teste_discloud`, usado para
+ * validar o `ensure-admin.js`).
  *
- * Existe para destravar a execução local dos testes de integração: eles fazem
- * login de verdade (com 2FA), então precisam de um segredo conhecido. O
- * `seed.ts` já faz isso na criação; este script existe para o caso de os
- * usuários já terem sido criados antes do 2FA existir no seed.
+ * Requer TEST_SEED_PASSWORD no .env. Sem ela, só a limpeza é feita.
  *
  * Uso: `npx tsx prisma/reset-chat-users.ts`
  */
@@ -36,6 +35,15 @@ function stableSecret(seed: string): string {
 }
 
 async function main() {
+  // Admins de teste: nunca devem sobrar no banco de desenvolvimento.
+  const lixos = await prisma.user.deleteMany({
+    where: { username: { startsWith: 'teste' } },
+  });
+  if (lixos.count) console.log(`${lixos.count} usuário(s) de teste removido(s).`);
+
+  const password = process.env.TEST_SEED_PASSWORD;
+  if (!password) return;
+
   const users = [
     { username: 'alice', displayName: 'Alice', bio: 'Testando o módulo de mensagens.' },
     { username: 'bob', displayName: 'Bob', bio: 'Oi, sou eu.' },
