@@ -1,0 +1,6 @@
+{
+  "//": "Configuração mínima só para satisfazer o tsc na raiz. O código TypeScript de verdade é compilado pelo tsconfig de cada workspace (backend/ e frontend/). Sem este arquivo, um `tsc` acidental na raiz compila src/ — que é JavaScript puro do entry point da hospedagem, sem tipos — e falha com TS7016.",
+  "//exclude": "Por que src/ fica de fora: src/index.js é o MAIN do discloud.config, escrito em JS sem anotações de tipo.",
+  "files": [],
+  "exclude": ["src", "node_modules", "backend", "frontend", "tests", "services", "shared", "infrastructure"]
+}
