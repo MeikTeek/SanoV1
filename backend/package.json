@@ -8,7 +8,7 @@
     "build": "prisma generate && tsc",
     "build:host": "npm run build && npm run build --prefix ../frontend",
     "migrate:host": "prisma migrate deploy",
-    "start:host": "node backend/dist/server.js",
+    "start:host": "npm run migrate:host && node prisma/ensure-admin.js && node dist/server.js",
     "start": "node dist/server.js",
     "test": "tsx --test ../tests/unit/*.test.ts",
     "prisma:migrate": "prisma migrate dev",

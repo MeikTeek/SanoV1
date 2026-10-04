@@ -65,6 +65,14 @@ async function seedChatUsers() {
   }
 }
 
+/**
+ * Cria o primeiro admin.
+ *
+ * Na hospedagem (Discloud etc.) quem roda isto é o `START`, via
+ * `backend/prisma/ensure-admin.js` — um script em JS puro, porque em produção
+ * só as `dependencies` estão instaladas e não há `tsx` para rodar um .ts.
+ * Este arquivo continua sendo o jeito manual de criar um admin local.
+ */
 main()
   .then(seedChatUsers)
   .finally(() => prisma.$disconnect());

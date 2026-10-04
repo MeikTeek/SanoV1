@@ -96,19 +96,34 @@ O arquivo já está na raiz do projeto:
 NAME=Sano
 TYPE=site
 ID=sano.discloud.app
-
-# Entry point: o build do TypeScript gera backend/dist/server.js
 MAIN=backend/dist/server.js
-
 RAM=1500
 VERSION=latest
-
-# Compila o backend (tsc) e o frontend (vite). A partir da RAIZ do repositório.
 BUILD=npm run build:host
-
-# Aplica as migrations e sobe o servidor.
-START=npx prisma migrate deploy --schema backend/prisma/schema.prisma && node backend/dist/server.js
+START=npm run start:host
 ```
+
+> ⚠️ **Sem comentários no arquivo.** O analisador da Discloud (`DISPACK`) falha
+> com `Missing or empty start command` quando o arquivo tem linhas `#` ou
+> caracteres não-ASCII. A documentação fica aqui, não no config.
+
+### O que cada chave faz
+
+| Chave | Papel |
+|---|---|
+| `BUILD` | Compila backend (`tsc`) e frontend (`vite`) |
+| `START` | Aplica migrations, garante o admin e sobe o servidor |
+| `MAIN` | Entry point gerado pelo build |
+
+O `START` aponta para `npm run start:host`, definido em `backend/package.json`:
+
+```
+npm run migrate:host && node prisma/ensure-admin.js && node dist/server.js
+```
+
+Encadear com `&&` direto no `discloud.config` **não funciona** — o analisador
+rejeita comando composto. Por isso a cadeia mora no `package.json` e o config
+só referencia o script.
 
 ### Por que o `MAIN` é `backend/dist/server.js`
 
