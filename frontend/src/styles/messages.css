@@ -5,10 +5,13 @@
 
 /* ───────────────────── Layout de duas colunas ───────────────────── */
 
+/* Duas colunas que preenchem a tela inteira, como no Discord: sem moldura
+   flutuante, sem respiro entre elas. Os painéis encostam no cabeçalho e no
+   rodapé; só a barra da direita entre elas. */
 .msg-layout {
   display: grid;
   grid-template-columns: 320px 1fr;
-  gap: 16px;
+  gap: 0;
   height: 100%;
   min-height: 0;
 }
@@ -19,19 +22,39 @@
 .msg-side {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 0;
   min-height: 0;
   width: 100%;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 14px;
+  border-right: 1px solid var(--line);
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
-.msg-side-head { display: flex; align-items: baseline; justify-content: space-between; }
-.msg-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.msg-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.msg-search input {
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  font-size: .88rem;
+}
+.msg-search input:focus { box-shadow: none; }
+
+.msg-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 6px; }
 
 .msg-item {
+  position: relative;
   display: flex;
   gap: 10px;
   align-items: center;
@@ -42,26 +65,29 @@
   border: 1px solid transparent;
 }
 .msg-item:hover { background: var(--surface-2); }
-.msg-item.active { background: var(--surface-2); border-color: #00e5ff40; }
-
-.msg-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.msg-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.msg-item-top b { font-size: .92rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.msg-item-body small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.dot-new {
+.msg-item.active { background: var(--surface-2); }
+/* Barrinha ciano à esquerda do item ativo, igual à da rail. */
+.msg-item.active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 22px;
+  border-radius: 0 3px 3px 0;
   background: var(--accent);
-  color: var(--accent-ink);
-  font-size: .68rem;
-  font-weight: 700;
-  min-width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  display: grid;
-  place-items: center;
-  padding: 0 5px;
-  flex-shrink: 0;
 }
+
+.msg-item-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.msg-item-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.msg-item-top b { font-size: .9rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-item-when { font-size: .68rem; color: var(--muted); flex-shrink: 0; }
+.msg-item-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.msg-item-preview { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Bolinha de não lida: ciano sólido, sem número. */
+.dot-unread { color: var(--accent); display: grid; place-items: center; flex-shrink: 0; }
 
 /* Avatar de iniciais / grupo */
 .mini-avatar {
@@ -77,42 +103,67 @@
 }
 .mini-avatar.group { background: var(--surface-3); color: var(--accent); }
 
-/* ───────────────────── Painel do código de 15h ───────────────────── */
+/* ─── Cartão recolhível do código de 15h ─── */
 
-.number-panel { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
-.number-head { display: flex; align-items: center; gap: 6px; font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
-.number-code {
-  width: 100%;
-  margin: 6px 0;
-  background: var(--surface-2);
-  border: 1px dashed #00e5ff55;
-  color: var(--accent);
-  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: .12em;
-  padding: 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
+/* Fica no rodapé da lista e nasce fechado: no formato aberto, empurrava as
+   conversas para cima e competia com elas por atenção. Fechado, o código segue
+   visível — é o que a pessoa precisa copiar — e o resto é um clique. */
+.code-card {
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  flex-shrink: 0;
 }
-.number-code:hover { background: var(--surface-3); }
-.number-meta { display: flex; align-items: center; justify-content: space-between; font-size: .74rem; color: var(--muted); margin-bottom: 6px; }
-
-.link-btn {
-  background: none;
+.code-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
   border: 0;
+  padding: 12px 14px;
+  color: var(--text-dim);
+  font-weight: 500;
+  border-radius: 0;
+  text-align: left;
+}
+.code-card-head:hover:not(:disabled) { background: var(--surface-2); filter: none; }
+.code-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .7rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.code-card-code {
+  flex: 1;
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .1em;
   color: var(--accent);
-  font-size: .74rem;
-  padding: 2px 4px;
+  text-align: right;
+}
+.code-card-copy {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  font-size: .72rem;
+  color: var(--text-dim);
+  flex-shrink: 0;
 }
-.link-btn:hover { filter: none; text-decoration: underline; }
+.code-card-copy:hover { color: var(--text); }
+.code-card.open .code-card-head > svg:last-child { transform: rotate(180deg); }
+.code-card-head > svg:last-child { transition: transform .18s ease; flex-shrink: 0; color: var(--muted); }
 
-.number-open label { font-size: .75rem; color: var(--muted); margin-bottom: 6px; }
-.number-open .inline { display: flex; gap: 8px; }
-.number-open input { font-family: ui-monospace, Menlo, monospace; letter-spacing: .1em; text-transform: uppercase; }
+.code-card-body { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+.code-card-exp { margin: 0; font-size: .78rem; color: var(--text-dim); }
+.code-card-exp b { color: var(--accent); }
+.code-card-help { margin: 0; font-size: .75rem; color: var(--muted); line-height: 1.5; }
+.code-card-body .error { margin: 0; }
+
 /* ───────────────────── Conversa ───────────────────── */
 
 .msg-thread {
@@ -122,8 +173,8 @@
   min-width: 0;
   flex: 1;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border: 0;
+  border-radius: 0;
   overflow: hidden;
 }
 
@@ -137,7 +188,17 @@
 }
 .msg-thread-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .msg-thread-title b { font-size: .95rem; }
-.msg-thread-title small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg-thread-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+  font-size: .76rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msg-thread-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 
 /* Prefixo `msg-`: `trainer.css` já define um `.chip` genérico e o CSS de rota
    fica carregado junto — nomes próprios evitam sobrescrita unpredictável. */
@@ -164,6 +225,21 @@
 .msg-row.mine .msg-bubble-wrap { align-items: flex-end; }
 
 .msg-sender { font-size: .7rem; color: var(--muted); margin-bottom: 3px; padding-left: 4px; }
+/* Separador de dia: linha fina com a data no meio. */
+.msg-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 18px 0 10px;
+}
+.msg-day span {
+  font-size: .7rem;
+  color: var(--muted);
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
 .msg-bubble {
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -174,9 +250,38 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.msg-row.mine .msg-bubble { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+/* Suas bolhas: ciano escuro, não ciano saturado — o texto longo fica legível
+   e o ciano continua reservado às ações principais. */
+.msg-row.mine .msg-bubble {
+  background: #00444f;
+  color: #d9f7fb;
+  border-color: #00e5ff40;
+}
+.msg-decrypting { color: var(--muted); font-style: italic; }
 .msg-failed { color: var(--warn); font-size: .84rem; font-style: italic; }
 .msg-time { font-size: .65rem; color: var(--muted); margin-top: 3px; padding: 0 4px; }
+
+/* Aviso de envio: enquanto cifra e salva, a thread diz o que está acontecendo
+   em vez de deixar a bolinha presa no estado "decifrando". */
+.msg-sending {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: .78rem;
+  color: var(--text-dim);
+  padding-left: 4px;
+}
+.msg-spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid var(--line);
+  border-top-color: var(--accent);
+  animation: msgspin .7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes msgspin { to { transform: rotate(360deg); } }
 
 .msg-img { display: block; max-width: 320px; max-height: 380px; border-radius: 10px; object-fit: cover; cursor: pointer; }
 
@@ -186,10 +291,39 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
   color: var(--muted);
   padding: 24px;
   text-align: center;
+}
+.msg-empty h3 { margin: 0; color: var(--text); font-size: 1.05rem; }
+.msg-empty > svg { color: var(--accent); }
+/* Dois botões grandes: o estado vazio oferece o caminho, não só informa. */
+.msg-empty-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; margin-top: 4px; }
+.msg-empty-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 210px;
+  text-align: left;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  font-weight: 500;
+}
+.msg-empty-btn:hover:not(:disabled) { background: var(--surface-3); border-color: #00e5ff55; filter: none; }
+.msg-empty-btn > svg { color: var(--accent); flex-shrink: 0; }
+.msg-empty-btn span { display: flex; flex-direction: column; gap: 2px; }
+.msg-empty-btn small { font-size: .76rem; font-weight: 400; }
+.msg-empty-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: .78rem;
+  color: var(--muted);
 }
 
 /* ───────────────────── Gravador e player de áudio ───────────────────── */
@@ -225,8 +359,43 @@
   border-top: 1px solid var(--line);
   flex-shrink: 0;
 }
-.msg-compose input { flex: 1; min-width: 0; }
+/* Campo arredondado com os emojis dentro dele, à direita. */
+.msg-input-wrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 6px 2px 4px;
+}
+.msg-input-wrap:focus-within { border-color: #3a3a3a; }
+.msg-input-wrap input { flex: 1; min-width: 0; background: transparent; border: 0; padding: 9px 10px; }
+.msg-input-wrap input:focus { box-shadow: none; }
+.msg-emoji-bar { display: flex; gap: 1px; flex-shrink: 0; }
+.msg-emoji {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: .95rem;
+  line-height: 1;
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  filter: none;
+}
+.msg-emoji:hover:not(:disabled) { background: var(--surface-3); filter: brightness(1.15); }
 .msg-compose .icon-btn.send { color: var(--accent); border-color: #00e5ff40; }
+/* Código do modal de entrar: monoespaçado, caixa alta, largura de um código. */
+.code-input {
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  font-size: 1.2rem;
+  text-align: center;
+}
 /* ───────────────────── Modal de nova conversa ───────────────────── */
 
 .modal-backdrop {
@@ -369,11 +538,19 @@
 /* ───────────────────── Responsivo ───────────────────── */
 
 @media (max-width: 860px) {
-  .msg-layout { grid-template-columns: 1fr; }
-  /* Uma coluna por vez: conversa aberta esconde a lista e vice-versa. */
+  /* Uma coluna por vez: a lista toma a tela inteira e o chat abre por cima,
+     com o botão de voltar no cabeçalho. */
+  .msg-layout { grid-template-columns: 1fr; position: relative; }
   .hidden-mobile { display: none !important; }
   .only-mobile { display: grid; }
+  .msg-side { border-right: 0; }
   .msg-row { max-width: 90%; }
+  .msg-thread-actions .icon-btn { width: 34px; height: 34px; }
+  /* Em tela estreita sobram três ações e o emoji some primeiro: o teclado do
+     celular é o alvo principal do campo. */
+  .msg-emoji:nth-child(n + 6) { display: none; }
+  .msg-empty-actions { flex-direction: column; width: 100%; max-width: 320px; }
+  .msg-empty-btn { min-width: 0; width: 100%; }
   .profile-head { flex-direction: column; align-items: center; text-align: center; }
   .profile-info { align-items: center; }
   .profile-row, .profile-stats { justify-content: center; }

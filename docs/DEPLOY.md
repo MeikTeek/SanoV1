@@ -185,7 +185,8 @@ No painel da Discloud, em **Variáveis**:
 | `DATABASE_URL` | a do seu `.env` local |
 | `JWT_SECRET` | o gerado na seção 1 |
 | `ENCRYPTION_KEY` | o gerado na seção 1 |
-| `FRONTEND_URL` | `https://sano.discloud.app` |
+| `FRONTEND_URL` | `https://sano.discloud.dev` |
+| `FRONTEND_URLS` | opcional, origens extras separadas por vírgula |
 | `COOKIE_SAMESITE` | `strict` |
 | `APP_NAME` | `Sano` |
 | `ADMIN_USERNAME` | `admin` |
@@ -197,9 +198,22 @@ No painel da Discloud, em **Variáveis**:
 > ⚠️ `ADMIN_PASSWORD` precisa de **aspas** no valor se tiver `#` ou espaço —
 > sem elas o dotenv pode truncar a senha silenciosamente.
 
-> ⚠️ `FRONTEND_URL` precisa ser **exatamente** o domínio do `ID`. O middleware
-> `originCheck` compara o header `Origin` com essa variável e bloqueia login de
-> outra origem. Erro aqui aparece como **403 "Origem não permitida"**.
+> ⚠️ `FRONTEND_URL` precisa ser **exatamente** o host pelo qual você abre o
+> site. O middleware `originCheck` compara o header `Origin` com essa variável e
+> bloqueia login de outra origem. Erro aqui aparece como **403 "Origem não
+> permitida"**. A comparação é normalizada (barra final, maiúsculas e `www.`
+> deixam de importar), mas esquema e host precisam bater — em produção use
+> `https://`. Se o mesmo deploy atende a mais de um host (ex.: o `ID` do
+> `discloud.config` e um domínio próprio), liste os extras em `FRONTEND_URLS`,
+> separados por vírgula:
+>
+> ```
+> FRONTEND_URL=https://sano.discloud.dev
+> FRONTEND_URLS=https://sano.discloud.app,https://sano.seudominio.com.br
+> ```
+>
+> Para descobrir o valor exato, abra o site e rode no console do navegador:
+> `location.origin`.
 
 ## 5. Publicar e criar o admin
 

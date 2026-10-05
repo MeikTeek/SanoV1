@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconLock, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
 
 interface Props {
   /** Título da tela e linha de status ao lado. */
@@ -73,18 +73,26 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         <header className="appbar">
           <div className="appbar-title">
             <h1>{title}</h1>
-            {status && <span className="sub">{status}</span>}
+            {status && (
+              <span className="sub">
+                {/* Cadeado junto do rótulo: o termo "criptografia ponta a ponta"
+                    sozinho soa como marketing; o ícone diz o que acontece. */}
+                {title === 'Mensagens' && <IconLock size={12} />}
+                {status}
+              </span>
+            )}
           </div>
           <div className="appbar-actions">
             {actions && <div className="appbar-extra">{actions}</div>}
             {!notify && 'Notification' in window && (
               <button
-                className="icon-btn alert"
+                className="icon-btn alert bell-pending"
                 onClick={askPermission}
                 title="Permite avisos de lembrete mesmo com a aba em segundo plano"
                 aria-label="Ativar avisos"
               >
                 <IconBell />
+                <span className="bell-dot" aria-hidden="true" />
               </button>
             )}
             <div className="menu-wrap">

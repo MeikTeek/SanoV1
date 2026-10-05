@@ -1,13 +1,13 @@
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { IconUsers } from '../ui/icons';
+import { IconSearch, IconUnread, IconUsers } from '../ui/icons';
 import NumberPanel from './NumberPanel';
-import type { Conversation } from '../../services/chat.service';
+import { previewOrPlaceholder, type Conversation } from '../../services/chat.service';
 
 interface Props {
   conversations: Conversation[];
   activeId: string | null;
   myId: string;
-  onOpened: (conversation: Conversation) => void;
 }
 
 export const initials = (name?: string | null, username?: string) =>
@@ -31,23 +31,64 @@ export function Avatar({
     : <span className="mini-avatar" style={style}>{initials(name, username)}</span>;
 }
 
-/** Coluna esquerda: conversas + o painel do código de 15h. */
-export default function ConversationList({ conversations, activeId, myId, onOpened }: Props) {
+/** "14:32" hoje; "ontem"; "12/03" para o resto. */
+const fmtWhen = (iso: string) => {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  if (sameDay) return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(d);
+  const ontem = new Date(now);
+  ontem.setDate(now.getDate() - 1);
+  if (d.toDateString() === ontem.toDateString()) return 'ontem';
+  return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(d);
+};
+
+/**
+ * Coluna esquerda: busca, conversas e o cartão do seu código.
+ *
+ * A lista mostra só conversas — nada de informações misturadas. O cartão do
+ * código fica no rodapé porque é uma ação de uso eventual, não navegação.
+ */
+export default function ConversationList({ conversations, activeId, myId }: Props) {
+  const [search, setSearch] = useState('');
+
+  // Filtra por título (grupo) ou pelo @usuário do outro (DM).
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return conversations;
+    return conversations.filter((c) => {
+      const other = c.members.find((m) => m.id !== myId);
+      return (
+        c.title.toLowerCase().includes(q) ||
+        (other?.username ?? '').toLowerCase().includes(q) ||
+        (other?.displayName ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [conversations, search, myId]);
+
   return (
     <aside className="msg-side">
-      <div className="msg-side-head">
-        <b>Conversas</b>
-        <span className="muted small">{conversations.length}</span>
+      <div className="msg-search">
+        <IconSearch size={16} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar conversa"
+          aria-label="Buscar conversa"
+          spellCheck={false}
+        />
       </div>
 
       <div className="msg-list">
-        {conversations.length === 0 && (
+        {visible.length === 0 && (
           <p className="muted small pad">
-            Nenhuma conversa ainda. Use o código de alguém abaixo ou abra um grupo.
+            {conversations.length === 0
+              ? 'Nenhuma conversa ainda. Use “Nova” ou “Entrar com código”.'
+              : 'Nenhuma conversa com esse nome.'}
           </p>
         )}
 
-        {conversations.map((c) => {
+        {visible.map((c) => {
           const other = c.members.find((m) => m.id !== myId);
           return (
             <Link
@@ -61,18 +102,23 @@ export default function ConversationList({ conversations, activeId, myId, onOpen
               <div className="msg-item-body">
                 <div className="msg-item-top">
                   <b>{c.title}</b>
-                  {c.unread > 0 && <span className="dot-new">{c.unread}</span>}
+                  <span className="msg-item-when">{fmtWhen(c.lastMessageAt)}</span>
                 </div>
-                <small className="muted">
-                  {c.kind === 'GROUP' ? `${c.members.length} pessoas` : c.subtitle}
-                </small>
+                <div className="msg-item-bottom">
+                  <small className="msg-item-preview">{previewOrPlaceholder(c)}</small>
+                  {c.unread > 0 && (
+                    <span className="dot-unread" title={`${c.unread} não lida(s)`}>
+                      <IconUnread size={9} />
+                    </span>
+                  )}
+                </div>
               </div>
             </Link>
           );
         })}
       </div>
 
-      <NumberPanel onOpened={onOpened} />
+      <NumberPanel />
     </aside>
   );
 }

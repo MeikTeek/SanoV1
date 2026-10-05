@@ -7,7 +7,13 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET precisa ter ao menos 32 caracteres'),
   ENCRYPTION_KEY: z.string().regex(/^[0-9a-fA-F]{64}$/, 'ENCRYPTION_KEY deve ter 64 caracteres hex (32 bytes)'),
+  // Origem principal (CORS e checagem CSRF). Aceita barra final; quem
+  // valida é `allowedOrigins`, que normaliza.
   FRONTEND_URL: z.string().url(),
+  // Origens extras, separadas por vírgula. Útil quando o mesmo deploy atende
+  // mais de um host (ex.: ID do discloud.config e o domínio final, ou uma
+  // prévia de teste).
+  FRONTEND_URLS: z.string().optional(),
   COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).default('strict'),
   APP_NAME: z.string().default('Sano'),
   // IA do módulo de treino: gateway compatível com a API da OpenAI.
@@ -25,3 +31,36 @@ if (!parsed.success) {
 
 export const env = parsed.data;
 export const isProd = env.NODE_ENV === 'production';
+
+/**
+ * Normaliza uma URL de origem para o formato exato que o navegador manda no
+ * header `Origin`: esquema + host + porta, sem barra e sem caminho.
+ *
+ * Por que isso existe: comparar `origin !== new URL(env.FRONTEND_URL).origin`
+ * quebrava por detalhes bobos — barra final, maiúsculas, `www.`, ou o host
+ * real da hospedagem diferente do `ID` do discloud.config. Tudo isso passa a
+ * ser tratado aqui, num lugar só.
+ */
+export function normalizeOrigin(value: string): string | null {
+  try {
+    return new URL(value.trim()).origin.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+/** Todas as origens aceitas: a principal mais as extras de `FRONTEND_URLS`. */
+export const allowedOrigins: string[] = [
+  ...new Set(
+    [env.FRONTEND_URL, ...(env.FRONTEND_URLS ?? '').split(',')]
+      .map(normalizeOrigin)
+      .filter((o): o is string => o !== null),
+  ),
+];
+
+/** `Origin` recebido é permitido? Usado por CORS e pela checagem CSRF. */
+export function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  const normalized = normalizeOrigin(origin);
+  return normalized !== null && allowedOrigins.includes(normalized);
+}

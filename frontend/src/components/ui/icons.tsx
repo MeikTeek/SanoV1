@@ -86,3 +86,22 @@ export const IconCopy = ({ size = 16 }: P) =>
 
 export const IconKey = ({ size = 18 }: P) =>
   svg(size, <><circle cx="8" cy="14" r="4" /><path d="M11 11l8-8 2 2-1.5 1.5L21 8l-2 2-1.5-1.5L15 10" /></>);
+
+export const IconLock = ({ size = 18 }: P) =>
+  svg(size, <><rect x="4.5" y="10.5" width="15" height="10" rx="2.5" /><path d="M8 10.5V7.8a4 4 0 0 1 8 0v2.7" /></>);
+
+export const IconPhone = ({ size = 18 }: P) =>
+  svg(size, <><path d="M5 4h3.5l1.7 4.2-2.2 1.6a12 12 0 0 0 6.2 6.2l1.6-2.2L20 15.5V19a1.8 1.8 0 0 1-2 1.8A15.8 15.8 0 0 1 3.2 6 1.8 1.8 0 0 1 5 4z" /></>);
+
+export const IconInfo = ({ size = 18 }: P) =>
+  svg(size, <><circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8v.4" /></>);
+
+export const IconSmile = ({ size = 20 }: P) =>
+  svg(size, <><circle cx="12" cy="12" r="8.5" /><path d="M8.8 14.2a4 4 0 0 0 6.4 0M9.2 9.8v.4M14.8 9.8v.4" /></>);
+
+export const IconChevron = ({ size = 16 }: P) =>
+  svg(size, <><path d="M6 9.5l6 6 6-6" /></>);
+
+/** Marcador de não lida: bolinha ciano cheia, sem número. */
+export const IconUnread = ({ size = 10 }: P) =>
+  svg(size, <><circle cx="12" cy="12" r="9" fill="currentColor" stroke="none" /></>);

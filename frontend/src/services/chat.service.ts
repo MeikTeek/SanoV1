@@ -164,3 +164,35 @@ export const sendMessage = (
 
 export const markRead = (conversationId: string) =>
   api.post<{ ok: boolean }>(`/chat/conversations/${conversationId}/read`).then(() => true);
+
+/* --------------------- Prévia da última mensagem --------------------- */
+
+/**
+ * Cache de prévias em memória.
+ *
+ * O servidor **não** pode mandar a última mensagem em claro — é exatamente o
+ * que a criptografia ponta a ponta esconde dele. Então a prévia só existe para
+ * quem já decifrou aquela mensagem neste navegador. Funciona assim:
+ *
+ * 1. a tela registra a prévia ao decifrar a conversa aberta;
+ * 2. a lista usa o que houver em cache;
+ * 3. o que não estiver aparece como "conversa criptografada", sem fingir que o
+ *    servidor sabe o conteúdo.
+ *
+ * Como é memória pura, um recarregamento limpa — o mesmo comportamento de antes,
+ * só que agora a troca de conversa não apaga mais o que já foi lido.
+ */
+const previews = new Map<string, string>();
+
+export const setPreview = (conversationId: string, text: string) => {
+  previews.set(conversationId, text.slice(0, 120));
+};
+
+/** O que mostra no item da lista quando ainda não há prévia decifrada. */
+export const previewOrPlaceholder = (conversation: Conversation): string => {
+  const cached = previews.get(conversation.id);
+  if (cached) return cached;
+  return conversation.kind === 'GROUP'
+    ? `${conversation.members.length} pessoas`
+    : 'conversa criptografada';
+};

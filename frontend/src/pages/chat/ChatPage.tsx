@@ -3,11 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
 import ConversationList, { Avatar } from '../../components/chat/ConversationList';
 import MessageThread, { ThreadEmpty } from '../../components/chat/MessageThread';
-import { IconPlus } from '../../components/ui/icons';
+import { IconHash, IconInfo, IconLock, IconPlus, IconSend } from '../../components/ui/icons';
 import { useAuth } from '../../context/AuthContext';
 import {
   createGroup, getDirectory, listConversations, listMessages, markRead,
-  openDirectByUser, publishPublicKey, sendMessage,
+  openDirectByNumber, openDirectByUser, publishPublicKey, sendMessage, setPreview,
   type Conversation, type DirectoryEntry, type Message, type MessageKind,
 } from '../../services/chat.service';
 import {
@@ -40,6 +40,9 @@ export default function ChatPage() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [showJoin, setShowJoin] = useState(false);
+  const [showInfo, setShowInfo] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupInvites, setGroupInvites] = useState('');
 
@@ -47,6 +50,31 @@ export default function ChatPage() {
   const mediaUrls = useRef<string[]>([]);
   /** Mensagens j� abertas nesta sess�o � evita decifrar duas vezes. */
   const opened = useRef(new Set<string>());
+  /**
+   * Texto já decifrado por id de mensagem, preservado entre recarregamentos.
+   *
+   * É a correção do bug: o servidor devolve sempre a mensagem crua (é o que a
+   * criptografia ponta a ponta exige), então cada `setMessages(rows)` era um
+   * convite a perder tudo que já tinha sido decifrado. Com o cache, reidratar
+   * é só reler um mapa — e voltar a uma conversa não decifra de novo.
+   */
+  const decrypted = useRef(new Map<string, string>());
+
+  /** Aplica uma correção a uma mensagem pelo id, preservando o resto. */
+  const patch = (id: string, data: Partial<Message>) =>
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...data } : m)));
+
+  /**
+   * Junta o que veio do servidor ao que já está decifrado, marcando também
+   * quais mensagens ainda não foram abertas.
+   */
+  const hydrate = useCallback((rows: Message[]): Message[] => {
+    return rows.map((m) => {
+      const text = m.kind === 'TEXT' ? decrypted.current.get(m.id) : undefined;
+      if (text === undefined) return m;
+      return { ...m, text };
+    });
+  }, []);
 
   /* --------------------------- identidade E2EE ---------------------------- */
 
@@ -84,12 +112,12 @@ export default function ChatPage() {
 
     void (async () => {
       try {
-        const rows = await listMessages(activeId);
+        const rows = hydrate(await listMessages(activeId));
         setMessages(rows);
         void markRead(activeId).catch(() => {});
         if (rows[0]) {
           // Carrega o hist�rico anterior, para a conversa n�o abrir s� no fim.
-          const older = await listMessages(activeId, rows[0].createdAt);
+          const older = hydrate(await listMessages(activeId, rows[0].createdAt));
           if (older.length) setMessages([...older, ...rows]);
         }
       } catch (e) {
@@ -108,7 +136,7 @@ export default function ChatPage() {
     if (!activeId) return;
     const timer = window.setInterval(async () => {
       try {
-        const rows = await listMessages(activeId);
+        const rows = hydrate(await listMessages(activeId));
         // S� troca se mudou de verdade � evita re-render a cada ciclo.
         setMessages((prev) =>
           prev.length === rows.length && prev.every((p, i) => p.id === rows[i]?.id) ? prev : rows,
@@ -119,7 +147,7 @@ export default function ChatPage() {
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [activeId, loadConversations]);
+  }, [activeId, loadConversations, hydrate]);
 /* ---------------------------- decifrar mensagens ------------------------ */
 
   const recipients: Recipient[] = useMemo(
@@ -139,17 +167,22 @@ export default function ChatPage() {
         try {
           if (m.kind === 'TEXT') {
             const text = await decryptText(active.id, myId, m.envelope);
-            setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, text } : x)));
+            // Guarda no cache: a próxima releitura do servidor já vem com o
+            // texto, e voltar a esta conversa não decifra tudo de novo.
+            decrypted.current.set(m.id, text);
+            patch(m.id, { text });
+            setPreview(active.id, text);
           } else {
             const url = await decryptToObjectUrl(
               active.id, myId, m.envelope, m.meta?.mime ?? 'application/octet-stream',
             );
             mediaUrls.current.push(url);
-            setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, mediaUrl: url } : x)));
+            patch(m.id, { mediaUrl: url });
+            setPreview(active.id, m.kind === 'IMAGE' ? '📷 Imagem' : '🎤 Áudio');
           }
         } catch {
           // Chave ausente ou dado adulterado: avisa sem revelar nada.
-          setMessages((prev) => prev.map((x) => (x.id === m.id ? { ...x, failed: true } : x)));
+          patch(m.id, { failed: true });
         }
       })();
     }
@@ -174,6 +207,9 @@ export default function ChatPage() {
         envelope, kind: 'TEXT' as MessageKind, clientId: crypto.randomUUID(),
       });
       // O texto em claro vai junto: � o que o remetente v� na pr�pria tela.
+      decrypted.current.set(message.id, text);
+      opened.current.add(`${active.id}:${message.id}`);
+      setPreview(active.id, text);
       setMessages((prev) => [...prev, { ...message, text }]);
       void loadConversations();
     } catch (e) {
@@ -194,6 +230,10 @@ export default function ChatPage() {
         envelope, kind, meta: { mime: blob.type, bytes: blob.size, ...meta },
         clientId: crypto.randomUUID(),
       });
+      // A mídia só existe decifrada: enquanto isso, a bolha mostra
+      // "decifrando imagem…", e a prévia da lista diz o tipo. Não entra no
+      // `opened` de propósito — é essa lista que dispara a decifragem.
+      setPreview(active.id, kind === 'IMAGE' ? '📷 Imagem' : '🎤 Áudio');
       setMessages((prev) => [...prev, message]);
       void loadConversations();
     } catch (e) {
@@ -240,6 +280,27 @@ export default function ChatPage() {
       setBusy(false);
     }
   };
+
+  /** Abre a conversa pelo código de 8 caracteres que a outra pessoa te deu. */
+  const joinByCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const value = joinCode.trim();
+    if (!value) return;
+
+    setBusy(true);
+    setError('');
+    try {
+      const conversation = await openDirectByNumber(value);
+      setShowJoin(false);
+      setJoinCode('');
+      await loadConversations();
+      navigate(`/mensagens/${conversation.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 /* --------------------------------- render ------------------------------- */
 
   return (
@@ -247,9 +308,14 @@ export default function ChatPage() {
       title="Mensagens"
       status="criptografia ponta a ponta"
       actions={
-        <button className="ghost" onClick={() => setShowNew((v) => !v)} title="Nova conversa">
-          <IconPlus size={16} /> Nova
-        </button>
+        <>
+          <button className="ghost" onClick={() => setShowJoin(true)} title="Entrar com o código de alguém">
+            <IconHash size={16} /> Entrar com código
+          </button>
+          <button className="ghost" onClick={() => setShowNew(true)} title="Nova conversa">
+            <IconPlus size={16} /> Nova
+          </button>
+        </>
       }
     >
       <div className="msg-layout">
@@ -258,7 +324,6 @@ export default function ChatPage() {
             conversations={conversations}
             activeId={activeId}
             myId={myId}
-            onOpened={(c) => navigate(`/mensagens/${c.id}`)}
           />
         </div>
 
@@ -270,9 +335,10 @@ export default function ChatPage() {
             busy={busy}
             onSendText={(t) => void onSendText(t)}
             onSendMedia={(b, k, m) => void onSendMedia(b, k, m)}
+            onShowInfo={() => setShowInfo(true)}
           />
         ) : (
-          <ThreadEmpty />
+          <ThreadEmpty onNew={() => setShowNew(true)} onJoin={() => setShowJoin(true)} />
         )}
       </div>
 
@@ -325,6 +391,70 @@ export default function ChatPage() {
                 ))}
                 {directory.length === 0 && <small className="muted">Ningu�m no diret�rio ainda.</small>}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showJoin && (
+        <div className="modal-backdrop" onClick={() => setShowJoin(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Entrar com código</h2>
+            <form onSubmit={joinByCode} className="modal-section">
+              <p className="muted small">
+                Digite o código de 8 caracteres que a pessoa te passou. Ele troca a
+                cada 15 horas — se tiver expirado, peça outro a ela.
+              </p>
+              <input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                placeholder="ABCD-2345"
+                maxLength={9}
+                autoComplete="off"
+                spellCheck={false}
+                aria-label="Código da outra pessoa"
+                className="code-input"
+              />
+              <button type="submit" disabled={busy || !joinCode.trim()}>
+                <IconSend size={16} /> Abrir conversa
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showInfo && active && (
+        <div className="modal-backdrop" onClick={() => setShowInfo(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{active.title}</h2>
+            <div className="modal-section">
+              <h3>Participantes</h3>
+              <div className="modal-people">
+                {active.members.map((m) => (
+                  <div key={m.id} className="person-row">
+                    <Avatar url={m.avatarDataUrl} name={m.displayName} username={m.username} size={34} />
+                    <div>
+                      <b>{m.displayName || m.username}{m.id === myId ? ' (você)' : ''}</b>
+                      <small className="muted">
+                        @{m.username}{m.publicKey ? ' · chave publicada' : ' · sem chave pública'}
+                      </small>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-section">
+              <h3><IconInfo size={13} /> Como esta conversa é protegida</h3>
+              <p className="muted small">
+                Cada participante tem um par de chaves. A sua privada nunca sai deste
+                navegador; a pública fica no servidor. As mensagens são cifradas com
+                AES-256-GCM sob uma chave derivada por participante e por conversa —
+                só quem tem a chave privada correspondente abre o conteúdo.
+              </p>
+              <p className="muted small">
+                O servidor vê <em>quem</em> conversou com <em>quem</em>, e <em>quando</em>.
+                O que foi dito, ele não vê.
+              </p>
             </div>
           </div>
         </div>

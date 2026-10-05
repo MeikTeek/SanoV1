@@ -2,7 +2,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import { env } from './config/env';
+import { allowedOrigins } from './config/env';
 import routes from './routes';
 import { globalLimiter, originCheck } from './middleware/security';
 import { errorHandler } from './middleware/errorHandler';
@@ -13,7 +13,9 @@ const app = express();
 app.set('trust proxy', 1); // atrás do proxy da hospedagem (IP real nos logs/rate limit)
 app.disable('x-powered-by');
 app.use(helmet());
-app.use(cors({ origin: env.FRONTEND_URL, credentials: true }));
+// `origin: allowedOrigins` (lista) em vez da string única: o CORS precisa
+// liberar exatamente as mesmas origens que o `originCheck` aceita logo abaixo.
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(globalLimiter);
 // O avatar chega como data URL no corpo: essa rota precisa de uma janela maior.
 // Fica ANTES do parser padrão para ser quem faz o parse desse corpo.

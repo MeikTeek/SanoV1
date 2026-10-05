@@ -1,10 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getMyNumber, openDirectByNumber, type Conversation, type MyNumber } from '../../services/chat.service';
-import { IconCopy, IconHash, IconSend } from '../ui/icons';
-
-interface Props {
-  onOpened: (conversation: Conversation) => void;
-}
+import { getMyNumber, type MyNumber } from '../../services/chat.service';
+import { IconChevron, IconCopy, IconHash } from '../ui/icons';
 
 /** "00h 42min" / "1h 05min" a partir dos segundos restantes. */
 const countdown = (seconds: number) => {
@@ -14,18 +10,22 @@ const countdown = (seconds: number) => {
 };
 
 /**
- * Painel do "número" do usuário.
+ * Cartão recolhível do "número" do usuário.
  *
- * Ele é como um telefone: você mostra o seu para a pessoa digitar, ou digita o
- * dela para abrir a conversa. O código troca sozinho a cada 15 horas — por isso
- * a contagem regressiva em destaque.
+ * Ele é como um telefone: você mostra o seu para a pessoa digitar. O código
+ * troca sozinho a cada 15 horas — por isso a contagem regressiva quando o
+ * cartão está aberto.
+ *
+ * Por que fica no rodapé e fechado por padrão: é informação de uso eventual,
+ * não o conteúdo da tela. Quem quer conversas vê as conversas; o código está a
+ * um clique. O caminho inverso (digitar o código de alguém) virou o botão
+ * "Entrar com código", ao lado de "Nova".
  */
-export default function NumberPanel({ onOpened }: Props) {
+export default function NumberPanel() {
   const [number, setNumber] = useState<MyNumber | null>(null);
-  const [mine, setMine] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState('');
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(() => {
     getMyNumber().then(setNumber).catch((e) => setError((e as Error).message));
@@ -52,78 +52,46 @@ export default function NumberPanel({ onOpened }: Props) {
     if (!number) return;
     try {
       await navigator.clipboard.writeText(number.code);
-      setCopied('ok');
-      setTimeout(() => setCopied(''), 2000);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
-      // clipboard pode estar bloqueado: mostra o código em destaque para ler.
-      setError('Não consegui copiar — anote o código acima.');
-    }
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const value = mine.trim();
-    if (!value) return;
-
-    setBusy(true);
-    setError('');
-    try {
-      const conversation = await openDirectByNumber(value);
-      setMine('');
-      onOpened(conversation);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
+      // clipboard pode estar bloqueado: o código segue visível para ler à mão.
+      setError('Não consegui copiar — o código está logo acima.');
     }
   };
 
   return (
-    <div className="number-panel">
-      <div className="number-mine">
-        <div className="number-head">
-          <IconHash size={16} /> <span>Meu código</span>
-        </div>
-        {number ? (
-          <>
-            <button className="number-code" onClick={() => void copy()} title="Copiar código">
-              {number.formatted}
-            </button>
-            <div className="number-meta">
-              <span>expira em {countdown(number.expiresInSeconds)}</span>
-              <button className="link-btn" onClick={() => void copy()}>
-                <IconCopy size={14} /> {copied ? 'copiado' : 'copiar'}
-              </button>
-            </div>
-            <small className="muted">
-              Muda a cada {number.windowHours}h. Quem receber consegue te chamar mesmo sem saber seu usuário.
-            </small>
-          </>
-        ) : (
-          <div className="muted small">carregando…</div>
-        )}
-      </div>
+    <div className={`code-card ${open ? 'open' : ''}`}>
+      <button
+        className="code-card-head"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        title={open ? 'Esconder meu código' : 'Mostrar meu código'}
+      >
+        <span className="code-card-label">
+          <IconHash size={14} /> Meu código
+        </span>
+        {/* Fechado, o código já aparece: é o que a pessoa precisa copiar. */}
+        <span className="code-card-code">{number ? number.formatted : '····-····'}</span>
+        <span className="code-card-copy" role="button" tabIndex={-1} onClick={(e) => { e.stopPropagation(); void copy(); }}>
+          <IconCopy size={14} /> {copied ? 'copiado' : 'copiar'}
+        </span>
+        <IconChevron size={16} />
+      </button>
 
-      <form className="number-open" onSubmit={submit}>
-        <label htmlFor="num-open">Tenho o código de alguém</label>
-        <div className="inline">
-          <input
-            id="num-open"
-            value={mine}
-            onChange={(e) => setMine(e.target.value.toUpperCase())}
-            placeholder="ABCD-2345"
-            maxLength={9}
-            autoComplete="off"
-            spellCheck={false}
-            aria-label="Código da outra pessoa"
-          />
-          <button type="submit" disabled={busy || !mine.trim()} title="Abrir conversa">
-            <IconSend size={18} />
-          </button>
+      {open && (
+        <div className="code-card-body">
+          <p className="code-card-exp">
+            expira em <b>{number ? countdown(number.expiresInSeconds) : '—'}</b>
+          </p>
+          <p className="code-card-help">
+            Muda a cada {number ? number.windowHours : 15}h. Quem receber consegue te
+            chamar mesmo sem saber o seu usuário — e, como todo o resto, o servidor
+            não vê o conteúdo da conversa.
+          </p>
+          {error && <div className="error">{error}</div>}
         </div>
-      </form>
-
-      {error && <div className="error">{error}</div>}
+      )}
     </div>
   );
 }
