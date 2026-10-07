@@ -95,7 +95,7 @@ O arquivo já está na raiz do projeto:
 ```ini
 NAME=Sano
 TYPE=site
-ID=sano.discloud.app
+ID=san0.discloud.app
 MAIN=src/index.js
 RAM=1500
 VERSION=latest
@@ -208,8 +208,8 @@ No painel da Discloud, em **Variáveis**:
 > separados por vírgula:
 >
 > ```
-> FRONTEND_URL=https://san0.discloud.dev
-> FRONTEND_URLS=https://sano.discloud.app,https://sano.seudominio.com.br
+> FRONTEND_URL=https://san0.discloud.app
+> FRONTEND_URLS=https://www.san0.discloud.app,https://san0.seudominio.com.br
 > ```
 >
 > Para descobrir o valor exato, abra o site e rode no console do navegador:
@@ -226,7 +226,7 @@ usuário `ADMIN_USERNAME` com a senha `ADMIN_PASSWORD` se ele ainda não existir
 Como a Discloud não dá terminal, não existe passo manual — e o script é
 idempotente, então rodar em todo boot não duplica nada.
 
-Depois acesse `https://sano.discloud.app`, faça login e siga o fluxo de primeiro
+Depois acesse `https://san0.discloud.app`, faça login e siga o fluxo de primeiro
 acesso (trocar senha + ativar 2FA).
 
 > ⚠️ Sem `ADMIN_PASSWORD` o script apenas avisa e segue — um deploy de
