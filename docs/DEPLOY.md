@@ -185,7 +185,7 @@ No painel da Discloud, em **Variáveis**:
 | `DATABASE_URL` | a do seu `.env` local |
 | `JWT_SECRET` | o gerado na seção 1 |
 | `ENCRYPTION_KEY` | o gerado na seção 1 |
-| `FRONTEND_URL` | `https://sano.discloud.dev` |
+| `FRONTEND_URL` | `https://san0.discloud.dev` |
 | `FRONTEND_URLS` | opcional, origens extras separadas por vírgula |
 | `COOKIE_SAMESITE` | `strict` |
 | `APP_NAME` | `Sano` |
@@ -208,7 +208,7 @@ No painel da Discloud, em **Variáveis**:
 > separados por vírgula:
 >
 > ```
-> FRONTEND_URL=https://sano.discloud.dev
+> FRONTEND_URL=https://san0.discloud.dev
 > FRONTEND_URLS=https://sano.discloud.app,https://sano.seudominio.com.br
 > ```
 >
