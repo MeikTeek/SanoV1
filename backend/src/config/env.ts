@@ -15,6 +15,7 @@ const schema = z.object({
   // prévia de teste).
   FRONTEND_URLS: z.string().optional(),
   COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).default('strict'),
+  COOKIE_DOMAIN: z.string().optional(),
   APP_NAME: z.string().default('Sano'),
   // IA do módulo de treino: gateway compatível com a API da OpenAI.
   // Sem AI_API_KEY o módulo roda só com o motor determinístico.

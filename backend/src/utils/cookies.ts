@@ -9,6 +9,7 @@ const base = (): CookieOptions => ({
   secure: isProd || env.COOKIE_SAMESITE === 'none',
   sameSite: env.COOKIE_SAMESITE,
   path: '/',
+  ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
 });
 
 export const setCookie = (res: Response, name: string, token: string, ttlSeconds: number) =>
