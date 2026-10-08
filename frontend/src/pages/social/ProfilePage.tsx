@@ -115,7 +115,7 @@ export default function ProfilePage() {
       setBusy(false);
     }
   };
-const isSelf = profile?.isSelf ?? user?.username === username;
+  const isSelf = profile?.isSelf ?? user?.username === username;
 
   return (
     <AppShell title={profile?.displayName || `@${username}`} status="perfil" flush>
@@ -151,7 +151,6 @@ const isSelf = profile?.isSelf ?? user?.username === username;
               <button onClick={() => void openTab('following')}>
                 <b>{profile?.followingCount ?? 0}</b> <span>seguindo</span>
               </button>
-              <span className="muted small">entrou em {profile ? fmtJoined(profile.createdAt) : '—'}</span>
             </div>
 
             {editing ? (
@@ -174,16 +173,31 @@ const isSelf = profile?.isSelf ?? user?.username === username;
             )}
 
             {profile?.followsYou && !isSelf && <span className="msg-chip">segue você</span>}
-            {isSelf && (
-              <span className="msg-chip subtle">
-                <IconKey size={14} /> seu código de 15h está em Mensagens
-              </span>
-            )}
           </div>
+
+          <aside className="profile-meta" aria-label="Detalhes do perfil">
+            <div className="profile-meta-item">
+              <span>Membro desde</span>
+              <b>{profile ? fmtJoined(profile.createdAt) : 'Carregando...'}</b>
+            </div>
+            <div className="profile-meta-item">
+              <span>Mensagens</span>
+              <b className={profile?.publicKey ? 'is-online' : ''}>
+                {profile?.publicKey ? 'Chave segura ativa' : 'Ainda não configuradas'}
+              </b>
+            </div>
+            {isSelf && (
+              <div className="profile-meta-item profile-key-hint">
+                <span>Seu código de 15h</span>
+                <b><IconKey size={14} /> Disponível em Mensagens</b>
+              </div>
+            )}
+          </aside>
         </section>
 
         {tab && (
-          <section className="card">
+          <section className="card profile-network">
+            <h3 className="profile-section-title">Rede de @{profile?.username}</h3>
             <div className="tabs">
               <button className={tab === 'followers' ? 'active' : ''} onClick={() => void openTab('followers')}>
                 Seguidores

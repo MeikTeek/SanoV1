@@ -174,8 +174,8 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
 }
 .app-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .app-content { flex: 1; overflow-y: auto; min-height: 0; }
-.page { padding: 22px 24px 32px; max-width: 1080px; margin: 0 auto; }
-.page.wide { max-width: 1180px; }
+.page { width: 100%; padding: 22px 24px 32px; max-width: 1480px; margin: 0 auto; }
+.page.wide { max-width: 1600px; }
 .page.flush { max-width: none; padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
 /* Rail lateral: ícones no lugar de uma lista de botões */
