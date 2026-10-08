@@ -29,7 +29,7 @@ const { existsSync } = require('fs');
 // falha com "Environment variable not found: DATABASE_URL".
 const ENV_FILE = path.join(__dirname, '..', 'backend', '.env');
 if (existsSync(ENV_FILE)) {
-  require('dotenv').config({ path: ENV_FILE });
+  require('dotenv').config({ path: ENV_FILE, override: true });
 }
 
 const ROOT = path.resolve(__dirname, '..');

@@ -4,9 +4,26 @@ import { env, isAllowedOrigin, normalizeOrigin } from '../config/env';
 import { AppError } from '../utils/errors';
 
 /** Proteção CSRF extra: métodos que alteram dados só aceitos se a Origin for a do frontend. */
-export function originCheck(_req: Request, _res: Response, next: NextFunction) {
-  // CSRF check temporarily disabled
-  return next();
+export function originCheck(req: Request, _res: Response, next: NextFunction) {
+  const method = req.method.toUpperCase();
+  if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
+
+  const originHeader = req.get('origin') ?? req.get('referer');
+  const fallbackOrigin = (() => {
+    const host = req.get('host');
+    if (!host) return null;
+    const protoHeader = req.get('x-forwarded-proto');
+    const proto = (protoHeader ?? (req.secure ? 'https' : 'http')).split(',')[0].trim();
+    return `${proto}://${host}`;
+  })();
+
+  const candidateOrigins = [originHeader, fallbackOrigin].filter(Boolean) as string[];
+  for (const candidate of candidateOrigins) {
+    const normalized = normalizeOrigin(candidate);
+    if (normalized && isAllowedOrigin(normalized)) return next();
+  }
+
+  return next(new AppError(403, 'Origem não permitida para esta operação. Revise FRONTEND_URL e FRONTEND_URLS no ambiente do deploy.'));
 }
 
 // Em `NODE_ENV=test` os limites são desligados: a suíte de integração faz
