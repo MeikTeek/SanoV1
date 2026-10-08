@@ -1,8 +1,14 @@
-import { test } from 'node:test';
+import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handleCommand, matchIntent, resolveContinuation } from '../../backend/src/services/sano/router';
 import { normalize, stripWakeWord } from '../../backend/src/services/sano/normalize';
+import { clearAssistantMemoryForTests } from '../../backend/src/services/sano/context.service';
 import type { SanoUser } from '../../backend/src/services/sano/types';
+
+beforeEach(() => {
+  process.env.NODE_ENV = 'test';
+  clearAssistantMemoryForTests();
+});
 
 const admin: SanoUser = { id: '1', username: 'root', role: 'ADMIN', lastLoginAt: null };
 const user: SanoUser = { id: '2', username: 'ana', role: 'USER', lastLoginAt: new Date('2026-01-01T12:00:00Z') };

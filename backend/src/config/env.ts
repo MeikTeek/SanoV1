@@ -1,7 +1,11 @@
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
-dotenv.config({ override: true });
+dotenv.config();
+
+const testEnv = process.env.NODE_ENV === 'test' && !process.env.DATABASE_URL
+  ? { ...process.env, DATABASE_URL: 'postgresql://test:test@127.0.0.1:5432/sano_test' }
+  : process.env;
 
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -26,7 +30,7 @@ const schema = z.object({
   AI_MODEL: z.string().default('gpt-4o-mini'),
 });
 
-const parsed = schema.safeParse(process.env);
+const parsed = schema.safeParse(testEnv);
 if (!parsed.success) {
   console.error('❌ Variáveis de ambiente inválidas:', parsed.error.flatten().fieldErrors);
   process.exit(1);

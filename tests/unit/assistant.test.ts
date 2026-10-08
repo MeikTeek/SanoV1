@@ -1,11 +1,17 @@
-import { test } from 'node:test';
+import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { clearAssistantMemoryForTests } from '../../backend/src/services/sano/context.service';
 import { normalizeMessage } from '../../backend/src/services/assistant/normalize';
 import { extractEntities } from '../../backend/src/services/assistant/entities';
 import { createIntentRegistry } from '../../backend/src/services/assistant/registry';
 import { unknownResponse } from '../../backend/src/services/assistant/recovery';
 import { handleCommand, matchIntent } from '../../backend/src/services/sano/router';
 import type { SanoUser } from '../../backend/src/services/sano/types';
+
+beforeEach(() => {
+  process.env.NODE_ENV = 'test';
+  clearAssistantMemoryForTests();
+});
 
 const NOW = new Date('2026-10-03T13:00:00.000Z');
 const user: SanoUser = { id: `assistant-${Date.now()}`, username: 'ana', role: 'USER', lastLoginAt: null };
