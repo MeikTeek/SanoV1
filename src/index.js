@@ -20,7 +20,7 @@
 
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { existsSync } = require('fs');
+const { existsSync, readFileSync } = require('fs');
 
 // Carrega backend/.env antes de qualquer passo.
 //
@@ -35,6 +35,7 @@ if (existsSync(ENV_FILE)) {
 const ROOT = path.resolve(__dirname, '..');
 const BACKEND = path.join(ROOT, 'backend');
 const SERVER = path.join(BACKEND, 'dist', 'server.js');
+const FRONTEND_INDEX = path.join(ROOT, 'frontend', 'dist', 'index.html');
 
 /**
  * Executa um passo e aborta o start se ele falhar.
@@ -63,6 +64,18 @@ function step(label, command, args) {
   }
 }
 
+function logFrontendAssets() {
+  if (!existsSync(FRONTEND_INDEX)) {
+    console.warn('[start] frontend/dist/index.html não encontrado após o build.');
+    return;
+  }
+
+  const html = readFileSync(FRONTEND_INDEX, 'utf8');
+  const assets = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)]
+    .map((match) => match[1]);
+  console.log(`[start] frontend assets: ${assets.join(', ') || 'nenhum encontrado'}`);
+}
+
 function main() {
   // 0. Garante que o build existe.
   //
@@ -73,7 +86,14 @@ function main() {
   if (!existsSync(SERVER)) {
     console.log('[start] build ausente; compilando agora...');
     step('build', 'npm', ['run', 'build:host']);
+  } else {
+    // O backend compilado pode persistir entre deploys; sua presença não prova
+    // que frontend/dist corresponde ao código-fonte do commit atual.
+    console.log('[start] reconstruindo frontend do código atual...');
+    step('frontend build', 'npm', ['run', 'build', '--workspace', 'frontend']);
   }
+
+  logFrontendAssets();
 
   // 1. Banco: só aplica o que ainda não foi aplicado, então rodar sempre é seguro.
   step('migrations', 'npx', [
