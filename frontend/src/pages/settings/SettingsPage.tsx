@@ -81,7 +81,7 @@ export default function SettingsPage() {
   const locked = profile ? !profile.canChangeName : false;
 
   return (
-    <AppShell title="Configurações" status="perfil pessoal" workspace>
+    <AppShell title="Configurações" status="perfil pessoal">
       <section className="card">
         <h2>Foto de perfil</h2>
         <div className="settings-avatar-row">

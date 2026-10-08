@@ -6,7 +6,7 @@ import type { AdminUser, AuditLog, Role } from '../../types';
 export default function AdminPage() {
   const [tab, setTab] = useState<'users' | 'logs'>('users');
   return (
-    <AppShell title="Administração" status="área restrita" workspace>
+    <AppShell title="Administração" status="área restrita">
       <div className="tabs">
         <button className={tab === 'users' ? 'active' : ''} onClick={() => setTab('users')}>Usuários</button>
         <button className={tab === 'logs' ? 'active' : ''} onClick={() => setTab('logs')}>Logs de segurança</button>

@@ -73,9 +73,10 @@ p { margin: 0 0 10px; }
 /* ── Superfícies ─────────────────────────────────────────── */
 .card {
   background: var(--surface-2);
-  border: 1px solid var(--line);
+  border: 1px solid #00e5ff1a;
   border-radius: var(--radius-card);
   padding: 20px;
+  box-shadow: inset 0 1px 0 #00e5ff0a;
 }
 .card + .card { margin-top: 16px; }
 .auth-card { width: 100%; max-width: 380px; }

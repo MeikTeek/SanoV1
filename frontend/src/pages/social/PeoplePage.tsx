@@ -45,7 +45,7 @@ export default function PeoplePage() {
   };
 
   return (
-    <AppShell title="Pessoas" status={`${people.length} no diretório`} workspace>
+    <AppShell title="Pessoas" status={`${people.length} no diretório`}>
       <div className="people-page">
         <div className="people-search">
           <IconSearch />

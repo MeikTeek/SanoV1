@@ -118,61 +118,64 @@ export default function ProfilePage() {
   const isSelf = profile?.isSelf ?? user?.username === username;
 
   return (
-    <AppShell title={profile?.displayName || `@${username}`} status="perfil" workspace>
+    <AppShell title={profile?.displayName || `@${username}`} status="perfil">
       <div className="profile-page">
         <section className="profile-head">
-          <Avatar url={profile?.avatarDataUrl} name={profile?.displayName} username={profile?.username} size={96} />
+          <div className="profile-primary">
+            <Avatar url={profile?.avatarDataUrl} name={profile?.displayName} username={profile?.username} size={96} />
 
-          <div className="profile-info">
-            <div className="profile-row">
-              <h2>{profile?.displayName || profile?.username}</h2>
-              {isSelf ? (
-                <button className="ghost" onClick={() => setEditing((v) => !v)}>
-                  {editing ? 'Cancelar' : 'Editar bio'}
-                </button>
-              ) : (
-                <>
-                  <button onClick={() => void toggleFollow()} disabled={busy}>
-                    {profile?.isFollowing ? 'Seguindo' : 'Seguir'}
-                  </button>
-                  <button className="ghost" onClick={() => void message()} disabled={busy} title="Enviar mensagem">
-                    <IconChat size={18} /> Mensagem
-                  </button>
-                </>
-              )}
-            </div>
-
-            <p className="profile-user muted">@{profile?.username}</p>
-
-            <div className="profile-stats">
-              <button onClick={() => void openTab('followers')}>
-                <b>{profile?.followersCount ?? 0}</b> <span>seguidores</span>
-              </button>
-              <button onClick={() => void openTab('following')}>
-                <b>{profile?.followingCount ?? 0}</b> <span>seguindo</span>
-              </button>
-            </div>
-
-            {editing ? (
-              <div className="profile-bio-edit">
-                <textarea
-                  value={bio}
-                  onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO))}
-                  rows={3}
-                  maxLength={MAX_BIO}
-                  placeholder="Fale sobre você"
-                  aria-label="Bio"
-                />
-                <div className="inline">
-                  <span className="muted small">{bio.length}/{MAX_BIO}</span>
-                  <button onClick={() => void saveBio()} disabled={busy}>Salvar</button>
+            <div className="profile-info">
+              <div className="profile-row">
+                <div className="profile-name">
+                  <h2>{profile?.displayName || profile?.username}</h2>
+                  <p className="profile-user muted">@{profile?.username}</p>
                 </div>
+                {isSelf ? (
+                  <button className="ghost" onClick={() => setEditing((v) => !v)}>
+                    {editing ? 'Cancelar' : 'Editar bio'}
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={() => void toggleFollow()} disabled={busy}>
+                      {profile?.isFollowing ? 'Seguindo' : 'Seguir'}
+                    </button>
+                    <button className="ghost" onClick={() => void message()} disabled={busy} title="Enviar mensagem">
+                      <IconChat size={18} /> Mensagem
+                    </button>
+                  </>
+                )}
               </div>
-            ) : (
-              <p className="profile-bio">{profile?.bio || <span className="muted">sem bio ainda</span>}</p>
-            )}
 
-            {profile?.followsYou && !isSelf && <span className="msg-chip">segue você</span>}
+              <div className="profile-stats">
+                <button onClick={() => void openTab('followers')}>
+                  <b>{profile?.followersCount ?? 0}</b> <span>seguidores</span>
+                </button>
+                <button onClick={() => void openTab('following')}>
+                  <b>{profile?.followingCount ?? 0}</b> <span>seguindo</span>
+                </button>
+              </div>
+
+              {editing ? (
+                <div className="profile-bio-edit">
+                  <textarea
+                    value={bio}
+                    onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO))}
+                    rows={3}
+                    maxLength={MAX_BIO}
+                    placeholder="Fale sobre você"
+                    aria-label="Bio"
+                  />
+                  <div className="inline">
+                    <span className="muted small">{bio.length}/{MAX_BIO}</span>
+                    <button onClick={() => void saveBio()} disabled={busy}>Salvar</button>
+                  </div>
+                </div>
+              ) : (
+                <p className="profile-bio">{profile?.bio || <span className="muted">sem bio ainda</span>}</p>
+              )}
+
+              {profile?.followsYou && !isSelf && <span className="msg-chip">segue você</span>}
+            </div>
           </div>
 
           <aside className="profile-meta" aria-label="Detalhes do perfil">

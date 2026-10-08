@@ -5,19 +5,19 @@
 
 /* ───────────────────── Layout de duas colunas ───────────────────── */
 
-/* Duas colunas que preenchem a tela inteira, como no Discord: sem moldura
-   flutuante, sem respiro entre elas. Os painéis encostam no cabeçalho e no
-   rodapé; só a barra da direita entre elas. */
+/* Lista e conversa em painéis próprios, com respiro e o acabamento arredondado
+   usado nos demais cartões do produto. */
 .msg-layout {
   display: grid;
   grid-template-columns: clamp(280px, 23vw, 360px) minmax(0, 1fr);
-  gap: 0;
+  gap: 14px;
   width: 100%;
   height: 100%;
   min-height: 0;
   min-width: 0;
+  padding: 16px;
 }
-.msg-layout > div { min-height: 0; min-width: 0; display: flex; }
+.msg-layout > div { min-height: 0; min-width: 0; display: flex; overflow: hidden; }
 
 /* ───────────────────── Lista de conversas ───────────────────── */
 
@@ -28,12 +28,11 @@
   min-height: 0;
   width: 100%;
   background: var(--surface);
-  border-right: 1px solid var(--line);
-  border-top: 0;
-  border-bottom: 0;
-  border-left: 0;
-  border-radius: 0;
-  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 #00e5ff12;
 }
 
 .msg-search {
@@ -67,7 +66,7 @@
   border: 1px solid transparent;
 }
 .msg-item:hover { background: var(--surface-2); }
-.msg-item.active { background: var(--surface-2); }
+.msg-item.active { background: var(--surface-2); border-color: #00e5ff2b; }
 /* Barrinha ciano à esquerda do item ativo, igual à da rail. */
 .msg-item.active::before {
   content: '';
@@ -176,9 +175,10 @@
   flex: 1;
   width: 100%;
   background: var(--surface);
-  border: 0;
-  border-radius: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
   overflow: hidden;
+  box-shadow: inset 0 1px 0 #00e5ff12;
 }
 
 .msg-thread-head {
@@ -187,6 +187,7 @@
   gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, #00e5ff0a, transparent 48%);
   flex-shrink: 0;
 }
 .msg-thread-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -374,7 +375,7 @@
   border-radius: 999px;
   padding: 2px 6px 2px 4px;
 }
-.msg-input-wrap:focus-within { border-color: #3a3a3a; }
+.msg-input-wrap:focus-within { border-color: #00e5ff66; box-shadow: 0 0 0 2px #00e5ff12; }
 .msg-input-wrap input { flex: 1; min-width: 0; background: transparent; border: 0; padding: 9px 10px; }
 .msg-input-wrap input:focus { box-shadow: none; }
 .msg-emoji-bar { display: flex; gap: 1px; flex-shrink: 0; }
@@ -449,30 +450,32 @@
 .btn-inline { color: var(--accent); text-decoration: none; font-size: .88rem; font-weight: 600; }
 .btn-inline:hover { text-decoration: underline; }
 
-/* ───────────────────── Perfil no shell do hub ───────────────────── */
+/* ───────────────────── Perfil no tema compartilhado ───────────────────── */
 
 .profile-page {
   display: flex;
   flex-direction: column;
   gap: 20px;
   width: 100%;
-  max-width: 1320px;
+  max-width: 1480px;
   margin: 0 auto;
-  padding: 24px 28px 36px;
+  padding: 0;
 }
 .profile-head {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr) minmax(210px, 270px);
-  gap: 28px;
-  align-items: center;
-  padding: 26px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px;
+  background: var(--surface-2);
+  border: 1px solid #00e5ff20;
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 1px 0 #00e5ff12;
 }
+.profile-primary { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 24px; align-items: center; }
 .profile-info { min-width: 0; display: flex; flex-direction: column; gap: 10px; }
 .profile-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .profile-row h2 { margin: 0; font-size: 1.35rem; }
+.profile-name { min-width: 180px; margin-right: auto; }
 .profile-user { margin: 0; font-size: .85rem; }
 
 .profile-stats { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
@@ -492,12 +495,14 @@
 .profile-bio { margin: 4px 0 0; font-size: .92rem; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 520px; }
 .profile-bio-edit { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
 .profile-bio-edit .inline { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.profile-meta { display: flex; flex-direction: column; gap: 0; align-self: stretch; justify-content: center; border-left: 1px solid var(--line); padding-left: 24px; }
-.profile-meta-item { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; }
-.profile-meta-item + .profile-meta-item { border-top: 1px solid var(--line-soft); }
+.profile-meta { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0; border-top: 1px solid #00e5ff1c; padding-top: 12px; }
+.profile-meta-item { display: flex; flex: 1 1 180px; flex-direction: column; gap: 4px; padding: 6px 14px; }
+.profile-meta-item:first-child { padding-left: 0; }
+.profile-meta-item + .profile-meta-item { border-left: 1px solid var(--line-soft); }
 .profile-meta-item span { color: var(--muted); font-size: .7rem; text-transform: uppercase; }
 .profile-meta-item b { color: var(--text); font-size: .9rem; font-weight: 550; }
 .profile-meta-item b.is-online { color: var(--ok); }
+.profile-key-hint b { display: flex; align-items: center; gap: 6px; }
 .profile-network { width: 100%; padding: 20px 24px; }
 .profile-section-title { margin: 0 0 16px; font-size: .9rem; font-weight: 600; }
 
@@ -525,15 +530,17 @@
 .people-grid { display: flex; flex-direction: column; gap: 8px; }
 
 .person-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border: 1px solid #00e5ff1a;
   border-radius: var(--radius-card);
   padding: 14px 16px;
   display: grid;
   grid-template-columns: minmax(190px, .85fr) minmax(0, 1.5fr) auto;
   align-items: center;
   gap: 18px;
+  transition: border-color .15s ease, background .15s ease;
 }
+.person-card:hover { border-color: #00e5ff44; background: #1b1d1d; }
 .person-card-head { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; color: var(--text); }
 .person-card-head:hover b { color: var(--accent); }
 .person-card-name { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -574,10 +581,12 @@
 @media (max-width: 860px) {
   /* Uma coluna por vez: a lista toma a tela inteira e o chat abre por cima,
      com o botão de voltar no cabeçalho. */
-  .msg-layout { grid-template-columns: 1fr; position: relative; }
+  .msg-layout { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr); position: relative; padding: 10px; }
   .hidden-mobile { display: none !important; }
   .only-mobile { display: grid; }
-  .msg-side { border-right: 0; }
+  .msg-layout:not(.has-active) > .msg-thread { display: none; }
+  .msg-layout.has-active > div { display: none; }
+  .msg-layout.has-active > .msg-thread { display: flex; }
   .msg-row { max-width: 90%; }
   .msg-thread-actions .icon-btn { width: 34px; height: 34px; }
   /* Em tela estreita sobram três ações e o emoji some primeiro: o teclado do
@@ -585,19 +594,27 @@
   .msg-emoji:nth-child(n + 6) { display: none; }
   .msg-empty-actions { flex-direction: column; width: 100%; max-width: 320px; }
   .msg-empty-btn { min-width: 0; width: 100%; }
-  .profile-page { padding: 16px 14px 28px; gap: 14px; }
-  .profile-head { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px; text-align: center; }
-  .profile-head > .mini-avatar { justify-self: center; }
+  .profile-page { gap: 14px; }
+  .profile-head { gap: 16px; padding: 20px; }
+  .profile-primary { grid-template-columns: 1fr; justify-items: center; text-align: center; gap: 14px; }
   .profile-info { align-items: center; }
   .profile-row, .profile-stats { justify-content: center; }
-  .profile-meta { width: 100%; border-left: 0; border-top: 1px solid var(--line); padding: 8px 0 0; flex-direction: row; justify-content: space-around; text-align: left; }
-  .profile-meta-item { padding: 8px; }
-  .profile-meta-item + .profile-meta-item { border-top: 0; border-left: 1px solid var(--line-soft); padding-left: 16px; }
+  .profile-meta { width: 100%; padding: 8px 0 0; justify-content: center; }
+  .profile-meta-item { flex-basis: 140px; padding: 8px; text-align: center; }
+  .profile-meta-item:first-child { padding-left: 8px; }
+  .profile-meta-item + .profile-meta-item { border-left: 0; }
+  .profile-key-hint b { justify-content: center; }
   .profile-network { padding: 16px; }
   .msg-toast-area { left: 12px; right: 12px; max-width: none; }
 }
 
 @media (max-width: 720px) {
+  .msg-layout { padding: 8px; gap: 8px; }
+  .msg-thread-head { padding: 10px 12px; }
+  .msg-log { padding: 12px; }
+  .msg-compose { padding: 9px; gap: 6px; }
+  .msg-emoji-bar { display: none; }
+  .msg-compose .icon-btn { width: 38px; height: 38px; }
   .person-card { grid-template-columns: minmax(0, 1fr); gap: 9px; padding: 12px; }
   .person-card-foot { justify-content: space-between; }
 }

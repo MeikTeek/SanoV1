@@ -104,7 +104,7 @@ export default function AgendaPage() {
     }
   };
 return (
-    <AppShell title="Agenda" status={`${upcoming.length} próximos`} workspace>
+    <AppShell title="Agenda" status={`${upcoming.length} próximos`}>
       <section className="card">
         <h2>Novo compromisso</h2>
         <form className="inline agenda-form" onSubmit={submit}>

@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import SidePanels from '../chat/SidePanels';
 import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconLock, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
 
 interface Props {
@@ -12,11 +11,6 @@ interface Props {
   actions?: ReactNode;
   /** Chat ocupa a altura toda, sem padding de página. */
   flush?: boolean;
-  /** Usa a grade compartilhada do dashboard em três colunas. */
-  workspace?: boolean;
-  /** Coluna esquerda alternativa, usada pela lista de conversas. */
-  workspaceLeft?: ReactNode;
-  workspaceClassName?: string;
   children: ReactNode;
 }
 
@@ -25,9 +19,7 @@ interface Props {
  * enxuta. Concentra o que era menu de topo: navegação, sino de avisos e as
  * ações da conta (sair) num menu ligado ao avatar.
  */
-export default function AppShell({
-  title, status, actions, flush, workspace, workspaceLeft, workspaceClassName, children,
-}: Props) {
+export default function AppShell({ title, status, actions, flush, children }: Props) {
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -145,21 +137,7 @@ export default function AppShell({
         </header>
 
         <div className="app-content">
-          {workspace ? (
-            <div className="page flush">
-              <div className={`hud hub-workspace ${workspaceClassName ?? ''}`}>
-                {workspaceLeft ?? <SidePanels side="left" refreshKey={0} />}
-                <main className={`hud-center hub-workspace-center ${workspaceClassName?.includes('hub-chat') ? 'hub-chat-thread' : ''}`}>
-                  {children}
-                </main>
-                <SidePanels side="right" refreshKey={0} />
-              </div>
-            </div>
-          ) : flush ? (
-            <div className="page flush">{children}</div>
-          ) : (
-            <div className="page">{children}</div>
-          )}
+          {flush ? <div className="page flush">{children}</div> : <div className="page">{children}</div>}
         </div>
       </div>
     </div>
