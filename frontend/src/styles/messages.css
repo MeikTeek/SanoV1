@@ -518,27 +518,30 @@
 
 /* ───────────────────── Diretório de pessoas ───────────────────── */
 
-.people-page { display: flex; flex-direction: column; gap: 16px; }
+.people-page { display: flex; flex-direction: column; gap: 16px; width: 100%; }
 .people-search { display: flex; align-items: center; gap: 10px; color: var(--muted); }
-.people-search input { max-width: 420px; }
+.people-search input { flex: 1; min-width: 0; }
 
-.people-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.people-grid { display: flex; flex-direction: column; gap: 8px; }
 
 .person-card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  border-radius: var(--radius-card);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: minmax(190px, .85fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 18px;
 }
-.person-card-head { display: flex; flex-direction: column; align-items: center; gap: 5px; text-decoration: none; color: var(--text); }
+.person-card-head { display: flex; align-items: center; gap: 12px; min-width: 0; text-decoration: none; color: var(--text); }
+.person-card-head:hover b { color: var(--accent); }
+.person-card-name { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .person-card-head b { font-size: .95rem; }
 .person-card-head small { font-size: .78rem; }
 .person-bio {
   margin: 0;
-  flex: 1;
+  min-width: 0;
   font-size: .82rem;
   color: var(--text-dim);
   line-height: 1.45;
@@ -548,7 +551,7 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
-.person-card-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.person-card-foot { display: flex; align-items: center; justify-content: flex-end; gap: 12px; white-space: nowrap; }
 
 /* ───────────────────── Utilidades ───────────────────── */
 
@@ -591,6 +594,10 @@
   .profile-meta-item { padding: 8px; }
   .profile-meta-item + .profile-meta-item { border-top: 0; border-left: 1px solid var(--line-soft); padding-left: 16px; }
   .profile-network { padding: 16px; }
-  .people-grid { grid-template-columns: 1fr; }
   .msg-toast-area { left: 12px; right: 12px; max-width: none; }
+}
+
+@media (max-width: 720px) {
+  .person-card { grid-template-columns: minmax(0, 1fr); gap: 9px; padding: 12px; }
+  .person-card-foot { justify-content: space-between; }
 }

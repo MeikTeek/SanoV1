@@ -88,11 +88,11 @@ export default function TrainerPage() {
       setError((e as Error).message);
     }
   };
-if (!data) return <AppShell title="Treino" status="carregando"><div className="card"><p className="muted">Carregando...</p></div></AppShell>;
+if (!data) return <AppShell title="Treino" status="carregando" workspace><div className="card"><p className="muted">Carregando...</p></div></AppShell>;
 
   if (!data.onboarded) {
     return (
-      <AppShell title="Treino" status="primeiro acesso">
+      <AppShell title="Treino" status="primeiro acesso" workspace>
         <Onboarding onDone={async (text) => { setIntro(text); await load(); }} />
       </AppShell>
     );
@@ -103,6 +103,7 @@ if (!data) return <AppShell title="Treino" status="carregando"><div className="c
       <AppShell
         title="Seu perfil"
         status="dados usados pelo treino"
+        workspace
         actions={<button className="ghost" onClick={() => setEditing(false)}>Cancelar</button>}
       >
         <Onboarding
@@ -136,6 +137,7 @@ if (!data) return <AppShell title="Treino" status="carregando"><div className="c
     <AppShell
       title="Treino"
       status={data.level ? `Nv. ${data.level.current} · ${data.level.title}` : undefined}
+      workspace
       actions={<button className="ghost" onClick={() => setEditing(true)}>Editar perfil</button>}
     >
 

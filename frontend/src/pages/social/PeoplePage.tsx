@@ -45,7 +45,7 @@ export default function PeoplePage() {
   };
 
   return (
-    <AppShell title="Pessoas" status={`${people.length} no diretório`} flush>
+    <AppShell title="Pessoas" status={`${people.length} no diretório`} workspace>
       <div className="people-page">
         <div className="people-search">
           <IconSearch />
@@ -64,8 +64,10 @@ export default function PeoplePage() {
             <article key={p.id} className="person-card">
               <Link to={`/perfil/${p.username}`} className="person-card-head">
                 <Avatar url={p.avatarDataUrl} name={p.displayName} username={p.username} size={56} />
-                <b>{p.displayName || p.username}</b>
-                <small className="muted">@{p.username}</small>
+                <span className="person-card-name">
+                  <b>{p.displayName || p.username}</b>
+                  <small className="muted">@{p.username}</small>
+                </span>
               </Link>
 
               <p className="person-bio">

@@ -118,7 +118,7 @@ export default function ProfilePage() {
   const isSelf = profile?.isSelf ?? user?.username === username;
 
   return (
-    <AppShell title={profile?.displayName || `@${username}`} status="perfil" flush>
+    <AppShell title={profile?.displayName || `@${username}`} status="perfil" workspace>
       <div className="profile-page">
         <section className="profile-head">
           <Avatar url={profile?.avatarDataUrl} name={profile?.displayName} username={profile?.username} size={96} />

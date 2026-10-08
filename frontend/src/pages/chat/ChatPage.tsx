@@ -307,6 +307,17 @@ export default function ChatPage() {
     <AppShell
       title="Mensagens"
       status="criptografia ponta a ponta"
+      workspace
+      workspaceClassName={`hub-chat ${active ? 'has-active' : ''}`}
+      workspaceLeft={(
+        <div className={`hub-chat-list ${active ? 'hidden-mobile' : ''}`}>
+          <ConversationList
+            conversations={conversations}
+            activeId={activeId}
+            myId={myId}
+          />
+        </div>
+      )}
       actions={
         <>
           <button className="ghost" onClick={() => setShowJoin(true)} title="Entrar com o código de alguém">
@@ -318,29 +329,19 @@ export default function ChatPage() {
         </>
       }
     >
-      <div className="msg-layout">
-        <div className={active ? 'hidden-mobile' : ''}>
-          <ConversationList
-            conversations={conversations}
-            activeId={activeId}
-            myId={myId}
-          />
-        </div>
-
-        {active ? (
-          <MessageThread
-            conversation={active}
-            myId={myId}
-            messages={messages}
-            busy={busy}
-            onSendText={(t) => void onSendText(t)}
-            onSendMedia={(b, k, m) => void onSendMedia(b, k, m)}
-            onShowInfo={() => setShowInfo(true)}
-          />
-        ) : (
-          <ThreadEmpty onNew={() => setShowNew(true)} onJoin={() => setShowJoin(true)} />
-        )}
-      </div>
+      {active ? (
+        <MessageThread
+          conversation={active}
+          myId={myId}
+          messages={messages}
+          busy={busy}
+          onSendText={(t) => void onSendText(t)}
+          onSendMedia={(b, k, m) => void onSendMedia(b, k, m)}
+          onShowInfo={() => setShowInfo(true)}
+        />
+      ) : (
+        <ThreadEmpty onNew={() => setShowNew(true)} onJoin={() => setShowJoin(true)} />
+      )}
 
       {(error || notice) && (
         <div className="msg-toast-area">

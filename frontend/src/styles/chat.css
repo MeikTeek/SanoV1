@@ -11,6 +11,11 @@
   min-height: 0;
   overflow: hidden;
 }
+.hub-workspace { grid-template-columns: 278px minmax(0, 1fr) 257px; }
+.hub-workspace-center { overflow-y: auto; padding: 4px; }
+.hub-workspace-center:not(.hub-chat-thread) { display: block; }
+.hub-chat-thread { overflow: hidden; padding: 0; }
+.hub-chat-list { display: flex; min-width: 0; min-height: 0; }
 /* Colunas laterais: cartões empilhados, rolando se não couber. */
 .hud-col { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; padding-right: 2px; }
 /* O cartão "Hoje" cresce para preencher a coluna, evitando buraco embaixo. */
@@ -322,6 +327,10 @@
 @media (max-width: 1100px) {
   .hud { grid-template-columns: 250px minmax(0, 1fr); }
   .hud-col:last-child { display: none; }
+  .profile-head { grid-template-columns: 96px minmax(0, 1fr); gap: 18px; }
+  .profile-meta { grid-column: 1 / -1; flex-direction: row; border-left: 0; border-top: 1px solid var(--line); padding: 8px 0 0; }
+  .profile-meta-item { flex: 1; }
+  .profile-meta-item + .profile-meta-item { border-top: 0; border-left: 1px solid var(--line-soft); padding-left: 16px; }
 }
 
 /* Celular: painéis viram faixa horizontal acima do console. */
@@ -334,8 +343,12 @@
     padding-right: 0;
   }
   .hud-col > .hud-card { min-width: 240px; flex-shrink: 0; }
-  .hud-col:last-child { display: flex; }
+  .hud-col:last-child { display: none; }
   .hud-grow { flex: 0 0 auto; }
+  .hub-chat { grid-template-rows: minmax(0, 1fr); }
+  .hub-chat-list { height: 100%; }
+  .hub-chat.has-active .hub-chat-list { display: none; }
+  .hub-chat:not(.has-active) .hub-chat-thread { display: none; }
 }
 
 @media (max-width: 720px) {
