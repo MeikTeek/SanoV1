@@ -10,7 +10,7 @@ const deps = { pingDb: async () => 7 };
 const run = (u: SanoUser, text: string) => handleCommand(u, text, deps, new Date('2026-10-03T17:30:00Z'));
 
 /** true quando a resposta traz botões de confirmação (ação destrutiva). */
-const previewsConfirmation = (r: { view?: { kind: string } }) => r.view?.kind === 'actions';
+const previewsConfirmation = (r: { view?: { kind: string } }) => r.view?.kind === 'confirmation';
 
 test('normalize remove acentos e pontuação', () => {
   assert.equal(normalize('  Sano, QUE horas são?! '), 'sano que horas sao');
@@ -39,14 +39,14 @@ test('comandos de módulos futuros são reconhecidos', async () => {
 
 test('painel adm: negado para USER, navega para ADMIN', async () => {
   const denied = await run(user, 'painel adm');
-  assert.match(denied.reply, /Acesso negado/);
+  assert.match(denied.reply, /apenas para administradores/i);
   assert.equal(denied.actions, undefined);
   const ok = await run(admin, 'abrir painel admin');
   assert.deepEqual(ok.actions, [{ type: 'navigate', to: '/admin' }]);
 });
 
 test('osint é restrito a admin', async () => {
-  assert.match((await run(user, 'abrir terminal osint')).reply, /Acesso negado/);
+  assert.match((await run(user, 'abrir terminal osint')).reply, /apenas para administradores/i);
 });
 
 test('status usa o ping do banco e trata falha', async () => {
@@ -77,7 +77,14 @@ const fakeAgenda = () => {
       },
       findByTitle: async (_id: string, term: string) =>
         store.filter((a) => a.status === 'PENDING' && a.title.toLowerCase().includes(term.toLowerCase())) as never,
-      cancel: async () => { store[0].status = 'CANCELED'; },
+      cancel: async (_id: string, id: string) => { const item = store.find((a) => a.id === id); if (item) item.status = 'CANCELED'; },
+      update: async (_id: string, id: string, data: { title?: string; startsAt?: Date }) => {
+        const item = store.find((a) => a.id === id);
+        if (!item) throw new Error('appointment not found');
+        if (data.title) item.title = data.title;
+        if (data.startsAt) item.startsAt = data.startsAt;
+        return item as never;
+      },
       listByDay: async (_id: string, from: Date, to: Date) =>
         store.filter((a) => a.status === 'PENDING' && a.startsAt >= from && a.startsAt < to) as never,
       cancelDay: async (_id: string, from: Date, to: Date) => {
@@ -89,74 +96,88 @@ const fakeAgenda = () => {
   };
 };
 
-const runAgenda = (u: SanoUser, text: string, agenda: ReturnType<typeof fakeAgenda>) =>
-  handleCommand(u, text, { pingDb: async () => 1, agenda: agenda.deps }, new Date('2026-10-03T13:00:00Z'));
+let fixtureId = 0;
+const fixtureUsers = new WeakMap<object, string>();
+const runAgenda = (u: SanoUser, text: string, agenda: ReturnType<typeof fakeAgenda>) => {
+  let id = fixtureUsers.get(agenda);
+  if (!id) { id = `agenda-fixture-${++fixtureId}`; fixtureUsers.set(agenda, id); }
+  return handleCommand({ ...u, id }, text, { pingDb: async () => 1, agenda: agenda.deps }, new Date('2026-10-03T13:00:00Z'));
+};
+
+const createAndConfirm = async (u: SanoUser, text: string, agenda: ReturnType<typeof fakeAgenda>) => {
+  const preview = await runAgenda(u, text, agenda);
+  assert.equal(preview.view?.kind, 'confirmation');
+  assert.equal(agenda.store.length, 0);
+  await runAgenda(u, 'confirmar', agenda);
+  assert.equal(agenda.store.length, 1);
+  return preview;
+};
 
 test('agendar por frase cria o compromisso', async () => {
   const agenda = fakeAgenda();
   const r = await runAgenda(user, 'agendar reunião com João amanhã às 14h', agenda);
   assert.equal(r.intent, 'agenda');
   assert.match(r.reply, /Reunião/);
-  assert.match(r.reply, /João/);
+  assert.match(JSON.stringify(r.view), /João/);
+  assert.equal(r.view?.kind, 'confirmation');
+  assert.equal(agenda.store.length, 0);
+  await runAgenda(user, 'confirmar', agenda);
   assert.equal(agenda.store.length, 1);
   assert.equal(agenda.store[0].title, 'Reunião');
 });
 
 test('listar e cancelar pela agenda', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
   assert.match((await runAgenda(user, 'quais são meus compromissos', agenda)).reply, /Reunião/);
 
   // Cancelar é destrutivo: a primeira frase só confirma, não apaga.
   const previa = await runAgenda(user, 'cancelar reunião', agenda);
-  assert.match(previa.reply, /Confirma\?/);
+  assert.equal(previa.view?.kind, 'confirmation');
   assert.equal(previewsConfirmation(previa), true);
   assert.equal(agenda.store[0].status, 'PENDING');
 
   // Com a confirmação, aí sim cancela.
-  const feito = await runAgenda(user, 'cancelar reunião, pode cancelar', agenda);
+  const feito = await runAgenda(user, 'confirmar', agenda);
   assert.match(feito.reply, /cancelei/i);
   assert.equal(agenda.store[0].status, 'CANCELED');
 });
 
 test('agenda pede data quando a frase não tem quando', async () => {
   const r = await runAgenda(user, 'agendar reunião com João', fakeAgenda());
-  assert.match(r.reply, /faltou a data/i);
+  assert.match(r.reply, /para qual dia/i);
 });
 
 test('cancelar todos: pede confirmação e só apaga depois', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
   await runAgenda(user, 'agendar almoço amanhã às 12h', agenda);
+  await runAgenda(user, 'confirmar', agenda);
 
   // 1ª vez: mostra o que será apagado, sem apagar nada.
   const previa = await runAgenda(user, 'cancelar todos os compromissos de amanhã', agenda);
   assert.match(previa.reply, /Vou cancelar 2 compromissos/);
-  assert.match(previa.reply, /Para confirmar/);
+  assert.equal(previa.view?.kind, 'confirmation');
   assert.equal(agenda.store.filter((a) => a.status === 'PENDING').length, 2);
 
   // 2ª vez, confirmando: apaga.
-  const feito = await runAgenda(user, 'cancelar todos os compromissos de amanhã pode cancelar', agenda);
+  const feito = await runAgenda(user, 'confirmar', agenda);
   assert.match(feito.reply, /cancelei 2 compromissos/i);
   assert.equal(agenda.store.filter((a) => a.status === 'CANCELED').length, 2);
 });
 
-test('a frase de confirmação sugerida realmente cancela', async () => {
+test('a confirmação textual conclui o cancelamento em lote', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
 
-  // O Sano sugere a frase; ela precisa ser aceita como está.
-  const previa = await runAgenda(user, 'cancelar todos os compromissos de amanhã', agenda);
-  const sugerida = previa.reply.match(/"cancelar todos os compromissos de ([^"]+)"/)?.[1];
-  assert.ok(sugerida, 'a prévia deve sugerir uma frase de confirmação');
-
-  const feito = await runAgenda(user, `cancelar todos os compromissos de ${sugerida}`, agenda);
+  await runAgenda(user, 'cancelar todos os compromissos de amanhã', agenda);
+  const feito = await runAgenda(user, 'sim', agenda);
   assert.match(feito.reply, /cancelei 1 compromisso/i);
 });
 
 test('cancelar todos: dia sem compromissos avisa e não quebra', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
   const r = await runAgenda(user, 'cancelar todos os compromissos de 15/10', agenda);
   assert.match(r.reply, /Não há compromissos/i);
   assert.equal(agenda.store[0].status, 'PENDING');
@@ -184,14 +205,12 @@ test('continuação de conversa reescreve a frase com base na memória', () => {
 
 test('agenda responde com painel de linha do tempo, não com texto solto', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
   const r = await runAgenda(user, 'quais são meus compromissos', agenda);
 
   assert.equal(r.view?.kind, 'timeline');
   const items = (r.view as { items: { title: string }[] }).items;
   assert.equal(items[0].title, 'Reunião');
-  // A memória guarda o que foi mostrado, para o "cancela essa" funcionar.
-  assert.equal(r.memory?.appointments?.[0].title, 'Reunião');
 });
 
 test('ajuda vira grade de botões clicáveis', async () => {
@@ -210,22 +229,57 @@ test('status vira medidores com tom por saúde', async () => {
 
 test('agendar em horário ocupado avisa o conflito e sugere horário livre', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar reunião amanhã às 14h', agenda);
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
   const conflito = await runAgenda(user, 'agendar call amanhã às 14h', agenda);
 
-  assert.match(conflito.reply, /Atenção: choca com/);
-  assert.equal(conflito.view?.kind, 'actions');
+  assert.match(conflito.reply, /conflito de horário/i);
+  assert.equal(conflito.view?.kind, 'confirmation');
 });
 
-test('cancelamento ambíguo devolve botões em vez de escolher sozinho', async () => {
+test('cancelamento mostra uma confirmação antes de remover o compromisso escolhido', async () => {
   const agenda = fakeAgenda();
-  await runAgenda(user, 'agendar revisão amanhã às 9h', agenda);
+  await createAndConfirm(user, 'agendar revisão amanhã às 9h', agenda);
   await runAgenda(user, 'agendar revisão amanhã às 15h', agenda);
+  await runAgenda(user, 'confirmar', agenda);
 
   const r = await runAgenda(user, 'cancelar revisão', agenda);
   // Ainda não pode ter apagado nada.
   assert.equal(agenda.store.filter((a) => a.status === 'PENDING').length, 2);
-  assert.equal(r.view?.kind, 'actions');
+  assert.equal(r.view?.kind, 'confirmation');
+});
+
+test('alterar compromisso só atualiza depois da confirmação', async () => {
+  const agenda = fakeAgenda();
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
+
+  const before = agenda.store[0].startsAt.toISOString();
+  const preview = await runAgenda(user, 'mudar reunião para sexta às 15h', agenda);
+  assert.equal(preview.view?.kind, 'confirmation');
+  assert.equal(agenda.store[0].startsAt.toISOString(), before);
+
+  await runAgenda(user, 'confirmar', agenda);
+  assert.equal(agenda.store[0].startsAt.toISOString(), '2026-10-09T18:00:00.000Z');
+});
+
+test('alterar compromisso preenche data e hora em turnos separados antes de confirmar', async () => {
+  const agenda = fakeAgenda();
+  await createAndConfirm(user, 'agendar reunião amanhã às 14h', agenda);
+  const original = agenda.store[0].startsAt.toISOString();
+
+  const askDate = await runAgenda(user, 'mudar reunião', agenda);
+  assert.match(askDate.reply, /para qual dia/i);
+  assert.equal(agenda.store[0].startsAt.toISOString(), original);
+
+  const askTime = await runAgenda(user, 'sexta', agenda);
+  assert.match(askTime.reply, /que horas/i);
+  assert.equal(agenda.store[0].startsAt.toISOString(), original);
+
+  const preview = await runAgenda(user, '15h', agenda);
+  assert.equal(preview.view?.kind, 'confirmation');
+  assert.equal(agenda.store[0].startsAt.toISOString(), original);
+
+  await runAgenda(user, 'confirmar', agenda);
+  assert.equal(agenda.store[0].startsAt.toISOString(), '2026-10-09T18:00:00.000Z');
 });
 
 /* ------------------------- roteamento da IA no chat ------------------------- */

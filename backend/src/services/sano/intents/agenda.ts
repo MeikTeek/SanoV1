@@ -1,5 +1,9 @@
 import type { Intent, SanoAppointment, SanoContext, SanoResult } from '../types';
 import { parseSchedule } from '../../agenda/parse';
+import { localDayBounds } from '../../assistant/dateTime';
+import { variedReply } from '../../assistant/recovery';
+import type { PendingAssistantAction } from '../../assistant/dialog';
+import { z } from 'zod';
 
 const TZ = 'America/Sao_Paulo';
 
@@ -50,8 +54,7 @@ async function checkConflicts(
   endsAt: Date | null,
 ): Promise<{ conflicts: SanoAppointment[]; freeSlots: string[] }> {
   const agenda = ctx.deps.agenda!;
-  const dayStart = new Date(startsAt); dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+  const { start: dayStart, end: dayEnd } = localDayBounds(startsAt);
   const day = await agenda.listByDay(ctx.user.id, dayStart, dayEnd);
 
   const newStart = startsAt.getTime();
@@ -71,7 +74,7 @@ async function checkConflicts(
   });
   const freeSlots: string[] = [];
   for (let h = 8; h <= 20 && freeSlots.length < 3; h++) {
-    const slot = new Date(dayStart); slot.setHours(h, 0, 0, 0);
+    const slot = new Date(dayStart.getTime() + h * 60 * 60_000);
     const s = slot.getTime();
     const clash = busy.some(([bs, be]) => s < be + window && s + window > bs - window);
     if (!clash) {
@@ -82,72 +85,140 @@ async function checkConflicts(
   return { conflicts, freeSlots };
 }
 
+const appointmentEntitySchema = z.object({
+  title: z.string().trim().min(1).max(160),
+  startsAt: z.date().refine((date) => Number.isFinite(date.getTime())),
+  participants: z.string().max(500).optional(),
+  endsAt: z.date().optional(),
+  remindBeforeMinutes: z.number().int().min(0).max(43_200).optional(),
+});
+
+function dayText(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric',
+  }).format(date);
+}
+
+function draftText(draft: Extract<PendingAssistantAction, { type: 'draft' }>, next: string): string {
+  const date = draft.date ? dayText(new Date(draft.date)) : '';
+  return [draft.title, date, next].filter(Boolean).join(' ');
+}
+
+function confirmation(userId: string, key: string, title: string, details: string[]): SanoResult {
+  return {
+    reply: variedReply(userId, key, [
+      `Confere antes de eu salvar: ${title}.`,
+      `Deixo ${title} na agenda desse jeito?`,
+      `Tudo certo para registrar ${title}?`,
+    ]),
+    view: {
+      kind: 'confirmation',
+      title: 'Confirmar compromisso',
+      details,
+      confirmCommand: 'confirmar',
+      cancelCommand: 'cancelar',
+    },
+  };
+}
+
 /** Cria o compromisso a partir da frase interpretada. */
 async function create(ctx: SanoContext): Promise<SanoResult> {
-  const parsed = parseSchedule(ctx.text, ctx.now);
+  const draft = ctx.memory?.pendingAction?.type === 'draft' ? ctx.memory.pendingAction : null;
+  const text = draft ? draftText(draft, ctx.text) : ctx.text;
+  const parsed = parseSchedule(text, ctx.now);
 
   if (parsed.missing === 'title') {
-    return { reply: 'Não entendi o que devo agendar. Tente algo como: "agendar revisão do projeto amanhã às 14h".' };
+    return { reply: variedReply(ctx.user.id, 'agenda:missing-title', [
+      'Posso anotar. O que você quer colocar na agenda?',
+      'Claro — qual é o compromisso que devo registrar?',
+      'Anoto sim. Que compromisso é esse?',
+    ]) };
   }
   if (parsed.missing === 'date') {
-    return { reply: `Entendi "${parsed.title}", mas faltou a data. Diga quando, por exemplo: "agendar ${parsed.title} amanhã às 14h".` };
+    return {
+      reply: variedReply(ctx.user.id, 'agenda:missing-date', [
+        `Anotei "${parsed.title}". Para qual dia?`,
+        `Certo, "${parsed.title}". Quando vai acontecer?`,
+        `Já tenho o título "${parsed.title}". Qual é a data?`,
+      ]),
+      dialog: {
+        pendingAction: {
+          type: 'draft', title: parsed.title, date: null,
+          participants: parsed.participants, remindBefore: parsed.remindBeforeMinutes ?? null,
+          createdAt: ctx.now.toISOString(),
+        },
+      },
+    };
+  }
+  if (parsed.missing === 'time') {
+    return {
+      reply: variedReply(ctx.user.id, 'agenda:missing-time', [
+        `Anotei "${parsed.title}" para ${dayText(parsed.startsAt)}. Que horas?`,
+        `Certo, ficou para ${dayText(parsed.startsAt)}. Qual horário?`,
+        `O dia de "${parsed.title}" está anotado: ${dayText(parsed.startsAt)}. Que horas marco?`,
+      ]),
+      dialog: {
+        pendingAction: {
+          type: 'draft', title: parsed.title, date: parsed.startsAt.toISOString(),
+          participants: parsed.participants, remindBefore: parsed.remindBeforeMinutes ?? null,
+          createdAt: ctx.now.toISOString(),
+        },
+      },
+    };
+  }
+
+  const entity = appointmentEntitySchema.safeParse({
+    title: parsed.title,
+    startsAt: parsed.startsAt,
+    participants: parsed.participants,
+    endsAt: parsed.endsAt,
+    remindBeforeMinutes: parsed.remindBeforeMinutes,
+  });
+  if (!entity.success) {
+    return { reply: 'Tenho o dia e o horário, mas preciso de um título curto para o compromisso.' };
   }
 
   const agenda = requireAgenda(ctx);
 
-  // Antes de gravar, olha o dia: conflito e horários livres viram botões.
-  const { conflicts, freeSlots } = await checkConflicts(ctx, parsed.startsAt, parsed.endsAt ?? null);
-
-  const saved = await agenda.create(ctx.user.id, {
-    title: parsed.title,
-    participants: parsed.participants,
-    startsAt: parsed.startsAt,
-    endsAt: parsed.endsAt,
-    remindBefore: parsed.remindBeforeMinutes ?? null,
-  });
-
-  const lines = [
-    `Agendei: ${saved.title}`,
-    `Quando: ${fmtDateTime(saved.startsAt)}${saved.endsAt ? ` até ${fmtDateTime(saved.endsAt)}` : ''}`,
+  const { conflicts } = await checkConflicts(ctx, parsed.startsAt, parsed.endsAt ?? null);
+  const details = [
+    parsed.title,
+    `${fmtDateTime(parsed.startsAt)}${parsed.endsAt ? ` até ${fmtDateTime(parsed.endsAt)}` : ''}`,
+    ...(parsed.participants ? [`Com ${parsed.participants}`] : []),
+    `Lembrete: ${fmtReminder(parsed.remindBeforeMinutes)}`,
+    ...(conflicts.length ? [`Conflito: ${conflicts.map((item) => item.title).join(', ')}`] : []),
   ];
-  if (saved.participants) lines.push(`Com: ${saved.participants}`);
-  lines.push(`Lembrete: ${fmtReminder(saved.remindBefore)}`);
+  const pendingAction: PendingAssistantAction = {
+    type: 'create',
+    title: parsed.title,
+    startsAt: parsed.startsAt.toISOString(),
+    endsAt: parsed.endsAt?.toISOString() ?? null,
+    participants: parsed.participants,
+    remindBefore: parsed.remindBeforeMinutes ?? null,
+    createdAt: ctx.now.toISOString(),
+  };
 
-  const memory = { appointments: [{ id: saved.id, title: saved.title, startsAt: new Date(saved.startsAt) }] };
-
-  // Aviso de conflito: não bloqueia, mas informa e oferece alternativas livres.
-  if (conflicts.length) {
-    const clashNames = conflicts.map((c) => c.title).join(', ');
-    lines.push(`Atenção: choca com "${clashNames}".`);
-
-    const slotToCommand = (t: string) =>
-      `agendar ${parsed.title} ${fmtDayCommand(parsed.startsAt, ctx.now)} às ${t.replace(':', 'h')}`;
-
-    return {
-      reply: lines.join('\n'),
-      view: {
-        kind: 'actions',
-        title: `Conflito com "${clashNames}"`,
-        subtitle: 'Horários livres nesse dia:',
-        items: freeSlots.map((t) => ({ label: `Mover para ${t}`, command: slotToCommand(t) })),
-      },
-      actions: [{ type: 'navigate', to: '/agenda' }],
-      memory,
-    };
-  }
-
-  return { reply: lines.join('\n'), actions: [{ type: 'navigate', to: '/agenda' }], memory };
+  return {
+    ...confirmation(ctx.user.id, 'agenda:create-confirm', parsed.title, details),
+    ...(conflicts.length && { reply: `${conflicts.length === 1 ? 'Encontrei um conflito de horário. ' : `Encontrei ${conflicts.length} conflitos de horário. `}Confirma mesmo assim?` }),
+    dialog: { pendingAction },
+  };
 }
 
 /** Lista os próximos compromissos. */
 async function list(ctx: SanoContext): Promise<SanoResult> {
   const agenda = requireAgenda(ctx);
-  const items = await agenda.list(ctx.user.id, ctx.now, new Date(ctx.now.getTime() + 30 * 24 * 60 * 60_000));
+  const parsed = parseSchedule(ctx.text, ctx.now);
+  const from = parsed.dayStart ?? ctx.now;
+  const to = parsed.dayEnd ?? new Date(ctx.now.getTime() + 30 * 24 * 60 * 60_000);
+  const title = parsed.dayStart ? `Agenda de ${dayText(parsed.dayStart)}` : 'Próximos 30 dias';
+  const items = await agenda.list(ctx.user.id, from, to);
 
   if (!items.length) {
     return {
-      reply: 'Sua agenda está vazia nos próximos 30 dias.',
-      view: { kind: 'timeline', title: 'Próximos 30 dias', items: [], emptyText: 'Nada marcado ainda.' },
+      reply: parsed.dayStart ? `Você não tem nada marcado em ${dayText(parsed.dayStart)}.` : 'Sua agenda está vazia nos próximos 30 dias.',
+      view: { kind: 'timeline', title, items: [], emptyText: 'Nada marcado ainda.' },
+      actions: [{ type: 'navigate', to: '/agenda' }],
     };
   }
 
@@ -161,7 +232,7 @@ async function list(ctx: SanoContext): Promise<SanoResult> {
     // Painel de linha do tempo: cada compromisso vira um item com horário.
     view: {
       kind: 'timeline',
-      title: `Próximos ${items.length} compromissos`,
+      title: parsed.dayStart ? title : `Próximos ${items.length} compromissos`,
       items: items.slice(0, 20).map((a) => ({
         id: a.id,
         time: timeOf(new Date(a.startsAt)),
@@ -209,9 +280,6 @@ function pickBest(matches: SanoAppointment[], term: string, now: Date): SanoAppo
  * mostra os encontrados e devolve botões "sim/não" para o usuário responder
  * com um toque. Apagar sem certeza é o pior erro possível num assistente.
  */
-/** Confirmação explícita exigida antes de apagar. */
-const CONFIRM_WORDS = /\b(confirmo|confirmar|pode cancelar|pode sim|autorizo|vai|pode|sim|agora)\b/;
-
 async function cancel(ctx: SanoContext): Promise<SanoResult> {
   const parsed = parseSchedule(ctx.text, ctx.now);
   // A frase de confirmação ("..., pode cancelar") entra como título; tira para
@@ -220,9 +288,6 @@ async function cancel(ctx: SanoContext): Promise<SanoResult> {
     .toLowerCase()
     .replace(/[,;]?\s*(e\s+)?(pode|confirma|confirmo|agora|vai)\b.*$/, '')
     .trim();
-  // O parser só marca confirmação no cancelamento em lote; aqui vale para os dois.
-  const confirmed = parsed.confirmed === true || CONFIRM_WORDS.test(ctx.normalized);
-
   if (!term) return { reply: 'Qual compromisso devo cancelar? Diga o trecho, por exemplo: "cancelar reunião com João".' };
 
   const agenda = requireAgenda(ctx);
@@ -252,25 +317,29 @@ async function cancel(ctx: SanoContext): Promise<SanoResult> {
 
   const target = matches.length === 1 ? matches[0] : pickBest(matches, term, ctx.now)!;
 
-  // Confirmação por botão: um toque em "Sim" reenvia o comando com "pode cancelar".
-  if (!confirmed) {
-    return {
-      reply: `Vou cancelar "${target.title}" (${fmtDateTime(target.startsAt)}). Confirma?`,
-      view: {
-        kind: 'actions',
-        title: 'Confirmar cancelamento',
-        subtitle: `${target.title} · ${fmtDateTime(target.startsAt)}`,
-        items: [
-          { label: 'Sim, cancelar', command: `cancelar ${target.title}, pode cancelar` },
-          { label: 'Não, deixa como está', command: 'deixa como está' },
-        ],
+  return {
+    reply: variedReply(ctx.user.id, 'agenda:cancel-confirm', [
+      `Vou cancelar "${target.title}" (${fmtDateTime(target.startsAt)}).`,
+      `Confere o cancelamento de "${target.title}" (${fmtDateTime(target.startsAt)})?`,
+      `Quer mesmo remover "${target.title}", marcado para ${fmtDateTime(target.startsAt)}?`,
+    ]),
+    view: {
+      kind: 'confirmation',
+      title: 'Confirmar cancelamento',
+      details: [target.title, fmtDateTime(target.startsAt)],
+      confirmCommand: 'confirmar',
+      cancelCommand: 'cancelar',
+    },
+    dialog: {
+      pendingAction: {
+        type: 'cancel',
+        appointmentId: target.id,
+        title: target.title,
+        startsAt: new Date(target.startsAt).toISOString(),
+        createdAt: ctx.now.toISOString(),
       },
-      memory: { appointments: [{ id: target.id, title: target.title, startsAt: new Date(target.startsAt) }] },
-    };
-  }
-
-  await agenda.cancel(ctx.user.id, target.id);
-  return { reply: `Pronto — cancelei "${target.title}" (${fmtDateTime(target.startsAt)}).` };
+    },
+  };
 }
 
 /**
@@ -307,24 +376,108 @@ async function cancelAll(ctx: SanoContext): Promise<SanoResult> {
     })
     .join('\n');
 
-  if (!parsed.confirmed) {
+  {
     const rest = pending.length > 8 ? `\n  … e mais ${pending.length - 8}.` : '';
     return {
-      reply: [
-        `Vou cancelar ${pending.length} ${pending.length === 1 ? 'compromisso' : 'compromissos'} de ${when}:`,
-        preview + rest,
-        '',
-        // A frase precisa vir COMPLETA, com a palavra de confirmação: sem ela o
-// usuário copiaria algo que só repetiria a prévia.
-        `Para confirmar, responda: "cancelar todos os compromissos de ${fmtDayCommand(from, ctx.now)}, pode cancelar".`,
-      ].join('\n'),
+      reply: variedReply(ctx.user.id, 'agenda:cancel-day-confirm', [
+        `Vou cancelar ${pending.length} ${pending.length === 1 ? 'compromisso' : 'compromissos'} de ${when}.`,
+        `Confirma o cancelamento de ${pending.length} itens da agenda em ${when}?`,
+        `Posso remover esses ${pending.length} compromissos de ${when}?`,
+      ]),
+      view: {
+kind: 'confirmation',
+title: 'Confirmar cancelamento',
+details: [preview + rest],
+confirmCommand: 'confirmar',
+cancelCommand: 'cancelar',
+      },
+      dialog: {
+pendingAction: {
+  type: 'cancel-day',
+  startsAt: from.toISOString(),
+  endsAt: to.toISOString(),
+  count: pending.length,
+  createdAt: ctx.now.toISOString(),
+},
+      },
+    };
+  }
+}
+
+async function updateAppointment(ctx: SanoContext): Promise<SanoResult> {
+  const draft = ctx.memory?.pendingAction?.type === 'draft'
+    && ctx.memory.pendingAction.operation === 'update'
+    ? ctx.memory.pendingAction
+    : null;
+  const parsed = parseSchedule(
+    draft ? `alterar ${draft.title} ${draft.date ? dayText(new Date(draft.date)) : ''} ${ctx.text}` : ctx.text,
+    ctx.now,
+  );
+  if (parsed.missing === 'title') {
+    return { reply: 'Qual compromisso você quer mudar? Diga um trecho do título.' };
+  }
+
+  const agenda = requireAgenda(ctx);
+  const matches = draft?.appointmentId
+    ? (await agenda.findByTitle(ctx.user.id, draft.title)).filter((item) => item.id === draft.appointmentId)
+    : await agenda.findByTitle(ctx.user.id, parsed.title);
+  if (!matches.length) {
+    return { reply: `Não encontrei "${parsed.title}" para alterar. Quer conferir sua agenda?`, view: { kind: 'actions', title: 'Agenda', items: [{ label: 'Ver agenda', command: 'minha agenda' }] } };
+  }
+  if (matches.length > 1) {
+    return {
+      reply: `Achei mais de um compromisso parecido com "${parsed.title}". Qual horário você quer alterar?`,
+      view: {
+        kind: 'actions',
+        title: 'Escolha o compromisso',
+        items: matches.map((item) => ({
+          label: `${fmtDateTime(item.startsAt)} — ${item.title}`,
+          command: `alterar ${item.title} ${fmtDayCommand(parsed.startsAt, ctx.now)} às ${new Intl.DateTimeFormat('pt-BR', { timeZone: TZ, hour: '2-digit', minute: '2-digit' }).format(parsed.startsAt).replace(':', 'h')}`,
+        })),
+      },
     };
   }
 
-  const removed = await agenda.cancelDay(ctx.user.id, from, to);
+  const target = matches[0];
+  if (parsed.missing === 'date' || parsed.missing === 'time') {
+    const missingDate = parsed.missing === 'date';
+    return {
+      reply: missingDate
+        ? `Encontrei "${target.title}". Para qual dia quer mudar?`
+        : `Certo, vou mudar "${target.title}" para ${dayText(parsed.startsAt)}. Que horas?`,
+      dialog: {
+        pendingAction: {
+          type: 'draft',
+          operation: 'update',
+          appointmentId: target.id,
+          title: target.title,
+          date: missingDate ? null : parsed.startsAt.toISOString(),
+          createdAt: ctx.now.toISOString(),
+        },
+      },
+    };
+  }
+
+  const pendingAction: PendingAssistantAction = {
+    type: 'update',
+    appointmentId: target.id,
+    title: target.title,
+    startsAt: parsed.startsAt.toISOString(),
+    endsAt: parsed.endsAt?.toISOString() ?? null,
+    participants: parsed.participants,
+    remindBefore: parsed.remindBeforeMinutes ?? target.remindBefore ?? null,
+    createdAt: ctx.now.toISOString(),
+  };
   return {
-    reply: `Pronto — cancelei ${removed} ${removed === 1 ? 'compromisso' : 'compromissos'} de ${when}.`,
-    actions: [{ type: 'navigate', to: '/agenda' }],
+    ...confirmation(ctx.user.id, 'agenda:update-confirm', target.title, [`De ${fmtDateTime(target.startsAt)}`, `Para ${fmtDateTime(parsed.startsAt)}`]),
+    view: {
+      kind: 'confirmation',
+      title: 'Confirmar alteração',
+      details: [target.title, `De ${fmtDateTime(target.startsAt)}`, `Para ${fmtDateTime(parsed.startsAt)}`],
+      confirmCommand: 'confirmar',
+      cancelCommand: 'cancelar',
+    },
+    dialog: { pendingAction },
   };
 }
 
@@ -335,7 +488,12 @@ async function cancelAll(ctx: SanoContext): Promise<SanoResult> {
  * Toda a decisão de treino continua no motor determinístico.
  */
 async function trainerStatus(ctx: SanoContext): Promise<SanoResult> {
-  if (!ctx.deps.trainer) return { reply: 'Módulo de treino indisponível.' };
+  if (!ctx.deps.trainer) {
+    return {
+      reply: 'Posso te levar ao módulo de treino para conferir sua missão e seu progresso.',
+      actions: [{ type: 'navigate', to: '/treino' }],
+    };
+  }
 
   const s = await ctx.deps.trainer.status(ctx.user.id);
   if (!s.onboarded) {
@@ -365,7 +523,12 @@ const normalizeWord = (s: string) => s.toLowerCase().normalize('NFD').replace(/[
 
 /** "completei flexão", "fiz agachamento na caixa". */
 async function trainerComplete(ctx: SanoContext): Promise<SanoResult> {
-  if (!ctx.deps.trainer) return { reply: 'Módulo de treino indisponível.' };
+  if (!ctx.deps.trainer) {
+    return {
+      reply: 'Anoto isso quando o módulo de treino estiver conectado. Quer abrir a tela do treino?',
+      actions: [{ type: 'navigate', to: '/treino' }],
+    };
+  }
 
   const verb = /\b(complet[ei]|fiz|treinei|conclui|realizei)\b/.exec(ctx.normalized);
   if (!verb) return { reply: 'Diga o que você concluiu, por exemplo: "completei flexão".' };
@@ -392,10 +555,15 @@ export const trainerIntent: Intent = {
   description: 'Missões e status do treino',
   examples: ['meu treino', 'completei flexão'],
   patterns: [
-    /\b(treino|treinar|treinei|treine|treinamento|missao|missoes|exercicio|exercicios|workout|musculo|musculos)\b/,
+    /\b(treino|treinar|treinei|treine|treinamento|missao|missoes|exercicio|exercicios|workout|musculo|musculos|personagem|academia)\b/,
   ],
   handle: async (ctx) => {
-    if (!ctx.deps.trainer) return { reply: 'Módulo de treino indisponível.' };
+    if (!ctx.deps.trainer) {
+      return {
+        reply: 'Posso abrir o treino para você consultar a missão e o progresso.',
+        actions: [{ type: 'navigate', to: '/treino' }],
+      };
+    }
     // "completei/fiz X" marca um bloco; qualquer outra coisa é status.
     if (/\b(complet[ei]|fiz|treinei|conclui|realizei)\b/.test(ctx.normalized)) return trainerComplete(ctx);
     return trainerStatus(ctx);
@@ -420,7 +588,19 @@ export const aiIntent: Intent = {
   ],
   handle: async (ctx) => {
     const asker = ctx.deps.trainer?.ask;
-    if (!asker) return { reply: 'A IA não está disponível agora.' };
+    if (!asker) {
+      return {
+        reply: 'Posso mostrar sua missão de hoje ou abrir o treino para você conferir os exercícios.',
+        view: {
+          kind: 'actions',
+          title: 'Atalhos do treino',
+          items: [
+            { label: 'Ver missão e status', command: 'meu treino' },
+            { label: 'Abrir treino', command: 'abrir treino' },
+          ],
+        },
+      };
+    }
 
     const answer = await asker(ctx.user.id, ctx.text);
     return {
@@ -439,13 +619,18 @@ export const agendaIntent: Intent = {
   description: 'Compromissos e lembretes',
   examples: ['agendar reunião amanhã às 14h', 'cancelar todos de amanhã'],
   patterns: [
-    /\b(agenda|agendar|agende|agendo|compromisso|compromissos|lembrete|lembrar|lembre|reuniao|reunioes|calendario|marcar|marque|cancelar|cancele)\b/,
+    /\b(agenda|agendar|agende|agendo|compromisso|compromissos|lembrete|lembrar|lembre|lembra|reuniao|reunioes|calendario|marcar|marque|marca|adicionar|adiciona|adicione|anotar|anote|anota|registrar|registre|registra|cancelar|cancele|cancela|apagar|apague|remover|remova|remarcar|remarque|reagendar|reagende|alterar|altere|altera|mudar|muda|marcado|marcada)\b/,
+    /\b(o que tenho|tem algo marcado|minha agenda)\b/,
   ],
   handle: async (ctx) => {
+    if (ctx.memory?.pendingAction?.type === 'draft' && ctx.memory.pendingAction.operation === 'update') {
+      return updateAppointment(ctx);
+    }
     const parsed = parseSchedule(ctx.text, ctx.now);
     if (parsed.action === 'list') return list(ctx);
     if (parsed.action === 'cancel_all') return cancelAll(ctx);
     if (parsed.action === 'cancel') return cancel(ctx);
+    if (parsed.action === 'update') return updateAppointment(ctx);
     return create(ctx);
   },
 };

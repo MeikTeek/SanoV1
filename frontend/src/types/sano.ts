@@ -33,6 +33,13 @@ export type SanoView =
       kind: 'briefing';
       headline: string;
       blocks: { title: string; lines: string[]; tone?: 'ok' | 'warn' | 'bad' }[];
+    }
+  | {
+      kind: 'confirmation';
+      title: string;
+      details: string[];
+      confirmCommand: string;
+      cancelCommand: string;
     };
 
 export interface SanoResponse {

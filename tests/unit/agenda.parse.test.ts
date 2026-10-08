@@ -39,10 +39,28 @@ test('datas relativas preservam a hora atual', () => {
   assert.match(iso(parse('dentista daqui a 2 horas').startsAt)!, /2026-10-03T15:00/);
 });
 
-test('hora: hh:mm, h:mm e sem hora (padrão 09:00)', () => {
+test('hora: formatos numéricos, falados e pedido do horário que falta', () => {
   assert.match(iso(parse('reuniao amanha as 9:30').startsAt)!, /2026-10-04T12:30/);
   assert.match(iso(parse('reuniao amanha as 14h30').startsAt)!, /2026-10-04T17:30/);
-  assert.match(iso(parse('reuniao amanha').startsAt)!, /2026-10-04T12:00/); // 09:00 local
+  assert.match(iso(parse('reuniao amanha as 14').startsAt)!, /2026-10-04T17:00/);
+  assert.match(iso(parse('reuniao amanha 10 e meia').startsAt)!, /2026-10-04T13:30/);
+  assert.match(iso(parse('reuniao amanha duas da tarde').startsAt)!, /2026-10-04T17:00/);
+  assert.match(iso(parse('reuniao amanha oito da noite').startsAt)!, /2026-10-04T23:00/);
+  assert.match(iso(parse('reuniao amanha meio-dia').startsAt)!, /2026-10-04T15:00/);
+  assert.equal(parse('reuniao amanha').missing, 'time');
+});
+
+test('datas e horários relativos usam o calendário de São Paulo', () => {
+  const tomorrowAtTwo = parse('reuniao amanha as 14h');
+  const tomorrowAtTwoSpelled = parse('reuniao amanha duas da tarde');
+  assert.equal(iso(tomorrowAtTwo.startsAt), iso(tomorrowAtTwoSpelled.startsAt));
+  assert.equal(iso(parse('reuniao dia 15 as 9:30').startsAt), '2026-10-15T12:30:00.000Z');
+  assert.equal(iso(parse('reuniao 15/03 as 10h').startsAt), '2027-03-15T13:00:00.000Z');
+  assert.equal(iso(parse('reuniao daqui a 3 dias as 10h').startsAt), '2026-10-06T13:00:00.000Z');
+  assert.equal(iso(parse('reuniao semana que vem as 10h').startsAt), '2026-10-05T13:00:00.000Z');
+  assert.equal(iso(parse('reuniao proxima segunda as 10h').startsAt), '2026-10-05T13:00:00.000Z');
+  assert.equal(iso(parse('reuniao amnh as 14h').startsAt), '2026-10-04T17:00:00.000Z');
+  assert.equal(iso(parse('reuniao hj as 14h').startsAt), '2026-10-03T17:00:00.000Z');
 });
 
 test('intervalo das 14h às 15h30', () => {

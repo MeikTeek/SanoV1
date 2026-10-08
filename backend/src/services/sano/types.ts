@@ -60,6 +60,13 @@ export interface SanoAgendaDeps {
   }) => Promise<SanoAppointment>;
   findByTitle: (userId: string, term: string) => Promise<SanoAppointment[]>;
   cancel: (userId: string, id: string) => Promise<void>;
+  update: (userId: string, id: string, data: {
+    title?: string;
+    startsAt?: Date;
+    endsAt?: Date | null;
+    participants?: string;
+    remindBefore?: number | null;
+  }) => Promise<SanoAppointment>;
   /** Lista os compromissos de um dia [from, to) — usado na confirmação. */
   listByDay: (userId: string, from: Date, to: Date) => Promise<SanoAppointment[]>;
   /** Cancela todos os compromissos pendentes do dia e devolve quantos foram. */
@@ -113,6 +120,13 @@ export type SanoView =
       kind: 'briefing';
       headline: string;
       blocks: { title: string; lines: string[]; tone?: 'ok' | 'warn' | 'bad' }[];
+    }
+  | {
+      kind: 'confirmation';
+      title: string;
+      details: string[];
+      confirmCommand: string;
+      cancelCommand: string;
     };
 
 export interface SanoResult {
@@ -122,6 +136,7 @@ export interface SanoResult {
   view?: SanoView;
   /** O que esta resposta memoriza para permitir "cancela essa" / "e amanhã?". */
   memory?: { appointments?: SanoAppointment[]; focusDay?: string };
+  dialog?: Partial<SanoMemory>;
 }
 
 export interface SanoResponse extends SanoResult {

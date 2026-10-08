@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { localDayBounds } from '../assistant/dateTime';
 
 export type AppointmentStatus = 'PENDING' | 'DONE' | 'CANCELED';
 
@@ -56,7 +57,12 @@ export async function findByTitle(userId: string, term: string) {
   });
 }
 
-export async function updateAppointment(userId: string, id: string, data: Partial<AppointmentInput> & { status?: AppointmentStatus }) {
+export async function updateAppointment(
+  userId: string,
+  id: string,
+  data: Partial<Omit<AppointmentInput, 'endsAt' | 'remindBefore'>>
+    & { endsAt?: Date | null; remindBefore?: number | null; status?: AppointmentStatus },
+) {
   return prisma.appointment.update({
     where: { id, userId }, // userId no where impede acessar compromisso de outro usuário
     data: {
@@ -103,10 +109,7 @@ export async function cancelDay(userId: string, from: Date, to: Date) {
 
 /** Compromissos de hoje (fuso local), usados na saudação inicial. */
 export async function listToday(userId: string, now = new Date()) {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  const { start, end } = localDayBounds(now);
 
   return prisma.appointment.findMany({
     where: { userId, status: 'PENDING', startsAt: { gte: start, lt: end } },

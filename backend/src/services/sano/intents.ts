@@ -1,10 +1,49 @@
 import type { Intent } from './types';
 import { agendaIntent, trainerIntent, aiIntent } from './intents/agenda';
+import { localDayBounds } from '../assistant/dateTime';
+import { listLearningPhrases } from '../assistant/learning';
+import { variedReply } from '../assistant/recovery';
 
 const fmtUptime = (s: number) => {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   return h ? `${h}h ${m}min` : `${m}min ${Math.floor(s % 60)}s`;
+};
+
+const settings: Intent = {
+  name: 'settings',
+  description: 'Abre os ajustes',
+  examples: ['abrir ajustes'],
+  patterns: [/^(ajustes|configuracoes|config|preferencias)$/, /\b(abre|abrir|abra|quero ver|quero abrir|ir para|va para)\b.*\b(ajustes|configuracoes|preferencias)\b/],
+  handle: () => ({
+    reply: 'Abrindo seus ajustes…',
+    actions: [{ type: 'navigate', to: '/config' }],
+  }),
+};
+
+const learning: Intent = {
+  name: 'assistant_learning',
+  description: 'Frases que o assistente ainda está aprendendo',
+  examples: ['ver frases para melhorar o Sano'],
+  adminOnly: true,
+  hidden: true,
+  patterns: [/\b(frases|pedidos)\b.*\b(aprender|melhorar|revisar|nao reconhecid[oa]s?)\b/, /\baprendizado do assistente\b/],
+  async handle() {
+    const items = await listLearningPhrases();
+    return {
+      reply: items.length
+        ? `Separei ${items.length} frases para revisão.`
+        : 'Ainda não há frases aguardando revisão.',
+      view: {
+        kind: 'briefing',
+        headline: 'Frases para revisar',
+        blocks: items.map((item, index) => ({
+          title: `${index + 1}. Nível ${item.level}`,
+          lines: [item.phrase],
+        })),
+      },
+    };
+  },
 };
 
 const fmtDate = (d: Date, opts: Intl.DateTimeFormatOptions) =>
@@ -18,7 +57,13 @@ const greeting: Intent = {
   examples: ['oi'],
   hidden: true,
   patterns: [/^$/, /^(oi|ola|e ai|bom dia|boa tarde|boa noite)$/],
-  handle: ({ user }) => ({ reply: `Às ordens, ${user.username}. Digite "ajuda" para ver o que posso fazer.` }),
+  handle: ({ user }) => ({
+    reply: variedReply(user.id, 'social:wake-word', [
+      `Estou aqui, ${user.username}. Quer ver a agenda ou abrir algum módulo?`,
+      `Pode falar, ${user.username}. Posso ajudar com agenda, treino ou perfil.`,
+      `À disposição, ${user.username}. O que você quer resolver?`,
+    ]),
+  }),
 };
 
 const admin: Intent = {
@@ -26,7 +71,7 @@ const admin: Intent = {
   description: 'Abre o painel administrativo',
   examples: ['painel adm'],
   adminOnly: true,
-  patterns: [/^(admin|adm|painel adm|painel admin)$/, /\b(abrir?|abra|ir para|va para)\b.*\b(adm|admin|administrativo)\b/],
+  patterns: [/^(admin|adm|painel adm|painel admin)$/, /\b(abre|abrir|abra|ir para|va para|ir ao|quero ver|quero abrir|entrar no)\b.*\b(adm|admin|administrativo)\b/],
   handle: () => ({
     reply: 'Abrindo o painel administrativo…',
     actions: [{ type: 'navigate', to: '/admin' }],
@@ -37,13 +82,14 @@ const whoami: Intent = {
   name: 'whoami',
   description: 'Mostra seu perfil de acesso',
   examples: ['quem sou eu'],
-  patterns: [/^(whoami|perfil|meu perfil)$/, /\bquem (sou|e) eu\b/],
+  patterns: [/^(whoami|perfil|meu perfil)$/, /\bquem (sou|e) eu\b/, /\b(quero ver|quero abrir|abre|abrir|abra|mostra|ver)\s+(o\s+)?(meu )?perfil\b/],
   handle: ({ user }) => ({
     reply: [
       `Usuário: ${user.username}`,
       `Cargo: ${user.role}`,
       `Último login: ${user.lastLoginAt ? fmtDate(user.lastLoginAt, { dateStyle: 'short', timeStyle: 'short' }) : '—'}`,
     ].join('\n'),
+    actions: [{ type: 'navigate', to: `/perfil/${encodeURIComponent(user.username)}` }],
   }),
 };
 
@@ -51,7 +97,7 @@ const status: Intent = {
   name: 'status',
   description: 'Diagnóstico do sistema',
   examples: ['status do sistema'],
-  patterns: [/^(status|sistema|diagnostico)$/, /\bstatus (do )?(sistema|servidor|api)\b/],
+  patterns: [/^(status|sistema|diagnostico)$/, /\b(status|diagnostico|saude)\s+(?:(?:do|da|de) )?(sistema|servidor|api)\b/, /\bsistema funcionando\b/, /\bcomo (esta|anda) o sistema\b/],
   async handle({ deps }) {
     let dbMs: number | null = null;
     try {
@@ -88,15 +134,14 @@ const briefing: Intent = {
   name: 'briefing',
   description: 'Resumo do seu dia',
   examples: ['briefing', 'como está meu dia?'],
-  patterns: [/^(briefing|resumo|panorama|situacao)\b/, /\b(como (esta|esta|foi) (meu|o) dia|briefing de hoje|meu dia)\b/],
+  patterns: [/^(briefing|resumo|panorama|situacao)\b/, /\b(como (esta|vai ser|foi) (meu|o) dia|briefing de hoje|meu dia|resumo do dia)\b/],
   async handle(ctx) {
     const blocks: { title: string; lines: string[]; tone?: 'ok' | 'warn' | 'bad' }[] = [];
     const fmtTime = (d: Date) =>
       new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(d);
 
     // Agenda de hoje.
-    const dayStart = new Date(ctx.now); dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(dayStart); dayEnd.setDate(dayEnd.getDate() + 1);
+    const { start: dayStart, end: dayEnd } = localDayBounds(ctx.now);
     let today = ctx.deps.agenda ? await ctx.deps.agenda.listByDay(ctx.user.id, dayStart, dayEnd) : [];
     if (today.length) {
       blocks.push({
@@ -138,8 +183,14 @@ const time: Intent = {
   name: 'time',
   description: 'Data e hora atuais',
   examples: ['que horas são?'],
-  patterns: [/\bque horas?\b/, /^(hora|horas|data|hoje|dia)$/, /\bque dia\b/, /\bdata de hoje\b/],
-  handle: ({ now }) => ({ reply: `Agora: ${fmtDate(now, { dateStyle: 'full', timeStyle: 'short' })}` }),
+  patterns: [/\bque horas?\b/, /\bqual (a )?hora\b/, /^(hora|horas|data|hoje|dia)$/, /\bque dia\b/, /\bdata de hoje\b/, /\bdata e hora atuais?\b/],
+  handle: ({ now, user }) => ({
+    reply: variedReply(user.id, 'time:now', [
+      `Agora são ${fmtDate(now, { dateStyle: 'full', timeStyle: 'short' })}.`,
+      `Neste momento: ${fmtDate(now, { dateStyle: 'full', timeStyle: 'short' })}.`,
+      `A data e hora em São Paulo são ${fmtDate(now, { dateStyle: 'full', timeStyle: 'short' })}.`,
+    ]),
+  }),
 };
 
 /* ---------------------- Módulo 1 (implementado) ---------------------- */
@@ -188,7 +239,25 @@ const planned = (
 const plannedIntents: Intent[] = [
   planned('jogos', 'jogos cognitivos', '3', 'jogar memória', [/\b(jogo|jogos|jogar|memoria|reflexo|reflexos)\b/]),
   planned('arquivos', 'utilitários de arquivos', '3', 'converter pdf', [/\b(pdf|converter|compactar|arquivos?)\b/]),
-  planned('musica', 'player de música', '4', 'tocar música', [/\b(musica|musicas|tocar|toque|inicie a musica|playlist|spotify)\b/]),
+  {
+    ...planned('musica', 'player de música', '4', 'tocar música', [/\b(musica|musicas|tocar|toque|inicie a musica|playlist|spotify)\b/]),
+    handle: ({ user }) => ({
+      reply: variedReply(user.id, 'music:planned', [
+        'Música ainda não está disponível, mas já deixei esse pedido no meu radar. Posso abrir outro módulo enquanto isso.',
+        'Ainda não consigo tocar músicas, mas reconheci o que você quer. Quer ir para a agenda ou para o treino?',
+        'O player de música ainda vem pela frente. Enquanto isso, posso abrir outro espaço do Sano.',
+      ]),
+      view: {
+        kind: 'actions',
+        title: 'O que posso abrir agora',
+        items: [
+          { label: 'Agenda', command: 'minha agenda' },
+          { label: 'Treino', command: 'meu treino' },
+          { label: 'Mensagens', command: 'abrir mensagens' },
+        ],
+      },
+    }),
+  },
   planned('osint', 'terminal OSINT', '4', 'abrir terminal osint', [/\b(osint|varredura|scan)\b/], true),
 ];
 
@@ -198,7 +267,7 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
   name: 'help',
   description: 'Lista os comandos',
   examples: ['ajuda'],
-  patterns: [/^(ajuda|help|comandos)$/, /\bo que (voce|vc) (faz|sabe)\b/],
+  patterns: [/^(ajuda|help|comandos|lista de comandos|me ajuda|preciso de ajuda)$/, /\bo que (voce|vc|o sano) (faz|sabe|posso pedir)\b/, /\bcomo posso pedir\b/, /\bme mostra (a )?ajuda\b/],
   handle: ({ user }) => {
     const visible = list().filter((i) => !i.hidden && (!i.adminOnly || user.role === 'ADMIN'));
     const ready = visible.filter((i) => !i.planned);
@@ -230,5 +299,5 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
 // comando de navegação, não pergunta.
 export const baseIntents: Intent[] = [
   greeting, admin, whoami, status, briefing, time, agendaIntent, trainerIntent,
-  messages, people, aiIntent, ...plannedIntents,
+  messages, people, settings, learning, aiIntent, ...plannedIntents,
 ];

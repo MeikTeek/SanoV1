@@ -103,6 +103,20 @@ export default function ViewRenderer({ view, onCommand }: Props) {
         </section>
       );
 
+    case 'confirmation':
+      return (
+        <section className="hud-card" aria-label={view.title}>
+          <h4 className="hud-title">{view.title}</h4>
+          <ul className="hud-side-list">
+            {view.details.map((detail) => <li key={detail}>{detail}</li>)}
+          </ul>
+          <div className="hud-actions">
+            <button className="hud-btn" onClick={() => onCommand(view.confirmCommand)}>Confirmar</button>
+            <button className="hud-btn" onClick={() => onCommand(view.cancelCommand)}>Cancelar</button>
+          </div>
+        </section>
+      );
+
     default:
       return null;
   }

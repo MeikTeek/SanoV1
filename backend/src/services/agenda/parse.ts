@@ -10,9 +10,10 @@
  * É puro e determinístico: sem IA e sem banco — barato e testável. Se um dia
  * entrar LLM, o ponto de troca é o intent 'agenda' em services/sano/intents.ts.
  */
+import { extractDateTime, localDayBounds } from '../assistant/dateTime';
 
 export interface ParsedSchedule {
-  action: 'create' | 'list' | 'cancel' | 'cancel_all';
+  action: 'create' | 'list' | 'cancel' | 'cancel_all' | 'update';
   title: string;
   participants?: string;
   /** Início em UTC. */
@@ -26,23 +27,12 @@ export interface ParsedSchedule {
   /** Minutos de antecedência do lembrete, quando pedido. */
   remindBeforeMinutes?: number;
   /** Motivo da recusa, quando a frase não tem título ou data utilizável. */
-  missing?: 'title' | 'date';
+  missing?: 'title' | 'date' | 'time';
 }
 
 export interface Span { start: number; end: number }
 
 /** Fuso local (Brasil). Datas "wall clock" são resolvidas em São Paulo e gravadas em UTC. */
-const TZ_OFFSET_MIN = -180; // America/Sao_Paulo não observa DST desde 2019
-
-const WEEKDAYS: Record<string, number> = {
-  domingo: 0, segunda: 1, terca: 2, quarta: 3, quinta: 4, sexta: 5, sabado: 6,
-};
-
-const MONTHS: Record<string, number> = {
-  janeiro: 0, fevereiro: 1, marco: 2, abril: 3, maio: 4, junho: 5,
-  julho: 6, agosto: 7, setembro: 8, outubro: 9, novembro: 10, dezembro: 11,
-};
-
 /**
  * Minúsculo, sem acento e sem pontuação — **preservando o comprimento**.
  * A decomposição NFD + descarte dos diacríticos garante 1 caractere por caractere.
@@ -67,29 +57,30 @@ function cutOut(original: string, spans: Span[]): string {
   return out;
 }
 
-const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-
-/** Monta um Date UTC a partir de hora/data locais de São Paulo. */
-const fromLocal = (y: number, m: number, d: number, h = 0, min = 0) =>
-  new Date(Date.UTC(y, m, d, h, min) - TZ_OFFSET_MIN * 60_000);
-
 /** Ajusta a base (meio-dia local) para a hora pedida. */
 const atLocal = (base: Date, h: number, m: number) => {
-  const local = new Date(base.getTime() + TZ_OFFSET_MIN * 60_000);
-  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(), h, m) - TZ_OFFSET_MIN * 60_000);
+  const bounds = localDayBounds(base);
+  return new Date(bounds.start.getTime() + (h * 60 + m) * 60_000);
 };
 
 const spanOf = (m: RegExpExecArray): Span => ({ start: m.index, end: m.index + m[0].length });
 
 /* --------------------------------- ação --------------------------------- */
 
-const CREATE_WORDS = /\b(agendar|agende|agendo|criar|crie|marcar|marque|lembrar|lembre|anote|anota|cadastrar|registrar|registre)\b/;
-const LIST_WORDS = /\b(quais|listar|lista|listagem|mostrar|mostre|ver|tenho|minha agenda)\b/;
-const CANCEL_WORDS = /\b(cancelar|cancele|apagar|apague|remover|remova)\b/;
+const CREATE_WORDS = /\b(agendar|agende|agendo|criar|crie|marcar|marque|coloca|coloque|lembrar|lembre|lembra|anote|anota|cadastrar|registrar|registre)\b/;
+const LIST_WORDS = /\b(quais|listar|lista|listagem|mostrar|mostre|ver|tenho|minha agenda|tem algo|marcado|marcada|o que tenho)\b/;
+const OPEN_AGENDA_WORDS = /\b(abre|abrir|abra|acessar|acessa|consultar|consulta|ver|mostrar|mostra|ir para|ir ao)\b/;
+const AGENDA_NOUNS = /\b(agenda|calendario|compromissos?)\b/;
+const CANCEL_WORDS = /\b(cancelar|cancele|cancela|apagar|apague|remover|remova)\b/;
+const UPDATE_WORDS = /\b(mudar|muda|alterar|altere|altera|remarcar|remarque|reagendar|reagende)\b/;
 
 const detectAction = (t: string): ParsedSchedule['action'] => {
+  if (UPDATE_WORDS.test(t) && !CANCEL_WORDS.test(t)) return 'update';
   if (CANCEL_WORDS.test(t)) return ALL_WORDS.test(t) ? 'cancel_all' : 'cancel';
-  return LIST_WORDS.test(t) && !CREATE_WORDS.test(t) ? 'list' : 'create';
+  const listing = LIST_WORDS.test(t)
+    || /^\s*agenda\s*$/.test(t)
+    || (OPEN_AGENDA_WORDS.test(t) && AGENDA_NOUNS.test(t));
+  return listing && !CREATE_WORDS.test(t) ? 'list' : 'create';
 };
 
 /** "todos/tudo/todas" transforma o cancelamento em limpeza do dia. */
@@ -97,103 +88,17 @@ const ALL_WORDS = /\b(todos|todas|tudo|inteira|inteiro|completo|completa)\b/;
 
 /** Confirmação explícita exigida antes de apagar vários compromissos. */
 const CONFIRM_WORDS = /\b(confirmo|confirmar|pode cancelar|pode sim|autorizo|vai|pode|sim)\b/;
-/* ---------------------------------- data ---------------------------------- */
 
-interface DateHit { startsAt: Date; span: Span; /** Datas relativas ("em 10 minutos") já têm hora — não pode ser sobrescrita. */ hasTime?: boolean }
+type DateHit = { startsAt: Date; span: Span; hasTime?: boolean };
+type TimeHit = { hours: number; minutes: number; span: Span };
 
 function resolveDate(t: string, now: Date): DateHit | null {
-  const today = startOfDay(now);
-  const at = (d: Date, m: RegExpExecArray): DateHit => ({
-    startsAt: fromLocal(d.getFullYear(), d.getMonth(), d.getDate()),
-    span: spanOf(m),
-  });
-  const shifted = (days: number, m: RegExpExecArray) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + days);
-    return at(d, m);
-  };
-
-  // Ordem importa: "depois de amanhã" contém "amanhã".
-  const depois = /\bdepois\s+de\s+amanha\b/.exec(t);
-  if (depois) return shifted(2, depois);
-
-  const hoje = /\bhoje\b/.exec(t);
-  if (hoje) return shifted(0, hoje);
-
-  const amanha = /\bamanha\b/.exec(t);
-  if (amanha) return shifted(1, amanha);
-
-  // "daqui a 2 horas" / "em 3 dias"
-  const rel = /\b(?:daqui a|em)\s+(\d{1,2})\s*(hora|horas|dia|dias|minuto|minutos)\b/.exec(t);
-  if (rel) {
-    const n = Number(rel[1]);
-    const d = new Date(now);
-    if (rel[2].startsWith('min')) d.setMinutes(d.getMinutes() + n);
-    else if (rel[2].startsWith('hora')) d.setHours(d.getHours() + n);
-    else d.setDate(d.getDate() + n);
-    return { startsAt: d, span: spanOf(rel), hasTime: true };
-  }
-
-  // "sexta", "proxima segunda"
-  const wd = /\b(?:(proxim[ao])\s+)?(segunda|terca|quarta|quinta|sexta|sabado|domingo)\b/.exec(t);
-  if (wd) {
-    const d = new Date(today);
-    let delta = (WEEKDAYS[wd[2]] - d.getDay() + 7) % 7;
-    if (delta === 0) delta = 7; // "sexta" numa sexta = a próxima
-    d.setDate(d.getDate() + delta);
-    return at(d, wd);
-  }
-
-  // "15/10/2026"
-  const br = /\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\b/.exec(t);
-  if (br) {
-    const day = Number(br[1]);
-    const month = Number(br[2]) - 1;
-    let year = br[3] ? Number(br[3]) : now.getFullYear();
-    if (year < 100) year += 2000;
-    const d = new Date(year, month, day);
-    if (!br[3] && d.getTime() < startOfDay(now).getTime()) d.setFullYear(year + 1);
-    return at(d, br);
-  }
-
-  // "dia 15 de outubro"
-  const long = /\b(?:dia\s+)?(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{4}))?\b/.exec(t);
-  if (long && MONTHS[long[2]] !== undefined) {
-    const year = long[3] ? Number(long[3]) : now.getFullYear();
-    return { startsAt: fromLocal(year, MONTHS[long[2]], Number(long[1])), span: spanOf(long) };
-  }
-
-  // "dia 15" (sem mês) — próximo dia do mês corrente
-  const onlyDay = /\bdia\s+(\d{1,2})\b/.exec(t);
-  if (onlyDay) {
-    const d = new Date(now.getFullYear(), now.getMonth(), Number(onlyDay[1]));
-    if (d.getTime() < startOfDay(now).getTime()) d.setMonth(d.getMonth() + 1);
-    return at(d, onlyDay);
-  }
-
-  return null;
+  const date = extractDateTime(t, now).date;
+  return date ? { startsAt: date.value, span: date.span, hasTime: date.hasTime } : null;
 }
 
-/* ---------------------------------- hora ---------------------------------- */
-
-interface TimeHit { hours: number; minutes: number; span: Span }
-
 function resolveTime(t: string): TimeHit | null {
-  // "14h", "14:30", "14h30", "às 14h", "as 9" — a preposição entra no casamento
-  // para não sobrar um "às" órfão no título ou nos participantes.
-  const re = /\b(?:as|à|ao)?\s*(\d{1,2})\s*(?:h|:|horas?)\s*(\d{2})?\b/;
-  const hm = re.exec(t);
-  if (hm && Number(hm[1]) <= 23) {
-    return { hours: Number(hm[1]), minutes: hm[2] ? Number(hm[2]) : 0, span: spanOf(hm) };
-  }
-
-  // "as 9" sem sufixo de hora
-  const bare = /\b(?:as|à|ao)\s+(\d{1,2})\b/.exec(t);
-  if (bare && Number(bare[1]) <= 23) {
-    return { hours: Number(bare[1]), minutes: 0, span: spanOf(bare) };
-  }
-
-  return null;
+  return extractDateTime(t, new Date()).time;
 }
 
 /* --------------------------------- lembrete --------------------------------- */
@@ -221,13 +126,18 @@ function resolveReminder(t: string): { minutes?: number; span?: Span } {
 /* ------------------------------ montagem final ------------------------------ */
 
 /** Ruído de comando que nunca faz parte do título. "de/do/da" ficam de fora: são comuns em títulos ("Aula de História"). */
-const NOISE = /\b(por favor|favor|por gentileza|entao|nao|preciso|quero|um|uma|novo|nova|meu|minha|com|ate|proxim[ao])\b/gi;
+const NOISE = /\b(por favor|favor|por gentileza|entao|nao|preciso|quero|um|uma|novo|nova|meu|minha|ate|pra|para|proxim[ao])\b/gi;
 
-const TITLE_TRIM = /\b(agendar|agende|agendo|criar|crie|marcar|marque|lembrar|lembre|anote|anota|cadastrar|registrar|registre)\b/gi;
+const TITLE_TRIM = /\b(agendar|agende|agendo|criar|crie|marcar|marque|coloca|coloque|lembrar|lembre|lembra|anote|anota|cadastrar|registrar|registre|mudar|muda|alterar|altere|altera|remarcar|remarque|reagendar|reagende)\b/gi;
 
 function tidy(s: string): string {
   const cleaned = s
+    .replace(/\b(?:na|pela|para a) agenda\b/gi, ' ')
+    .replace(/\b(?:me lembra(?:r)?|me avisa|por favor|por gentileza)\b/gi, ' ')
     .replace(TITLE_TRIM, ' ')
+    .replace(/^\s*de\s+/i, ' ')
+    .replace(NOISE, ' ')
+    .replace(/\b(?:de|do|da)\s*$/i, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
@@ -241,11 +151,20 @@ export function parseSchedule(text: string, now: Date = new Date()): ParsedSched
   const f = fold(text);
   const action = detectAction(f);
 
-  if (action !== 'create') {
+  if (action === 'list') {
+    const date = resolveDate(f, now);
+    const bounds = date ? localDayBounds(date.startsAt) : undefined;
+    return {
+      action,
+      title: '',
+      startsAt: date?.startsAt ?? new Date(now),
+      ...(bounds && { dayStart: bounds.start, dayEnd: bounds.end }),
+    };
+  }
+
+  if (action === 'cancel' || action === 'cancel_all') {
     // Em "list" o título não importa; em "cancel" ele É o termo de busca
     // ("cancelar reunião com João" → procurar "reuniao").
-    if (action === 'list') return { action, title: '', startsAt: new Date(now) };
-
     // "cancelar todos os compromissos de amanhã" → limpeza do dia inteiro.
     if (action === 'cancel_all') {
       const day = resolveDate(f, now);
@@ -271,7 +190,7 @@ export function parseSchedule(text: string, now: Date = new Date()): ParsedSched
   const reminder = resolveReminder(f);
 
   // Participantes: do "com" até o fim, tirando data/hora/lembrete.
-  const withCom = /\bcom\s+/.exec(f);
+  const withCom = /\bcom\s+(?!(?:o\s+)?(?:time|equipe|grupo|pessoal|todo mundo)\b)/.exec(f);
   // "das 14h às 15h30" tem precedência sobre o horário solto, e o título precisa
   // cortar o intervalo inteiro — não só a primeira hora.
   const range = /\b(?:das|de|as)\s*(\d{1,2})\s*(?:h|:)?\s*(\d{2})?\s*(?:as|ate)\s*(\d{1,2})\s*(?:h|:)?\s*(\d{2})?\b/.exec(f);
@@ -307,7 +226,8 @@ export function parseSchedule(text: string, now: Date = new Date()): ParsedSched
   } else if (dateHit.hasTime) {
     startsAt = dateHit.startsAt; // "em 10 minutos": a hora já veio resolvida
   } else {
-    startsAt = timeHit ? atLocal(dateHit.startsAt, timeHit.hours, timeHit.minutes) : atLocal(dateHit.startsAt, 9, 0);
+    if (!timeHit) return { action, title, participants, startsAt: dateHit.startsAt, missing: 'time' };
+    startsAt = atLocal(dateHit.startsAt, timeHit.hours, timeHit.minutes);
   }
 
   return { action, title, participants, startsAt, endsAt, remindBeforeMinutes: reminder.minutes };

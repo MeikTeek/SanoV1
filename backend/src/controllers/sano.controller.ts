@@ -26,6 +26,7 @@ export async function command(req: Request, res: Response) {
       create: (userId, data) => agenda.createAppointment(userId, data),
       findByTitle: (userId, term) => agenda.findByTitle(userId, term),
       cancel: async (userId, id) => { await agenda.updateAppointment(userId, id, { status: 'CANCELED' }); },
+      update: (userId, id, data) => agenda.updateAppointment(userId, id, data),
       listByDay: (userId, from, to) => agenda.listByDay(userId, from, to),
       cancelDay: async (userId, from, to) => (await agenda.cancelDay(userId, from, to)).count,
     },
