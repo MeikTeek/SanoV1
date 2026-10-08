@@ -32,3 +32,8 @@ jobs:
 
       - name: Testes unitários
         run: npm test
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci-only-secret-not-used-in-production-123456
+          ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+          FRONTEND_URL: https://san0.discloud.app
