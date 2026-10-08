@@ -202,3 +202,4 @@ A hospedagem prevista é a **Discloud**. Os Dockerfiles em `infrastructure/docke
 - [ ] **Fase 3** — Módulos 1 a 4 (chat E2EE, agenda, jogos cognitivos, utilitários)
 - [ ] **Fase 4** — Módulos 5 a 7 (trainer IA, streaming, terminal OSINT em sandbox)
 - [ ] **Fase 5** — Wrapper PWA, auditoria final e deploy
+DB reset at 2026-10-08 18:45:00
