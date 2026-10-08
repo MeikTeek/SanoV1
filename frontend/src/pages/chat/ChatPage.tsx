@@ -16,15 +16,15 @@ import {
 } from '../../services/crypto.service';
 import '../../styles/messages.css';
 
-/** Intervalo do polling: r�pido o bastante para parecer instant�neo, leve para o servidor. */
+/** Intervalo do polling: rápido o bastante para parecer instantâneo, leve para o servidor. */
 const POLL_MS = 5_000;
 
 /**
- * Tela do M�dulo 1.
+ * Tela do Módulo 1.
  *
- * Nada aqui � leg�vel pelo servidor: cada mensagem chega como `envelope` cifrado
- * e s� � aberta no navegador, na hora de desenhar. O papel da tela � orquestrar:
- * carregar, decifrar, cifrar na sa�da e manter tudo atualizado.
+ * Nada aqui é legível pelo servidor: cada mensagem chega como `envelope` cifrado
+ * e só é aberta no navegador, na hora de desenhar. O papel da tela é orquestrar:
+ * carregar, decifrar, cifrar na saída e manter tudo atualizado.
  */
 export default function ChatPage() {
   const { user } = useAuth();
@@ -46,9 +46,9 @@ export default function ChatPage() {
   const [groupName, setGroupName] = useState('');
   const [groupInvites, setGroupInvites] = useState('');
 
-  /** URLs de m�dia decifrada criadas nesta tela (revogadas no cleanup). */
+  /** URLs de mídia decifrada criadas nesta tela (revogadas no cleanup). */
   const mediaUrls = useRef<string[]>([]);
-  /** Mensagens j� abertas nesta sess�o � evita decifrar duas vezes. */
+  /** Mensagens já abertas nesta sessão — evita decifrar duas vezes. */
   const opened = useRef(new Set<string>());
   /**
    * Texto já decifrado por id de mensagem, preservado entre recarregamentos.
@@ -79,7 +79,7 @@ export default function ChatPage() {
   /* --------------------------- identidade E2EE ---------------------------- */
 
   useEffect(() => {
-    // A chave p�blica precisa estar no servidor antes de cifrar para algu�m.
+    // A chave pública precisa estar no servidor antes de cifrar para alguém.
     getIdentity()
       .then((identity) => publishPublicKey(identity.publicKeyB64))
       .catch((e) => setError((e as Error).message));
@@ -100,7 +100,7 @@ export default function ChatPage() {
     getDirectory().then(setDirectory).catch(() => {});
   }, [loadConversations]);
 
-  // Carrega o hist�rico da conversa aberta, mais antigo primeiro.
+  // Carrega o histórico da conversa aberta, mais antigo primeiro.
   useEffect(() => {
     if (!activeId) {
       setActive(null);
@@ -116,7 +116,7 @@ export default function ChatPage() {
         setMessages(rows);
         void markRead(activeId).catch(() => {});
         if (rows[0]) {
-          // Carrega o hist�rico anterior, para a conversa n�o abrir s� no fim.
+          // Carrega o histórico anterior, para a conversa não abrir só no fim.
           const older = hydrate(await listMessages(activeId, rows[0].createdAt));
           if (older.length) setMessages([...older, ...rows]);
         }
@@ -126,24 +126,24 @@ export default function ChatPage() {
     })();
   }, [activeId, conversations]);
 
-  /* ---------------------- atualiza��o ("tempo real") ----------------------- */
+  /* ---------------------- atualização ("tempo real") ----------------------- */
 
   /**
-   * Polling em vez de WebSocket: o projeto n�o tem `ws` e o ganho de trazer a
-   * depend�ncia � pequeno frente a um evento a cada 5s por conversa aberta.
+   * Polling em vez de WebSocket: o projeto não tem `ws` e o ganho de trazer a
+    * dependência é pequeno frente a um evento a cada 5s por conversa aberta.
    */
   useEffect(() => {
     if (!activeId) return;
     const timer = window.setInterval(async () => {
       try {
         const rows = hydrate(await listMessages(activeId));
-        // S� troca se mudou de verdade � evita re-render a cada ciclo.
+        // Só troca se mudou de verdade — evita re-render a cada ciclo.
         setMessages((prev) =>
           prev.length === rows.length && prev.every((p, i) => p.id === rows[i]?.id) ? prev : rows,
         );
         await loadConversations();
       } catch {
-        // Falha de rede no polling n�o pode derrubar a tela.
+        // Falha de rede no polling não pode derrubar a tela.
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
@@ -206,7 +206,7 @@ export default function ChatPage() {
       const message = await sendMessage(active.id, {
         envelope, kind: 'TEXT' as MessageKind, clientId: crypto.randomUUID(),
       });
-      // O texto em claro vai junto: � o que o remetente v� na pr�pria tela.
+      // O texto em claro vai junto: é o que o remetente vê na própria tela.
       decrypted.current.set(message.id, text);
       opened.current.add(`${active.id}:${message.id}`);
       setPreview(active.id, text);
@@ -366,14 +366,14 @@ export default function ChatPage() {
               <input
                 value={groupInvites}
                 onChange={(e) => setGroupInvites(e.target.value)}
-                placeholder="@usuario ou c�digos separados por espa�o"
+                placeholder="@usuario ou códigos separados por espaço"
                 aria-label="Convidados do grupo"
               />
               <button type="submit" disabled={busy || !groupName.trim() || !groupInvites.trim()}>
                 Criar grupo
               </button>
               <small className="muted">
-                Aceita @usuario ou o c�digo de 8 caracteres de cada pessoa.
+                Aceita @usuario ou o código de 8 caracteres de cada pessoa.
               </small>
             </form>
 
@@ -389,7 +389,7 @@ export default function ChatPage() {
                     </div>
                   </button>
                 ))}
-                {directory.length === 0 && <small className="muted">Ningu�m no diret�rio ainda.</small>}
+                {directory.length === 0 && <small className="muted">Ninguém no diretório ainda.</small>}
               </div>
             </div>
           </div>

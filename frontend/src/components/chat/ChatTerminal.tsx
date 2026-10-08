@@ -140,7 +140,7 @@ return (
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Fale com o Sano�"
+          placeholder="Fale com o Sano"
           maxLength={500}
           autoComplete="off"
           spellCheck={false}

@@ -12,7 +12,7 @@ const GOAL_TEXT: Record<string, string> = {
   HYPERTROPHY: 'Ganhar massa muscular',
   WEIGHT_LOSS: 'Emagrecer',
   CONDITIONING: 'Melhorar condicionamento',
-  HEALTH: 'Sa�de e mobilidade',
+  HEALTH: 'Saúde e mobilidade',
 };
 
 const goalLabelOf = (goal: string) => GOAL_TEXT[goal] ?? goal;
@@ -50,7 +50,7 @@ export default function TrainerPage() {
     setError('');
     try {
       const r = await completeBlock(missionId, blockKey);
-      if (r.leveledUp) setIntro(`Level up! Voc� chegou ao n�vel ${r.level}.`);
+      if (r.leveledUp) setIntro(`Level up! Você chegou ao nível ${r.level}.`);
       await load();
     } catch (e) {
       setError((e as Error).message);
@@ -59,7 +59,7 @@ export default function TrainerPage() {
     }
   };
 
-  // Carrega um dado pesado s� quando a aba � aberta pela primeira vez.
+  // Carrega um dado pesado só quando a aba é aberta pela primeira vez.
   const openDiet = useCallback(async () => {
     setTab('dieta');
     if (diet) return;
@@ -88,7 +88,7 @@ export default function TrainerPage() {
       setError((e as Error).message);
     }
   };
-if (!data) return <AppShell title="Treino" status="carregando�"><div className="card"><p className="muted">Carregando�</p></div></AppShell>;
+if (!data) return <AppShell title="Treino" status="carregando"><div className="card"><p className="muted">Carregando...</p></div></AppShell>;
 
   if (!data.onboarded) {
     return (
@@ -135,7 +135,7 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
   return (
     <AppShell
       title="Treino"
-      status={data.level ? `Nv. ${data.level.current} � ${data.level.title}` : undefined}
+      status={data.level ? `Nv. ${data.level.current} · ${data.level.title}` : undefined}
       actions={<button className="ghost" onClick={() => setEditing(true)}>Editar perfil</button>}
     >
 
@@ -151,8 +151,8 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
 
       {data.penalty && (
         <div className="penalty">
-          <b>Penalidade ativa</b> � {data.penalty.daysMissed} dia(s) sem treinar. Sua ofensiva zerou e os
-          atributos est�o -{data.penalty.percent}%. Conclua o treino de hoje para limpar.
+          <b>Penalidade ativa</b> · {data.penalty.daysMissed} dia(s) sem treinar. Sua ofensiva zerou e os
+          atributos estão -{data.penalty.percent}%. Conclua o treino de hoje para limpar.
         </div>
       )}
 
@@ -171,8 +171,8 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
               {data.stats && <StatRadar stats={data.stats} />}
               {data.profile && (
                 <small className="muted center-text">
-                  {goalLabelOf(data.profile.goal)} � {data.profile.minutesPerDay} min/dia
-                  {data.stats?.debuffed && ' � atributos penalizados'}
+                  {goalLabelOf(data.profile.goal)} · {data.profile.minutesPerDay} min/dia
+                  {data.stats?.debuffed && ' · atributos penalizados'}
                 </small>
               )}
             </section>
@@ -188,7 +188,7 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
                 <>
                   <h2 className="tab-title">{data.mission.title}</h2>
                   <p className="muted">{data.mission.plannedMinutes} min planejados</p>
-                  {data.mission.completedAt && <div className="notice">Treino conclu�do! +{data.mission.xpAwarded} XP.</div>}
+                  {data.mission.completedAt && <div className="notice">Treino concluído! +{data.mission.xpAwarded} XP.</div>}
 
                   <div className="blocks">
                     {data.mission.blocks.map((b) => {
@@ -199,11 +199,11 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
                             className="block-check"
                             disabled={done || busyBlock === b.key || Boolean(data.mission!.completedAt)}
                             onClick={() => doBlock(data.mission!.id, b.key)}
-                            aria-label={`Marcar ${b.name} como conclu�do`}
-                          >{done ? '?' : busyBlock === b.key ? '�' : '?'}</button>
+                            aria-label={`Marcar ${b.name} como concluído`}
+                          >{done ? '✓' : busyBlock === b.key ? '…' : '○'}</button>
                           <span className="block-info">
                             <b>{b.name}</b>
-                            <span className="muted"> � {b.target} � {b.minutes} min</span>
+                            <span className="muted"> · {b.target} · {b.minutes} min</span>
                           </span>
                           <button className="ghost" onClick={() => setDetailKey(b.key)}>Detalhes</button>
                         </div>
@@ -212,7 +212,7 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
                   </div>
 
                   {!data.mission.completedAt && (
-                    <button onClick={() => setTimerOn(true)}>Iniciar cron�metro</button>
+                    <button onClick={() => setTimerOn(true)}>Iniciar cronômetro</button>
                   )}
                 </>
               )}
@@ -220,23 +220,23 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
               {tab === 'dieta' && (
                 <>
                   <h2 className="tab-title">Sua dieta hoje</h2>
-                  {!diet && <p className="muted">Carregando�</p>}
+                  {!diet && <p className="muted">Carregando...</p>}
                   {diet && (
                     <>
                       <div className="macro-row">
                         <span><b>{diet.numbers.kcal}</b> kcal</span>
-                        <span><b>{diet.numbers.proteinG}</b> g prote�na</span>
+                        <span><b>{diet.numbers.proteinG}</b> g proteína</span>
                         <span><b>{diet.numbers.carbG}</b> g carbo</span>
                         <span><b>{diet.numbers.fatG}</b> g gordura</span>
-                        <span><b>{diet.numbers.waterTarget}</b> L �gua</span>
+                        <span><b>{diet.numbers.waterTarget}</b> L água</span>
                       </div>
                       <details>
-                        <summary>Por que estes n�meros?</summary>
+                        <summary>Por que estes números?</summary>
                         <ul className="rationale">{diet.numbers.rationale.map((r, i) => <li key={i}>{r}</li>)}</ul>
                       </details>
-                      <h2 className="tab-title">Refei��es</h2>
+                      <h2 className="tab-title">Refeições</h2>
                       <pre className="report">{diet.meals}</pre>
-                      {!diet.aiEnabled && <small className="muted">IA sem chave:s� os n�meros, sem pratos.</small>}
+                      {!diet.aiEnabled && <small className="muted">IA sem chave: só os números, sem pratos.</small>}
                     </>
                   )}
                 </>
@@ -244,14 +244,14 @@ if (!data) return <AppShell title="Treino" status="carregando�"><div className
 
               {tab === 'coach' && (
                 <>
-                  <h2 className="tab-title">Revis�o do seu treino</h2>
-                  {!review && !report && <p className="muted">Analisando�</p>}
+                  <h2 className="tab-title">Revisão do seu treino</h2>
+                  {!review && !report && <p className="muted">Analisando...</p>}
                   {review && <pre className="report">{review}</pre>}
                   <h2 className="tab-title">Resumo da semana</h2>
                   {report && <pre className="report">{report}</pre>}
-                  <h2 className="tab-title">Tira-d�vidas biomec�nico</h2>
+                  <h2 className="tab-title">Tira-dúvidas biomecânico</h2>
                   <div className="ask-row">
-                    <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Como fa�o flex�o diamante?" maxLength={800} />
+                    <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Como faço flexão diamante?" maxLength={800} />
                     <button onClick={submitQuestion}>Perguntar</button>
                   </div>
                   {answer && <pre className="report">{answer}</pre>}
