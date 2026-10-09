@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 export type PendingAssistantAction =
   | {
       type: 'draft';
@@ -90,4 +92,3 @@ export function classifyDialogReply(text: string): DialogReply {
   if (/^(sim|confirmar|confirmo|confirma|isso|isso mesmo|pode|pode sim|pode cancelar|vai|autorizo)$/.test(normalized)) return 'confirm';
   return 'other';
 }
-import { z } from 'zod';
