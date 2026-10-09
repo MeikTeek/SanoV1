@@ -9,5 +9,6 @@ r.get('/', requireAuth, c.show);
 r.put('/avatar', requireAuth, c.avatar);
 r.delete('/avatar', requireAuth, c.avatarRemove);
 r.put('/display-name', requireAuth, c.displayName);
+r.put('/privacy', requireAuth, c.privacy);
 
 export default r;

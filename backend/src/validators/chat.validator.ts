@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { MAX_GROUP_MEMBERS, MAX_GROUP_NAME } from '../services/chat/conversation.service';
-import { MAX_BIO_LENGTH } from '../services/chat/social.service';
+import { MAX_BIO_LENGTH } from '../services/chat/profile-data.service';
 
 const uuid = z.string().uuid();
 
@@ -9,34 +9,17 @@ export const numberParamSchema = z.object({
   number: z.string().min(4).max(16),
 });
 
-export const usernameParamSchema = z.object({
-  username: z.string().min(2).max(40),
-});
-
 export const conversationParamSchema = z.object({ id: uuid });
 
 export const profileParamsSchema = z.object({
   username: z.string().min(2).max(40),
 });
 
-/** Query de `/profiles/:username/relations` — `?list=followers|following`. */
-export const relationsQuerySchema = z.object({
-  list: z.enum(['followers', 'following']).optional(),
-});
-
-export const directoryQuerySchema = z.object({
-  search: z.string().trim().max(60).optional(),
-  limit: z.coerce.number().int().min(1).max(100).optional(),
-});
-
-export const openDirectSchema = z.union([
-  z.object({ number: z.string().min(4).max(16) }),
-  z.object({ userId: uuid }),
-]);
+export const openDirectSchema = z.object({ number: z.string().min(4).max(16) });
 
 export const createGroupSchema = z.object({
   name: z.string().trim().min(1, 'Dê um nome ao grupo').max(MAX_GROUP_NAME),
-  // Aceita `@usuario` ou um código de 8 caracteres, um por item.
+  // Cada convite usa um código de usuário, não o diretório público.
   invitees: z.array(z.string().trim().min(1).max(40))
     .min(1, 'Convide pelo menos uma pessoa')
     .max(MAX_GROUP_MEMBERS),
@@ -84,4 +67,19 @@ export const setPublicKeySchema = z.object({
   publicKey: z.string().min(40).max(512),
 });
 
-export const followParamSchema = z.object({ username: z.string().min(2).max(40) });
+export const friendRequestResponseSchema = z.object({
+  status: z.enum(['ACCEPTED', 'REJECTED']),
+});
+
+export const presenceSchema = z.object({
+  activity: z.enum([
+    'Conversando com Sano',
+    'Usando a agenda',
+    'Visualizando treino',
+    'No chat',
+    'Digitando no chat',
+    'Nas configurações',
+    'Lendo informações',
+    'Na administração',
+  ]),
+});

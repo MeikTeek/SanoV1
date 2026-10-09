@@ -13,3 +13,8 @@ export const displayNameSchema = z.object({
     .min(2, 'Mínimo de 2 caracteres')
     .max(32, 'Máximo de 32 caracteres'),
 });
+
+export const privacySchema = z.object({
+  showOnlineStatus: z.boolean(),
+  showActivityStatus: z.boolean(),
+});

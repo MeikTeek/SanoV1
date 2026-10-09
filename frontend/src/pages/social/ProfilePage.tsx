@@ -1,17 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
 import { Avatar } from '../../components/chat/ConversationList';
-import { IconChat, IconKey } from '../../components/ui/icons';
+import { IconKey } from '../../components/ui/icons';
 import { useAuth } from '../../context/AuthContext';
 import {
-  followUser, getProfile, getRelations, openDirectByUser, setBio, unfollowUser,
-  type Person, type PersonProfile,
+  getProfile, requestFriendship, respondFriendRequest, setBio, type PersonProfile,
 } from '../../services/chat.service';
-import { getIdentity } from '../../services/crypto.service';
 import '../../styles/messages.css';
-
-type Tab = 'followers' | 'following';
 
 const MAX_BIO = 280;
 
@@ -19,20 +15,17 @@ const fmtJoined = (iso: string) =>
   new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(iso));
 
 /**
- * Perfil público no estilo Instagram: foto, bio, contadores e a lista de
- * seguidores/seguindo.
+ * Perfil acessado a partir de uma conversa direta. Pedidos de amizade só são
+ * permitidos entre pessoas que já têm uma conversa.
  *
  * Só o dono edita a própria bio; e a bio é texto puro (o servidor limita em 280),
  * então não há espaço para HTML injetado aqui.
  */
 export default function ProfilePage() {
   const { username } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
 
   const [profile, setProfile] = useState<PersonProfile | null>(null);
-  const [tab, setTab] = useState<Tab | null>(null);
-  const [people, setPeople] = useState<Person[]>([]);
   const [editing, setEditing] = useState(false);
   const [bio, setBio] = useState('');
   const [error, setError] = useState('');
@@ -51,34 +44,37 @@ export default function ProfilePage() {
 
   useEffect(() => {
     void load();
-    setTab(null);
-    setPeople([]);
   }, [load]);
 
-  const openTab = async (next: Tab) => {
-    if (!username) return;
-    // Clicar de novo na aba ativa fecha a lista.
-    if (tab === next) {
-      setTab(null);
-      return;
-    }
-    setTab(next);
-    try {
-      setPeople(await getRelations(username, next));
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
+  useEffect(() => {
+    if (!username || !profile || profile.isSelf) return;
+    const timer = window.setInterval(() => {
+      getProfile(username).then(setProfile).catch((e) => setError((e as Error).message));
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [username, profile?.isSelf]);
 
-  const toggleFollow = async () => {
+  const sendFriendRequest = async () => {
     if (!profile) return;
     setBusy(true);
     setError('');
     try {
-      const next = profile.isFollowing
-        ? await unfollowUser(profile.username)
-        : await followUser(profile.username);
-      setProfile(next);
+      await requestFriendship(profile.username);
+      await load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const answerFriendRequest = async (status: 'ACCEPTED' | 'REJECTED') => {
+    if (!profile?.friendshipRequestId) return;
+    setBusy(true);
+    setError('');
+    try {
+      await respondFriendRequest(profile.friendshipRequestId, status);
+      await load();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -100,21 +96,6 @@ export default function ProfilePage() {
     }
   };
 
-  const message = async () => {
-    if (!profile) return;
-    setBusy(true);
-    setError('');
-    try {
-      // Publica a chave antes de abrir: sem ela não dá para cifrar a mensagem.
-      await getIdentity();
-      const conversation = await openDirectByUser(profile.id);
-      navigate(`/mensagens/${conversation.id}`);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
   const isSelf = profile?.isSelf ?? user?.username === username;
 
   return (
@@ -134,25 +115,22 @@ export default function ProfilePage() {
                   <button className="ghost" onClick={() => setEditing((v) => !v)}>
                     {editing ? 'Cancelar' : 'Editar bio'}
                   </button>
+                ) : profile?.friendshipStatus === 'NONE' ? (
+                  <button onClick={() => void sendFriendRequest()} disabled={busy}>Adicionar amigo</button>
+                ) : profile?.friendshipStatus === 'REQUEST_RECEIVED' ? (
+                  <div className="inline">
+                    <button onClick={() => void answerFriendRequest('ACCEPTED')} disabled={busy}>Aceitar pedido</button>
+                    <button className="ghost" onClick={() => void answerFriendRequest('REJECTED')} disabled={busy}>Recusar</button>
+                  </div>
                 ) : (
-                  <>
-                    <button onClick={() => void toggleFollow()} disabled={busy}>
-                      {profile?.isFollowing ? 'Seguindo' : 'Seguir'}
-                    </button>
-                    <button className="ghost" onClick={() => void message()} disabled={busy} title="Enviar mensagem">
-                      <IconChat size={18} /> Mensagem
-                    </button>
-                  </>
+                  <span className={`friendship-chip ${profile?.friendshipStatus === 'FRIEND' ? 'accepted' : ''}`}>
+                    {profile?.friendshipStatus === 'FRIEND'
+                      ? 'Amigos'
+                      : profile?.friendshipStatus === 'REQUEST_SENT'
+                        ? 'Pedido enviado'
+                        : 'Pedido recusado'}
+                  </span>
                 )}
-              </div>
-
-              <div className="profile-stats">
-                <button onClick={() => void openTab('followers')}>
-                  <b>{profile?.followersCount ?? 0}</b> <span>seguidores</span>
-                </button>
-                <button onClick={() => void openTab('following')}>
-                  <b>{profile?.followingCount ?? 0}</b> <span>seguindo</span>
-                </button>
               </div>
 
               {editing ? (
@@ -174,7 +152,6 @@ export default function ProfilePage() {
                 <p className="profile-bio">{profile?.bio || <span className="muted">sem bio ainda</span>}</p>
               )}
 
-              {profile?.followsYou && !isSelf && <span className="msg-chip">segue você</span>}
             </div>
           </div>
 
@@ -189,6 +166,18 @@ export default function ProfilePage() {
                 {profile?.publicKey ? 'Chave segura ativa' : 'Ainda não configuradas'}
               </b>
             </div>
+            {!isSelf && profile?.isOnline !== null && profile?.isOnline !== undefined && (
+              <div className="profile-meta-item">
+                <span>Presença</span>
+                <b className={profile.isOnline ? 'is-online' : ''}>{profile.isOnline ? 'Online' : 'Offline'}</b>
+              </div>
+            )}
+            {!isSelf && profile?.activityStatus && (
+              <div className="profile-meta-item">
+                <span>Atividade</span>
+                <b>{profile.activityStatus}</b>
+              </div>
+            )}
             {isSelf && (
               <div className="profile-meta-item profile-key-hint">
                 <span>Seu código de 15h</span>
@@ -198,39 +187,7 @@ export default function ProfilePage() {
           </aside>
         </section>
 
-        {tab && (
-          <section className="card profile-network">
-            <h3 className="profile-section-title">Rede de @{profile?.username}</h3>
-            <div className="tabs">
-              <button className={tab === 'followers' ? 'active' : ''} onClick={() => void openTab('followers')}>
-                Seguidores
-              </button>
-              <button className={tab === 'following' ? 'active' : ''} onClick={() => void openTab('following')}>
-                Seguindo
-              </button>
-            </div>
-
-            <div className="people-list">
-              {people.length === 0 && <small className="muted">Nada por aqui ainda.</small>}
-              {people.map((p) => (
-                <div key={p.id} className="person-row">
-                  <Avatar url={p.avatarDataUrl} name={p.displayName} username={p.username} size={40} />
-                  <Link to={`/perfil/${p.username}`} className="person-info">
-                    <b>{p.displayName || p.username}</b>
-                    <small className="muted">{p.bio ? p.bio.slice(0, 60) : `@${p.username}`}</small>
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
         {error && <div className="error">{error}</div>}
-        {profile && !profile.publicKey && !isSelf && (
-          <div className="hud-alert">
-            Esta pessoa ainda não abriu o bate-papo — você pode seguir, mas ainda não enviar mensagem.
-          </div>
-        )}
       </div>
     </AppShell>
   );

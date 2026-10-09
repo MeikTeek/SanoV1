@@ -171,48 +171,16 @@ export async function openDirectByNumber(viewerId: string, input: string) {
   return getConversation(created.id, viewerId);
 }
 
-/** Abre (ou reaproveita) a DM direta com alguém escolhido no diretório. */
-export async function openDirectByUser(viewerId: string, targetId: string) {
-  if (viewerId === targetId) throw new AppError(400, 'Você não pode conversar consigo mesmo');
-  const target = await prisma.user.findUnique({ where: { id: targetId }, select: { active: true } });
-  if (!target?.active) throw new AppError(404, 'Usuário não encontrado');
-
-  const dmKey = dmKeyFor(viewerId, targetId);
-  const existing = await prisma.chatConversation.findUnique({ where: { dmKey } });
-  if (existing) return getConversation(existing.id, viewerId);
-
-  const created = await prisma.chatConversation.create({
-    data: {
-      kind: 'DM',
-      dmKey,
-      createdById: viewerId,
-      members: { create: [{ userId: viewerId, role: 'OWNER' }, { userId: targetId, role: 'MEMBER' }] },
-    },
-    select: { id: true },
-  });
-  return getConversation(created.id, viewerId);
-}
 /**
- * Resolve a lista de pessoas convidadas. Cada item pode ser um `@username` ou
- * um código de 8 caracteres — quem convida costuma ter o código do outro lado.
+ * Resolve códigos de usuário sem procurar ou expor o diretório.
  */
 export async function resolveInvitees(inputs: string[]) {
   const ids: string[] = [];
 
   for (const raw of inputs) {
-    const value = raw.trim().replace(/^@/, '');
+    const value = raw.trim();
     if (!value) continue;
 
-    const byUsername = await prisma.user.findUnique({
-      where: { username: value.toLowerCase() },
-      select: { id: true, active: true },
-    });
-    if (byUsername?.active) {
-      if (!ids.includes(byUsername.id)) ids.push(byUsername.id);
-      continue;
-    }
-
-    // Não é username: tenta como número (o normalizador rejeita formato ruim).
     const user = await resolveNumber(value);
     if (!ids.includes(user.id)) ids.push(user.id);
   }
@@ -223,7 +191,7 @@ export async function resolveInvitees(inputs: string[]) {
 export async function createGroup(viewerId: string, name: string, invitees: string[]) {
   const ids = (await resolveInvitees(invitees)).filter((id) => id !== viewerId);
   if (ids.length === 0) {
-    throw new AppError(400, 'Ninguém para convidar — informe @usuário ou um código');
+    throw new AppError(400, 'Ninguém para convidar — informe um código válido');
   }
 
   const created = await prisma.chatConversation.create({

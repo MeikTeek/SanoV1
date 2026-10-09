@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import AppShell from '../../components/layout/AppShell';
 import { api } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import type { AdminUser, AuditLog, Role } from '../../types';
 
 export default function AdminPage() {
@@ -17,6 +18,7 @@ export default function AdminPage() {
 }
 
 function UsersTab() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [username, setUsername] = useState('');
   const [role, setRole] = useState<Role>('USER');
@@ -42,7 +44,11 @@ function UsersTab() {
     });
   };
 
-  const toggle = (u: AdminUser) => guard(async () => { await api.patch(`/admin/users/${u.id}/active`, { active: !u.active }); });
+  const toggle = (u: AdminUser) => {
+    const active = !u.active;
+    if (!active && !confirm(`Desativar o login de "${u.username}"? A conta e os dados serão preservados.`)) return;
+    guard(async () => { await api.patch(`/admin/users/${u.id}/active`, { active }); });
+  };
   const reset = (u: AdminUser) => {
     if (!confirm(`Resetar senha e 2FA de "${u.username}"?`)) return;
     guard(async () => {
@@ -73,18 +79,26 @@ function UsersTab() {
 
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Usuário</th><th>Cargo</th><th>Status</th><th>2FA</th><th>Último login</th><th>Ações</th></tr></thead>
+          <thead><tr><th>Usuário</th><th>Código de contato (15h)</th><th>ID da conta</th><th>Cargo</th><th>Status</th><th>2FA</th><th>Último login</th><th>Ações</th></tr></thead>
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
                 <td>{u.username}</td>
+                <td>
+                  {u.contactCode
+                    ? <><code>{u.contactCode}</code><small className="muted user-code-expiry">até {new Date(u.contactCodeUntil!).toLocaleString('pt-BR')}</small></>
+                    : '—'}
+                </td>
+                <td><code className="user-code" title={u.id}>{u.id}</code></td>
                 <td>{u.role}</td>
-                <td className={u.active ? 'ok' : 'bad'}>{u.active ? 'Ativo' : 'Bloqueado'}</td>
+                <td className={u.active ? 'ok' : 'bad'}>{u.active ? 'Ativo' : 'Desativado'}</td>
                 <td>{u.twoFactorEnabled ? '✔' : u.mustChangePassword ? 'Aguardando 1º acesso' : 'Pendente'}</td>
                 <td>{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString('pt-BR') : '—'}</td>
                 <td className="actions">
-                  <button className="ghost" onClick={() => toggle(u)}>{u.active ? 'Bloquear' : 'Desbloquear'}</button>
-                  <button className="ghost" onClick={() => reset(u)}>Resetar</button>
+                  <button className="ghost" onClick={() => toggle(u)} disabled={u.id === currentUser?.id}>
+                    {u.active ? 'Desativar login' : 'Reativar login'}
+                  </button>
+                  <button className="ghost" onClick={() => reset(u)} disabled={u.id === currentUser?.id}>Resetar</button>
                 </td>
               </tr>
             ))}

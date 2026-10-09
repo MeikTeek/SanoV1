@@ -17,6 +17,8 @@ export interface AdminUser extends User {
   active: boolean;
   mustChangePassword: boolean;
   createdAt: string;
+  contactCode: string | null;
+  contactCodeUntil: string | null;
 }
 
 export interface AuditLog {

@@ -39,7 +39,7 @@ export async function authenticate(username: string, password: string, req: Requ
   }
   if (!user.active) {
     await logAudit(req, 'LOGIN_BLOCKED_INACTIVE', user.id);
-    throw new AppError(401, 'Credenciais inválidas');
+    throw new AppError(401, 'Sua conta foi desativada, se achar que isso é um erro contate o suporte.');
   }
   if (user.lockedUntil && user.lockedUntil > new Date()) {
     throw new AppError(423, 'Conta temporariamente bloqueada. Tente novamente mais tarde.');

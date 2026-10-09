@@ -56,6 +56,13 @@
   0%, 100% { height: 3px; opacity: .3; }
   50% { height: 11px; opacity: .6; }
 }
+/* Acompanhamento enquanto a pessoa escreve, mais visível que o estado ocioso. */
+.wave-listening { --wave-speed: .65s; }
+.wave-listening .wave-bar { animation-name: waveListen; opacity: .8; }
+@keyframes waveListen {
+  0%, 100% { height: 4px; opacity: .45; }
+  50% { height: 15px; opacity: .9; }
+}
 /* Pensando: onda agitada e irregular. */
 .wave-thinking { --wave-speed: .9s; }
 .wave-thinking .wave-bar { animation-name: waveBusy; }
@@ -216,6 +223,12 @@
   text-transform: uppercase;
 }
 .msg.user .msg-avatar { background: linear-gradient(140deg, var(--accent), #2b7c8a); color: var(--accent-ink); }
+.msg-avatar.sano-avatar-img {
+  padding: 0;
+  object-fit: cover;
+  background: #000;
+  border: 1px solid #00e5ff35;
+}
 
 /* "Digitando…" com três pontos animados */
 .typing { display: inline-flex; gap: 4px; align-items: center; height: 18px; }

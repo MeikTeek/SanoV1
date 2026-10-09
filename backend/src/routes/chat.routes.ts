@@ -6,11 +6,11 @@ import * as c from '../controllers/chat.controller';
 const r = Router();
 
 /* ------------------------------- Perfis ------------------------------- */
-r.get('/profiles', requireAuth, c.directory);
 r.get('/profiles/:username', requireAuth, c.profile);
-r.get('/profiles/:username/relations', requireAuth, c.relations);
-r.post('/profiles/:username/follow', requireAuth, c.followUser);
-r.delete('/profiles/:username/follow', requireAuth, c.unfollowUser);
+r.post('/profiles/:username/friend-request', requireAuth, c.friendRequest);
+r.get('/friend-requests', requireAuth, c.friendRequests);
+r.patch('/friend-requests/:id', requireAuth, c.respondToFriendRequest);
+r.put('/presence', requireAuth, c.presence);
 r.put('/bio', requireAuth, c.bio);
 
 /* ------------------------------ Identidade ---------------------------- */

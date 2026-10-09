@@ -12,6 +12,12 @@ enum Role {
   USER
 }
 
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 model User {
   id                 String    @id @default(uuid())
   username           String    @unique
@@ -31,7 +37,7 @@ model User {
   nameChangedAt      DateTime?
   /// Avatar em data URL (data:image/...;base64) para não exigir storage externo.
   avatarDataUrl      String?
-  /// Bio do perfil público (estilo rede social). Texto puro, sem formatação.
+  /// Bio curta exibida no perfil individual dentro de uma conversa.
   bio                String?   @db.VarChar(280)
   /// Chave pública ECDH P-256 (SPKI em base64) usada no E2EE do bate-papo.
   chatPublicKey      String?
@@ -39,6 +45,10 @@ model User {
   chatNumber         String?   @unique
   /// Instante em que o `chatNumber` atual expira e será recalculado.
   chatNumberUntil    DateTime?
+  showOnlineStatus   Boolean   @default(true)
+  showActivityStatus Boolean   @default(true)
+  lastSeenAt         DateTime?
+  currentActivity    String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -52,29 +62,25 @@ model User {
   dietPlans     DietPlan[]
 
   /* Módulo 1 — Bate-papo criptografado */
-  /* `followers` = quem segue esta pessoa; `following` = quem ela segue.
-     Os nomes das relações no model User estão ligados aos lados CORRETOS do
-     model Follow: `Follow.following` (o alvo) e `Follow.follower` (o autor). */
-  followers     Follow[]   @relation("followers")
-  following     Follow[]   @relation("following")
+  sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
+  receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
   chatMembers   ChatMember[]
   chatMessages  ChatMessage[]
 }
 
-/// Seguição estilo rede social (Instagram). A chave composta impede seguir a
-/// si mesmo e seguir duas vezes a mesma pessoa.
-model Follow {
-  followerId  String
-  followingId String
-  createdAt   DateTime @default(now())
+model FriendRequest {
+  id          String             @id @default(uuid())
+  requesterId String
+  recipientId String
+  pairKey     String             @unique
+  status      FriendRequestStatus @default(PENDING)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
-  // `follower` é quem segue → cai na lista `following` do User.
-  // `following` é quem é seguido → cai na lista `followers` do User.
-  follower  User @relation("following", fields: [followerId],  references: [id], onDelete: Cascade)
-  following User @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+  requester User @relation("FriendRequestSender", fields: [requesterId], references: [id], onDelete: Cascade)
+  recipient User @relation("FriendRequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
-  @@id([followerId, followingId])
-  @@index([followingId])
+  @@index([recipientId, status])
 }
 
 /// Conversa individual ou grupo. `dmKey` (par de ids ordenado) garante que

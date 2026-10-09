@@ -39,11 +39,13 @@ export interface ProfileView {
   /** Dias restantes até liberar a próxima troca de nome. */
   nameChangeAvailableInDays: number;
   nameChangedAt: string | null;
+  showOnlineStatus: boolean;
+  showActivityStatus: boolean;
 }
 
 export function profileView(u: {
   id: string; username: string; displayName: string | null; avatarDataUrl: string | null;
-  role: string; nameChangedAt: Date | null;
+  role: string; nameChangedAt: Date | null; showOnlineStatus: boolean; showActivityStatus: boolean;
 }): ProfileView {
   const elapsed = u.nameChangedAt ? Date.now() - u.nameChangedAt.getTime() : Infinity;
   const cooldownMs = NAME_CHANGE_COOLDOWN_DAYS * 86_400_000;
@@ -59,11 +61,14 @@ export function profileView(u: {
     canChangeName,
     nameChangeAvailableInDays: canChangeName ? 0 : Math.ceil(remaining / 86_400_000),
     nameChangedAt: u.nameChangedAt?.toISOString() ?? null,
+    showOnlineStatus: u.showOnlineStatus,
+    showActivityStatus: u.showActivityStatus,
   };
 }
 
 const select = {
   id: true, username: true, displayName: true, avatarDataUrl: true, role: true, nameChangedAt: true,
+  showOnlineStatus: true, showActivityStatus: true,
 } as const;
 
 export async function getProfile(userId: string) {
@@ -122,5 +127,15 @@ export async function setDisplayName(req: Request, userId: string, displayName: 
     select,
   });
   await logAudit(req, 'DISPLAY_NAME_CHANGED', userId, { displayName });
+  return profileView(user);
+}
+
+export async function setPrivacy(
+  req: Request,
+  userId: string,
+  preferences: { showOnlineStatus: boolean; showActivityStatus: boolean },
+) {
+  const user = await prisma.user.update({ where: { id: userId }, data: preferences, select });
+  await logAudit(req, 'PRIVACY_SETTINGS_UPDATED', userId, preferences);
   return profileView(user);
 }

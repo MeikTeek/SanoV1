@@ -15,6 +15,8 @@ interface ChatState {
   /** Verdadeiro enquanto o Sano processa — dirige o estado do orbe. */
   busy: boolean;
   setBusy: (b: boolean) => void;
+  composing: boolean;
+  setComposing: (composing: boolean) => void;
   /** Texto da espera ("processando", "consultando") exibido junto do orbe. */
   thinking: string;
   setThinking: (t: string) => void;
@@ -44,6 +46,7 @@ function loadInitial(): ChatMessage[] {
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setRaw] = useState<ChatMessage[]>(loadInitial);
   const [busy, setBusy] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [thinking, setThinking] = useState('processando…');
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -58,9 +61,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ChatState>(() => ({
     messages,
     busy,
+    composing,
     thinking,
     refreshKey,
     setBusy,
+    setComposing,
     setThinking,
     refreshPanels: () => setRefreshKey((k) => k + 1),
     setMessages: (fn) => setRaw((prev) => {
@@ -73,7 +78,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return next;
     }),
     reset: () => { setRaw([]); try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignora */ } },
-  }), [messages, busy, thinking, refreshKey]);
+  }), [messages, busy, composing, thinking, refreshKey]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

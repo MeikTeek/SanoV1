@@ -192,6 +192,19 @@
 }
 .msg-thread-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .msg-thread-title b { font-size: .95rem; }
+.msg-thread-profile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+}
+.msg-thread-profile:hover:not(:disabled) { filter: none; }
+.msg-thread-profile:hover b { color: var(--accent); }
 .msg-thread-status {
   display: inline-flex;
   align-items: center;
@@ -477,6 +490,16 @@
 .profile-row h2 { margin: 0; font-size: 1.35rem; }
 .profile-name { min-width: 180px; margin-right: auto; }
 .profile-user { margin: 0; font-size: .85rem; }
+.friendship-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 8px 12px;
+  color: var(--text-dim);
+  font-size: .82rem;
+}
+.friendship-chip.accepted { border-color: #3ddc9740; color: var(--ok); }
 
 .profile-stats { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .profile-stats button {

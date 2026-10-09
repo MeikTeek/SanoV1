@@ -6,10 +6,9 @@ import AdminPage from './pages/admin/AdminPage';
 import AgendaPage from './pages/agenda/AgendaPage';
 import TrainerPage from './pages/trainer/TrainerPage';
 import ChatPage from './pages/chat/ChatPage';
-import PeoplePage from './pages/social/PeoplePage';
 import ProfilePage from './pages/social/ProfilePage';
-
 import SettingsPage from './pages/settings/SettingsPage';
+import AboutPage from './pages/about/AboutPage';
 
 export default function App() {
   return (
@@ -21,9 +20,9 @@ export default function App() {
       {/* Módulo 1: a conversa aberta é `/mensagens/:id`; a lista é `/mensagens`. */}
       <Route path="/mensagens" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
       <Route path="/mensagens/:id" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
-      <Route path="/pessoas" element={<ProtectedRoute><PeoplePage /></ProtectedRoute>} />
       <Route path="/perfil/:username" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/config" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/sobre" element={<ProtectedRoute><AboutPage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

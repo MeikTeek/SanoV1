@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../components/layout/AppShell';
 import { useAuth } from '../../context/AuthContext';
-import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, type Profile } from '../../services/profile.service';
+import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, setPrivacy, type Profile } from '../../services/profile.service';
 
 /**
  * Configurações pessoais: foto e nome de exibição.
@@ -77,6 +77,24 @@ export default function SettingsPage() {
     }
   };
 
+  const updatePrivacy = async (key: 'showOnlineStatus' | 'showActivityStatus', value: boolean) => {
+    if (!profile) return;
+    setBusy(true);
+    setError('');
+    try {
+      const next = await setPrivacy({
+        showOnlineStatus: key === 'showOnlineStatus' ? value : profile.showOnlineStatus,
+        showActivityStatus: key === 'showActivityStatus' ? value : profile.showActivityStatus,
+      });
+      setProfile(next);
+      flash('Privacidade atualizada.');
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const initials = (user?.displayName || user?.username || '?').slice(0, 2);
   const locked = profile ? !profile.canChangeName : false;
 
@@ -129,6 +147,35 @@ export default function SettingsPage() {
             Você trocou o nome recentemente. Próxima troca em {profile?.nameChangeAvailableInDays} dias.
           </p>
         )}
+      </section>
+
+      <section className="card privacy-card">
+        <h2>Privacidade</h2>
+        <p className="muted small">Estas informações ficam visíveis somente para seus amigos.</p>
+        <label className="privacy-toggle">
+          <span>
+            <b>Mostrar quando estou online</b>
+            <small className="muted">Se desativado, amigos não verão seu estado online.</small>
+          </span>
+          <input
+            type="checkbox"
+            checked={profile?.showOnlineStatus ?? true}
+            disabled={busy || !profile}
+            onChange={(e) => void updatePrivacy('showOnlineStatus', e.target.checked)}
+          />
+        </label>
+        <label className="privacy-toggle">
+          <span>
+            <b>Mostrar minha atividade atual</b>
+            <small className="muted">Exibe se você está no chat, treino, agenda ou outra área.</small>
+          </span>
+          <input
+            type="checkbox"
+            checked={profile?.showActivityStatus ?? true}
+            disabled={busy || !profile}
+            onChange={(e) => void updatePrivacy('showActivityStatus', e.target.checked)}
+          />
+        </label>
       </section>
 
       {error && <div className="error">{error}</div>}

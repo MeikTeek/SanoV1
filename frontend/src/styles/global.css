@@ -300,6 +300,25 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
 .settings-avatar-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .settings-name-row { align-items: center; }
 .settings-name-row input { max-width: 320px; }
+.privacy-card { display: flex; flex-direction: column; gap: 12px; }
+.privacy-toggle {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.privacy-toggle span { display: flex; flex-direction: column; gap: 3px; }
+.privacy-toggle input { width: auto; accent-color: var(--accent); }
+.user-code { display: inline-block; max-width: 260px; overflow-wrap: anywhere; white-space: normal; font-size: .75rem; }
+.user-code-expiry { display: block; white-space: nowrap; margin-top: 3px; }
+.about-page { display: flex; flex-direction: column; gap: 14px; width: 100%; }
+.about-page h2 { margin: 0 0 10px; font-size: 1rem; }
+.about-page p { margin: 0 0 10px; color: var(--text-dim); }
+.about-page p:last-child { margin-bottom: 0; }
+.about-page a { color: var(--accent); }
 .menu-wrap { position: relative; }
 .menu {
   position: absolute;

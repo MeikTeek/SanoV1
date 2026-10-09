@@ -23,7 +23,7 @@ export default function ChatTerminal() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const history = useCommandHistory();
-  const { messages, setMessages, setBusy, setThinking, busy, thinking } = useChat();
+  const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking } = useChat();
   const nextId = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -58,6 +58,7 @@ export default function ChatTerminal() {
     if (!trimmed || busy) return;
 
     setInput('');
+    setComposing(false);
     history.push(trimmed);
 
     // "limpar" e local: nao vai ao servidor.
@@ -84,7 +85,7 @@ export default function ChatTerminal() {
       setBusy(false);
       inputRef.current?.focus();
     }
-  }, [busy, history, make, navigate, setMessages, setBusy, setThinking, setUser]);
+  }, [busy, history, make, navigate, setMessages, setBusy, setComposing, setThinking, setUser]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {
@@ -104,9 +105,9 @@ return (
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}`}>
             {m.role !== 'error' && (
-              <span className="msg-avatar" aria-hidden="true">
-                {m.role === 'user' ? (label ?? '').slice(0, 2) : 'S'}
-              </span>
+              m.role === 'user'
+                ? <span className="msg-avatar" aria-hidden="true">{(label ?? '').slice(0, 2)}</span>
+                : <img className="msg-avatar sano-avatar-img" src="/sano-avatar.png" alt="" />
             )}
             <div className="msg-body">
               {m.role !== 'error' && <span className="who">{m.role === 'user' ? label : 'Sano'}</span>}
@@ -123,7 +124,7 @@ return (
 
         {busy && (
           <div className="msg sano">
-            <span className="msg-avatar" aria-hidden="true">S</span>
+            <img className="msg-avatar sano-avatar-img" src="/sano-avatar.png" alt="" />
             <div className="msg-body">
               <span className="who">Sano</span>
               <div className="bubble">
@@ -138,7 +139,10 @@ return (
         <input
           ref={inputRef}
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            setComposing(Boolean(e.target.value.trim()));
+          }}
           onKeyDown={onKeyDown}
           placeholder="Fale com o Sano"
           maxLength={500}

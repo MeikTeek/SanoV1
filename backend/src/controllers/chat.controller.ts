@@ -3,15 +3,14 @@ import {
   addMemberSchema,
   conversationParamSchema,
   createGroupSchema,
-  directoryQuerySchema,
+  friendRequestResponseSchema,
   listMessagesQuerySchema,
   openDirectSchema,
   profileParamsSchema,
-  relationsQuerySchema,
+  presenceSchema,
   sendMessageSchema,
   setPublicKeySchema,
   updateBioSchema,
-  usernameParamSchema,
 } from '../validators/chat.validator';
 import {
   addToGroup,
@@ -22,19 +21,17 @@ import {
   listMessages,
   markRead,
   openDirectByNumber,
-  openDirectByUser,
   sendMessage,
 } from '../services/chat/conversation.service';
 import { myNumber } from '../services/chat/number.service';
+import { setPublicKey, updateBio } from '../services/chat/profile-data.service';
 import {
-  follow,
-  getProfileByUsername,
-  listFollowers,
-  listProfiles,
-  setPublicKey,
-  unfollow,
-  updateBio,
-} from '../services/chat/social.service';
+  getSocialProfile,
+  listIncomingFriendRequests,
+  requestFriendship,
+  respondFriendRequest,
+  updatePresence,
+} from '../services/chat/friend.service';
 import { logAudit } from '../services/audit.service';
 
 /* --------------------------------- Número -------------------------------- */
@@ -57,10 +54,8 @@ export async function conversation(req: Request, res: Response) {
 
 /** Abre uma DM pelo código de 8 caracteres ou pelo id do diretório. */
 export async function openDirect(req: Request, res: Response) {
-  const data = openDirectSchema.parse(req.body);
-  const result = 'number' in data
-    ? await openDirectByNumber(req.user!.id, data.number)
-    : await openDirectByUser(req.user!.id, data.userId);
+  const { number } = openDirectSchema.parse(req.body);
+  const result = await openDirectByNumber(req.user!.id, number);
 
   await logAudit(req, 'CHAT_DM_OPENED', req.user!.id, { conversationId: result.id });
   res.status(201).json({ conversation: result });
@@ -122,36 +117,34 @@ export async function read(req: Request, res: Response) {
 
 /* ------------------------------ Perfis sociais --------------------------- */
 
-export async function directory(req: Request, res: Response) {
-  const { search, limit } = directoryQuerySchema.parse(req.query);
-  res.json({ profiles: await listProfiles(req.user!.id, { search, limit }) });
-}
-
 export async function profile(req: Request, res: Response) {
   const { username } = profileParamsSchema.parse(req.params);
-  res.json({ profile: await getProfileByUsername(username, req.user!.id) });
+  res.json({ profile: await getSocialProfile(username, req.user!.id) });
 }
 
-/** Seguidores/seguindo do perfil. `?list=followers|following`. */
-export async function relations(req: Request, res: Response) {
-  // `username` vem da rota e `list` da query — em fontes diferentes, por isso
-  // as duas validações separadas.
+export async function friendRequest(req: Request, res: Response) {
   const { username } = profileParamsSchema.parse(req.params);
-  const { list } = relationsQuerySchema.parse(req.query);
+  const request = await requestFriendship(req.user!.id, username);
+  await logAudit(req, 'FRIEND_REQUEST_SENT', req.user!.id, { requestId: request.id });
+  res.status(201).json({ request });
+}
 
-  const target = await getProfileByUsername(username, req.user!.id);
-  const direction = list ?? 'followers';
+export async function friendRequests(req: Request, res: Response) {
+  res.json({ requests: await listIncomingFriendRequests(req.user!.id) });
+}
 
-  res.json({
-    list: await listFollowers(target.id, req.user!.id, direction),
-    direction,
-    profile: {
-      id: target.id,
-      username: target.username,
-      displayName: target.displayName,
-      avatarDataUrl: target.avatarDataUrl,
-    },
-  });
+export async function respondToFriendRequest(req: Request, res: Response) {
+  const { id } = conversationParamSchema.parse(req.params);
+  const { status } = friendRequestResponseSchema.parse(req.body);
+  await respondFriendRequest(req.user!.id, id, status);
+  await logAudit(req, status === 'ACCEPTED' ? 'FRIEND_REQUEST_ACCEPTED' : 'FRIEND_REQUEST_REJECTED', req.user!.id, { requestId: id });
+  res.json({ ok: true });
+}
+
+export async function presence(req: Request, res: Response) {
+  const { activity } = presenceSchema.parse(req.body);
+  await updatePresence(req.user!.id, activity);
+  res.json({ ok: true });
 }
 
 export async function bio(req: Request, res: Response) {
@@ -164,19 +157,4 @@ export async function publicKey(req: Request, res: Response) {
   const { publicKey } = setPublicKeySchema.parse(req.body);
   await setPublicKey(req.user!.id, publicKey);
   res.json({ ok: true });
-}
-
-export async function followUser(req: Request, res: Response) {
-  const { username } = usernameParamSchema.parse(req.params);
-  const target = await getProfileByUsername(username, req.user!.id);
-  await follow(req.user!.id, target.id);
-  await logAudit(req, 'CHAT_FOLLOW', req.user!.id, { username });
-  res.json({ profile: await getProfileByUsername(username, req.user!.id) });
-}
-
-export async function unfollowUser(req: Request, res: Response) {
-  const { username } = usernameParamSchema.parse(req.params);
-  const target = await getProfileByUsername(username, req.user!.id);
-  await unfollow(req.user!.id, target.id);
-  res.json({ profile: await getProfileByUsername(username, req.user!.id) });
 }

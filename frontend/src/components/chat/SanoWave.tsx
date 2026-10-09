@@ -1,5 +1,5 @@
 /** Estados da linha de onda — reagem ao que o Sano está fazendo. */
-export type SanoState = 'idle' | 'thinking' | 'speaking';
+export type SanoState = 'idle' | 'listening' | 'thinking' | 'speaking';
 
 interface Props {
   state: SanoState;
@@ -15,6 +15,7 @@ const BARS = 28;
  *
  * Fica no topo do painel central e é o indicador de estado do Sano:
  * - `idle`    → onda baixa e lenta, respirando
+ * - `listening`→ pulso curto enquanto a pessoa escreve
  * - `thinking`→ onda agitada e rápida
  * - `speaking`→ onda alta, como quem fala
  *

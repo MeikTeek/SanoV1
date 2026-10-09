@@ -6,14 +6,10 @@
 export type {
   Conversation,
   ConversationMember,
-  DirectoryEntry,
   Message,
   MessageKind,
   MessageMeta,
   MyNumber,
-  Person,
   PersonProfile,
+  IncomingFriendRequest,
 } from '../services/chat.service';
-
-/** Como a tela do perfil está aberta. */
-export type ProfileTab = 'posts' | 'followers' | 'following';

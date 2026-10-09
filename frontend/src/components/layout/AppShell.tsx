@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconLock, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
+import { updatePresence } from '../../services/chat.service';
 
 interface Props {
   /** Título da tela e linha de status ao lado. */
@@ -41,6 +42,35 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
   const is = (path: string) => pathname === path;
   const initials = (user?.displayName || user?.username || '?').slice(0, 2);
 
+  useEffect(() => {
+    if (!user) return;
+    const activity = pathname === '/'
+      ? 'Conversando com Sano'
+      : pathname.startsWith('/agenda')
+        ? 'Usando a agenda'
+        : pathname.startsWith('/treino')
+          ? 'Visualizando treino'
+          : pathname.startsWith('/mensagens')
+            ? 'No chat'
+            : pathname.startsWith('/config')
+              ? 'Nas configurações'
+              : pathname.startsWith('/admin')
+                ? 'Na administração'
+                : 'Lendo informações';
+
+    const heartbeat = () => {
+      if (document.visibilityState !== 'visible') return;
+      updatePresence(activity).catch((e) => console.warn('Não foi possível atualizar a presença:', e));
+    };
+    heartbeat();
+    const timer = window.setInterval(heartbeat, 30_000);
+    document.addEventListener('visibilitychange', heartbeat);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', heartbeat);
+    };
+  }, [pathname, user?.id]);
+
   return (
     <div className="app">
       <nav className="rail" aria-label="Navegação principal">
@@ -54,12 +84,8 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         >
           <IconBubble />
         </Link>
-        <Link
-          to="/pessoas"
-          className={`rail-link ${is('/pessoas') || pathname.startsWith('/perfil/') ? 'active' : ''}`}
-          title="Pessoas e perfis"
-        >
-          <IconUsers />
+        <Link to="/sobre" className={`rail-link ${is('/sobre') ? 'active' : ''}`} title="Sobre o Sano">
+          <IconInfo />
         </Link>
         {user?.role === 'ADMIN' && (
           <>

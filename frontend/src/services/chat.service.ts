@@ -11,30 +11,27 @@ export interface MyNumber {
   windowHours: number;
 }
 
-export interface Person {
+export type FriendshipStatus = 'NONE' | 'REQUEST_SENT' | 'REQUEST_RECEIVED' | 'FRIEND' | 'REJECTED';
+
+export interface PersonProfile {
   id: string;
   username: string;
   displayName: string | null;
   avatarDataUrl: string | null;
   bio: string | null;
   publicKey: string | null;
-  isFollowing?: boolean | null;
-}
-
-export interface PersonProfile extends Person {
   createdAt: string;
-  followersCount: number;
-  followingCount: number;
-  isFollowing: boolean | null;
-  followsYou: boolean;
   isSelf: boolean;
+  friendshipStatus: FriendshipStatus;
+  friendshipRequestId: string | null;
+  isOnline: boolean | null;
+  activityStatus: string | null;
 }
 
-export interface DirectoryEntry extends Person {
+export interface IncomingFriendRequest {
+  id: string;
   createdAt: string;
-  followersCount: number;
-  followingCount: number;
-  isFollowing: boolean;
+  requester: Pick<PersonProfile, 'id' | 'username' | 'displayName' | 'avatarDataUrl'>;
 }
 
 export interface ConversationMember {
@@ -93,30 +90,24 @@ export const getMyNumber = () => api.get<{ number: MyNumber }>('/chat/number').t
 
 /* ------------------------------ Perfis ----------------------------------- */
 
-export const getDirectory = (search?: string) =>
-  api
-    .get<{ profiles: DirectoryEntry[] }>(`/chat/profiles${search ? `?search=${encodeURIComponent(search)}` : ''}`)
-    .then((r) => r.profiles);
-
 export const getProfile = (username: string) =>
   api.get<{ profile: PersonProfile }>(`/chat/profiles/${encodeURIComponent(username)}`).then((r) => r.profile);
 
-export const getRelations = (username: string, list: 'followers' | 'following') =>
+export const requestFriendship = (username: string) =>
   api
-    .get<{ list: Person[]; direction: 'followers' | 'following' }>(
-      `/chat/profiles/${encodeURIComponent(username)}/relations?list=${list}`,
+    .post<{ request: { id: string; status: 'PENDING' } }>(
+      `/chat/profiles/${encodeURIComponent(username)}/friend-request`,
     )
-    .then((r) => r.list);
+    .then((r) => r.request);
 
-export const followUser = (username: string) =>
-  api
-    .post<{ profile: PersonProfile }>(`/chat/profiles/${encodeURIComponent(username)}/follow`)
-    .then((r) => r.profile);
+export const getIncomingFriendRequests = () =>
+  api.get<{ requests: IncomingFriendRequest[] }>('/chat/friend-requests').then((r) => r.requests);
 
-export const unfollowUser = (username: string) =>
-  api
-    .delete<{ profile: PersonProfile }>(`/chat/profiles/${encodeURIComponent(username)}/follow`)
-    .then((r) => r.profile);
+export const respondFriendRequest = (id: string, status: 'ACCEPTED' | 'REJECTED') =>
+  api.patch<{ ok: boolean }>(`/chat/friend-requests/${encodeURIComponent(id)}`, { status }).then(() => true);
+
+export const updatePresence = (activity: string) =>
+  api.put<{ ok: boolean }>('/chat/presence', { activity }).then(() => true);
 
 export const setBio = (bio: string) =>
   api.put<{ profile: { bio: string | null } }>('/chat/bio', { bio }).then((r) => r.profile);
@@ -134,10 +125,7 @@ export const listConversations = () =>
 export const openDirectByNumber = (number: string) =>
   api.post<{ conversation: Conversation }>('/chat/conversations/direct', { number }).then((r) => r.conversation);
 
-export const openDirectByUser = (userId: string) =>
-  api.post<{ conversation: Conversation }>('/chat/conversations/direct', { userId }).then((r) => r.conversation);
-
-/** `invitees` aceita `@usuario` ou o código de 8 caracteres de cada pessoa. */
+/** `invitees` aceita somente códigos de usuário. */
 export const createGroup = (name: string, invitees: string[]) =>
   api
     .post<{ conversation: Conversation }>('/chat/conversations/group', { name, invitees })

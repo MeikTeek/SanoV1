@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
 import ConversationList, { Avatar } from '../../components/chat/ConversationList';
 import MessageThread, { ThreadEmpty } from '../../components/chat/MessageThread';
 import { IconHash, IconInfo, IconLock, IconPlus, IconSend } from '../../components/ui/icons';
 import { useAuth } from '../../context/AuthContext';
 import {
-  createGroup, getDirectory, listConversations, listMessages, markRead,
-  openDirectByNumber, openDirectByUser, publishPublicKey, sendMessage, setPreview,
-  type Conversation, type DirectoryEntry, type Message, type MessageKind,
+  createGroup, getIncomingFriendRequests, listConversations, listMessages, markRead,
+  openDirectByNumber, publishPublicKey, respondFriendRequest, sendMessage, setPreview,
+  type Conversation, type IncomingFriendRequest, type Message, type MessageKind,
 } from '../../services/chat.service';
 import {
   decryptText, decryptToObjectUrl, encryptBytes, encryptText,
@@ -35,13 +35,14 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [active, setActive] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [directory, setDirectory] = useState<DirectoryEntry[]>([]);
+  const [friendRequests, setFriendRequests] = useState<IncomingFriendRequest[]>([]);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showJoin, setShowJoin] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const [joinCode, setJoinCode] = useState('');
   const [groupName, setGroupName] = useState('');
   const [groupInvites, setGroupInvites] = useState('');
@@ -95,10 +96,23 @@ export default function ChatPage() {
     }
   }, []);
 
+  const loadFriendRequests = useCallback(async () => {
+    try {
+      setFriendRequests(await getIncomingFriendRequests());
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }, []);
+
   useEffect(() => {
     void loadConversations();
-    getDirectory().then(setDirectory).catch(() => {});
-  }, [loadConversations]);
+    void loadFriendRequests();
+  }, [loadConversations, loadFriendRequests]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void loadFriendRequests(), 30_000);
+    return () => window.clearInterval(timer);
+  }, [loadFriendRequests]);
 
   // Carrega o histórico da conversa aberta, mais antigo primeiro.
   useEffect(() => {
@@ -266,21 +280,6 @@ export default function ChatPage() {
     }
   };
 
-  const startDirect = async (personId: string) => {
-    setBusy(true);
-    setError('');
-    try {
-      const conversation = await openDirectByUser(personId);
-      setShowNew(false);
-      await loadConversations();
-      navigate(`/mensagens/${conversation.id}`);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   /** Abre a conversa pelo código de 8 caracteres que a outra pessoa te deu. */
   const joinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -301,6 +300,16 @@ export default function ChatPage() {
       setBusy(false);
     }
   };
+
+  const answerFriendRequest = async (requestId: string, status: 'ACCEPTED' | 'REJECTED') => {
+    setError('');
+    try {
+      await respondFriendRequest(requestId, status);
+      await loadFriendRequests();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 /* --------------------------------- render ------------------------------- */
 
   return (
@@ -312,6 +321,9 @@ export default function ChatPage() {
         <>
           <button className="ghost" onClick={() => setShowJoin(true)} title="Entrar com o código de alguém">
             <IconHash size={16} /> Entrar com código
+          </button>
+          <button className="ghost" onClick={() => setShowRequests(true)} title="Pedidos de amizade">
+            Pedidos{friendRequests.length ? ` (${friendRequests.length})` : ''}
           </button>
           <button className="ghost" onClick={() => setShowNew(true)} title="Nova conversa">
             <IconPlus size={16} /> Nova
@@ -367,31 +379,42 @@ export default function ChatPage() {
               <input
                 value={groupInvites}
                 onChange={(e) => setGroupInvites(e.target.value)}
-                placeholder="@usuario ou códigos separados por espaço"
+                placeholder="Códigos separados por espaço"
                 aria-label="Convidados do grupo"
               />
               <button type="submit" disabled={busy || !groupName.trim() || !groupInvites.trim()}>
                 Criar grupo
               </button>
               <small className="muted">
-                Aceita @usuario ou o código de 8 caracteres de cada pessoa.
+                Use somente os códigos temporários que as pessoas compartilharam com você.
               </small>
             </form>
+          </div>
+        </div>
+      )}
 
-            <div className="modal-section">
-              <h3>Ou comece uma conversa direta</h3>
-              <div className="modal-people">
-                {directory.slice(0, 12).map((p) => (
-                  <button key={p.id} className="person-row" onClick={() => void startDirect(p.id)}>
-                    <Avatar url={p.avatarDataUrl} name={p.displayName} username={p.username} size={34} />
-                    <div>
-                      <b>{p.displayName || p.username}</b>
-                      <small className="muted">@{p.username}</small>
-                    </div>
-                  </button>
-                ))}
-                {directory.length === 0 && <small className="muted">Ninguém no diretório ainda.</small>}
-              </div>
+      {showRequests && (
+        <div className="modal-backdrop" onClick={() => setShowRequests(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Pedidos de amizade</h2>
+            <div className="modal-section modal-people">
+              {friendRequests.length === 0 && <p className="muted small">Nenhum pedido pendente.</p>}
+              {friendRequests.map((request) => (
+                <div key={request.id} className="person-row">
+                  <Avatar
+                    url={request.requester.avatarDataUrl}
+                    name={request.requester.displayName}
+                    username={request.requester.username}
+                    size={38}
+                  />
+                  <Link to={`/perfil/${request.requester.username}`} className="person-info">
+                    <b>{request.requester.displayName || request.requester.username}</b>
+                    <small className="muted">Abrir perfil</small>
+                  </Link>
+                  <button onClick={() => void answerFriendRequest(request.id, 'ACCEPTED')}>Aceitar</button>
+                  <button className="ghost" onClick={() => void answerFriendRequest(request.id, 'REJECTED')}>Recusar</button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

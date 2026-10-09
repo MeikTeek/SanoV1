@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AudioPlayer from './AudioPlayer';
 import AudioRecorder, { type Recording } from './AudioRecorder';
 import { Avatar } from './ConversationList';
+import { updatePresence } from '../../services/chat.service';
 import {
   IconBack, IconImage, IconInfo, IconKey, IconLock, IconPhone, IconSearch,
   IconSend, IconSmile, IconUsers,
@@ -53,7 +54,18 @@ export default function MessageThread({
   const logRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const typingPresenceTimeout = useRef<number | null>(null);
   const [draft, setDraft] = useState('');
+
+  useEffect(() => {
+    if (!draft.trim()) return;
+    const timer = window.setTimeout(() => {
+      typingPresenceTimeout.current = null;
+      updatePresence('Digitando no chat').catch((e) => console.warn('Não foi possível atualizar a atividade:', e));
+    }, 900);
+    typingPresenceTimeout.current = timer;
+    return () => window.clearTimeout(timer);
+  }, [draft]);
 
   // Rola até o fim quando chega mensagem nova.
   if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -64,6 +76,7 @@ export default function MessageThread({
     const text = draft.trim();
     if (!text || busy) return;
     setDraft('');
+    updatePresence('No chat').catch((e) => console.warn('Não foi possível atualizar a atividade:', e));
     onSendText(text);
   };
 
@@ -83,21 +96,32 @@ export default function MessageThread({
           <IconBack />
         </button>
 
-        {conversation.kind === 'GROUP'
-          ? <span className="mini-avatar group"><IconUsers size={20} /></span>
-          : <Avatar url={other?.avatarDataUrl} name={other?.displayName} username={other?.username} size={34} />}
-
-        <div className="msg-thread-title">
-          <b>{conversation.title}</b>
-          <small className="msg-thread-status">
-            <IconLock size={11} />
-            {conversation.kind === 'GROUP'
-              ? `${conversation.members.length} membros · criptografado`
-              : conversation.subtitle
-                ? `@${other?.username} · criptografado`
-                : 'criptografado'}
-          </small>
-        </div>
+        {conversation.kind === 'GROUP' ? (
+          <>
+            <span className="mini-avatar group"><IconUsers size={20} /></span>
+            <div className="msg-thread-title">
+              <b>{conversation.title}</b>
+              <small className="msg-thread-status">
+                <IconLock size={11} /> {conversation.members.length} membros · criptografado
+              </small>
+            </div>
+          </>
+        ) : (
+          <button
+            className="msg-thread-profile"
+            onClick={() => other && navigate(`/perfil/${other.username}`)}
+            disabled={!other || messages.length === 0}
+            title={messages.length ? 'Ver perfil e amizade' : 'Envie uma mensagem para acessar o perfil'}
+          >
+            <Avatar url={other?.avatarDataUrl} name={other?.displayName} username={other?.username} size={34} />
+            <span className="msg-thread-title">
+              <b>{conversation.title}</b>
+              <small className="msg-thread-status">
+                <IconLock size={11} /> {conversation.subtitle || 'criptografado'}
+              </small>
+            </span>
+          </button>
+        )}
 
         <div className="msg-thread-actions">
           {/* Chamada e busca ainda não existem: ficam visíveis e desabilitadas,
@@ -193,7 +217,20 @@ export default function MessageThread({
           <input
             ref={inputRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              const value = e.target.value;
+              setDraft(value);
+              if (!value.trim()) {
+                updatePresence('No chat').catch((err) => console.warn('Não foi possível atualizar a atividade:', err));
+              }
+            }}
+            onBlur={() => {
+              if (typingPresenceTimeout.current !== null) {
+                window.clearTimeout(typingPresenceTimeout.current);
+                typingPresenceTimeout.current = null;
+              }
+              updatePresence('No chat').catch((e) => console.warn('Não foi possível atualizar a atividade:', e));
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -249,7 +286,7 @@ export function ThreadEmpty({ onNew, onJoin }: { onNew: () => void; onJoin: () =
             <IconUsers size={20} />
             <span>
               <b>Nova conversa</b>
-              <small className="muted">do diretório ou em grupo</small>
+              <small className="muted">por código ou em grupo</small>
             </span>
           </button>
           <button className="msg-empty-btn" onClick={onJoin}>

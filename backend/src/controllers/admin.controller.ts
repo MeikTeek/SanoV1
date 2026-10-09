@@ -4,6 +4,7 @@ import { AppError } from '../utils/errors';
 import { generateTempPassword, hashPassword } from '../utils/password';
 import { createUserSchema, setActiveSchema, logsQuerySchema, idParamSchema } from '../validators/admin.validator';
 import { logAudit } from '../services/audit.service';
+import { myNumber } from '../services/chat/number.service';
 
 const userSelect = {
   id: true, username: true, role: true, active: true, twoFactorEnabled: true,
@@ -25,7 +26,16 @@ export async function createUser(req: Request, res: Response) {
 }
 
 export async function listUsers(_req: Request, res: Response) {
-  res.json({ users: await prisma.user.findMany({ select: userSelect, orderBy: { createdAt: 'desc' } }) });
+  const users = await prisma.user.findMany({ select: userSelect, orderBy: { createdAt: 'desc' } });
+  const withCodes = await Promise.all(users.map(async (user) => {
+    const number = user.active ? await myNumber(user.id) : null;
+    return {
+      ...user,
+      contactCode: number?.formatted ?? null,
+      contactCodeUntil: number?.expiresAt ?? null,
+    };
+  }));
+  res.json({ users: withCodes });
 }
 
 /** Bloqueia/desbloqueia. Bloquear derruba as sessões ativas (tokenVersion++). */
