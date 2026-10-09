@@ -3,6 +3,7 @@ import { agendaIntent, trainerIntent, aiIntent } from './intents/agenda';
 import { localDayBounds } from '../assistant/dateTime';
 import { listLearningPhrases } from '../assistant/learning';
 import { variedReply } from '../assistant/recovery';
+import { buildInfo } from '../../build-info';
 
 const fmtUptime = (s: number) => {
   const h = Math.floor(s / 3600);
@@ -193,6 +194,22 @@ const time: Intent = {
   }),
 };
 
+const version: Intent = {
+  name: 'version',
+  description: 'Versão do site',
+  examples: ['versão do site'],
+  patterns: [
+    /^(versao|versao do site|qual versao|qual e a versao|versao atual)$/,
+    /\b(versao|release)\s+(do\s+)?(site|sano|sistema)\b/,
+  ],
+  handle: () => ({
+    reply: [
+      `Versão publicada: ${buildInfo.commit}`,
+      `Build: ${buildInfo.builtAt}`,
+    ].join('\n'),
+  }),
+};
+
 /* ---------------------- Módulo 1 (implementado) ---------------------- */
 
 const messages: Intent = {
@@ -298,6 +315,6 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
 // As intenções do módulo de mensagens vêm ANTES da IA: "abrir mensagens" é
 // comando de navegação, não pergunta.
 export const baseIntents: Intent[] = [
-  greeting, admin, whoami, status, briefing, time, agendaIntent, trainerIntent,
+  greeting, admin, whoami, status, briefing, time, version, agendaIntent, trainerIntent,
   messages, people, settings, learning, aiIntent, ...plannedIntents,
 ];

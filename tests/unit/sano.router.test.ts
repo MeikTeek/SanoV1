@@ -28,7 +28,9 @@ test('ajuda lista comandos e esconde os de admin para USER', async () => {
   const r = await run(user, 'ajuda');
   assert.equal(r.intent, 'help');
   assert.match(r.reply, /agenda/);
+  assert.match(r.reply, /Versão do site/);
   assert.doesNotMatch(r.reply, /osint/);
+  assert.match(JSON.stringify(r.view), /versão do site/i);
   assert.match((await run(admin, 'ajuda')).reply, /osint/);
 });
 
@@ -36,6 +38,13 @@ test('horas', async () => {
   const r = await run(user, 'Sano, que horas são?');
   assert.equal(r.intent, 'time');
   assert.match(r.reply, /2026/);
+});
+
+test('versão do site mostra commit e timestamp do build', async () => {
+  const r = await run(user, 'qual versão do site?');
+  assert.equal(r.intent, 'version');
+  assert.match(r.reply, /Versão publicada: local/);
+  assert.match(r.reply, /Build: unknown/);
 });
 
 test('comandos de módulos futuros são reconhecidos', async () => {

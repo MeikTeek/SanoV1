@@ -36,4 +36,8 @@ jobs:
             exit 1
           fi
 
+          BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          printf "export const buildInfo = { commit: '%s', builtAt: '%s' };\n" \
+            "$GITHUB_SHA" "$BUILD_TIMESTAMP" > backend/src/build-info.ts
+
           npx --yes discloud-cli@2.11.2 app commit "$APP_ID"

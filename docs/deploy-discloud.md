@@ -19,3 +19,8 @@ dos workspaces e inicia a API, que também serve o frontend compilado.
 O workflow chama `discloud app commit` para atualizar a aplicação existente.
 Para o primeiro envio de uma aplicação nova, use o fluxo de upload da Discloud
 e depois confirme o ID atribuído no `discloud.config`.
+
+Após cada deploy pelo GitHub Actions, o chat responde ao pedido **"versão do
+site"** com o SHA completo do commit e o horário UTC do pacote enviado. Compare
+esse SHA com o commit da execução em **Actions** para confirmar qual código foi
+publicado. Um build local mostra `local` até ser enviado pelo workflow.
