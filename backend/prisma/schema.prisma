@@ -213,6 +213,13 @@ model TrainingProfile {
   somatotype       String?  // ECTOMORPH | MESOMORPH | ENDOMORPH
   experience       String   @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED
   trainingDays     Int      @default(3)
+  trainingWeekdays Int[]    @default([1, 3, 5]) // 0=domingo .. 6=sábado
+  trainingLocation String   @default("GYM") // GYM | CALISTHENICS
+  targetWeightKg   Float?
+  pregnancy        Boolean?
+  heartCondition   Boolean?
+  medicationUse    Boolean?
+  parqAnswers      Json?
   sleepHours       Float    @default(7)
   waterLiters      Float    @default(2)
   mealsPerDay      Int      @default(3)
@@ -224,6 +231,37 @@ model TrainingProfile {
   updatedAt      DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assessments BodyAssessment[]
+}
+
+/// Registro corporal periódico e respostas de recuperação para acompanhar tendências.
+model BodyAssessment {
+  id                 String   @id @default(uuid())
+  userId             String
+  day                String   // Data local YYYY-MM-DD; um questionário por dia
+  weightKg           Float
+  bodyFatPercent     Float?
+  waistCm            Float?
+  neckCm             Float?
+  hipCm              Float?
+  chestCm            Float?
+  armCm              Float?
+  thighCm            Float?
+  calfCm             Float?
+  wristCm            Float?
+  restingHeartRate   Int?
+  sleepHours          Float?
+  fatigue             Int?     // escala subjetiva de 0 a 10
+  muscleSoreness      Int?     // escala subjetiva de 0 a 10
+  nutritionAdherence Int?     // escala subjetiva de 1 a 5
+  notes               String?  @db.VarChar(500)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  profile TrainingProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([userId, createdAt])
 }
 
 /// Plano alimentar calculado pelo código. A IA escreve os "~pratos", nunca as calorias.
@@ -305,15 +343,17 @@ model MissionProgress {
 
 /// Registro bruto de treino — insumo do relatório semanal da IA.
 model WorkoutLog {
-  id        String   @id @default(uuid())
-  userId    String
-  day       String
-  exercise  String
-  sets      Int      @default(0)
-  reps      Int      @default(0)
-  loadKg    Float?
-  minutes   Int      @default(0)
-  createdAt DateTime @default(now())
+  id          String   @id @default(uuid())
+  userId      String
+  day         String
+  exercise    String
+  exerciseKey String?
+  muscleGroup String?
+  sets        Int      @default(0)
+  reps        Int      @default(0)
+  loadKg      Float?
+  minutes     Int      @default(0)
+  createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

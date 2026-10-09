@@ -16,17 +16,6 @@
 .xp-bar { height: 8px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; margin-bottom: 4px; }
 .xp-bar > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .4s ease; }
 
-/* Radar */
-.radar { display: block; margin: 12px auto; }
-.radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
-.radar-axis { stroke: var(--line); stroke-width: 1; }
-.radar-area { fill: rgba(0, 229, 255, .16); stroke: var(--accent); stroke-width: 2; transition: all .4s ease; }
-.radar-area.debuffed { fill: rgba(255, 93, 115, .16); stroke: var(--bad); }
-.radar-dot { fill: var(--accent); }
-.radar-area.debuffed + circle { fill: var(--bad); }
-.radar-label { fill: var(--muted); font-size: 10px; }
-.radar-value { fill: var(--text); font-size: 11px; font-weight: 700; }
-
 /* Mensagem do sistema / penalidade */
 .system-msg { display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 14px; background: var(--surface-2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--radius); animation: slidein .3s ease-out; }
 .system-msg p { flex: 1; margin: 0; white-space: pre-wrap; line-height: 1.5; }
@@ -99,3 +88,83 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
 .chip.active { border-color: var(--accent); color: var(--accent); background: #00e5ff0f; }
 .chip.danger.active { border-color: var(--bad); color: var(--bad); background: #ff5d7312; }
 .nav-row { display: flex; gap: 10px; margin-top: 18px; }
+
+/* Plano semanal */
+.trainer-main { width: 100%; min-width: 0; }
+.weekly-plan, .trainer-data, .diet-panel { display: flex; flex-direction: column; gap: 16px; }
+.weekly-plan-intro, .week-detail-head, .data-chart-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.weekly-plan-intro h2, .week-detail-head h3, .data-chart-heading h3 { margin: 0; }
+.weekly-plan-intro p, .week-detail-head p { margin: 5px 0 0; }
+.plan-badge { border: 1px solid var(--accent); color: var(--accent); border-radius: 99px; padding: 6px 10px; font-size: .75rem; white-space: nowrap; }
+.week-cards { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.week-day-card { display: flex; flex-direction: column; gap: 7px; min-height: 112px; text-align: left; padding: 10px; color: var(--text); background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.week-day-card small { color: var(--accent); font-weight: 700; }
+.week-day-card b { font-size: .82rem; }
+.week-day-card span { color: var(--muted); font-size: .7rem; line-height: 1.4; }
+.week-day-card.active { border-color: var(--accent); background: #00e5ff0f; }
+.week-day-card.rest-day small { color: var(--muted); }
+.week-detail { padding: 14px; }
+.planned-exercises { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.planned-exercise { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.planned-exercise > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.planned-exercise .muted { font-size: .78rem; }
+.load-field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .73rem; white-space: nowrap; }
+.load-field input { width: 78px; padding: 7px; }
+.plan-warning, .assessment-reminder { padding: 11px 13px; border: 1px solid #ffbf4745; background: #ffbf470d; color: var(--warn); border-radius: var(--radius-sm); font-size: .84rem; line-height: 1.5; }
+.assessment-reminder { border-color: #00e5ff45; background: #00e5ff0d; color: var(--text); }
+.volume-section { min-width: 0; }
+.volume-section > h3 { margin-bottom: 6px; }
+.volume-section > .muted { margin-top: 0; font-size: .82rem; }
+.matrix-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.muscle-matrix { width: 100%; min-width: 760px; border-collapse: collapse; font-size: .75rem; }
+.muscle-matrix th, .muscle-matrix td { padding: 9px 8px; border-bottom: 1px solid var(--line); text-align: center; white-space: nowrap; }
+.muscle-matrix thead { background: var(--surface-2); color: var(--muted); }
+.muscle-matrix tbody th { text-align: left; color: var(--text); }
+.matrix-state { display: inline-block; padding: 4px 6px; border-radius: 99px; font-size: .65rem; }
+.matrix-state.train { background: #00e5ff19; color: var(--accent); }
+.matrix-state.recovery { background: #ffbf4719; color: var(--warn); }
+.matrix-state.recovered { background: #56d68b19; color: var(--ok); }
+.trainer-disclaimer { margin: 0; color: var(--muted); font-size: .77rem; line-height: 1.55; }
+
+/* Dados e evolução */
+.assessment-form { display: flex; flex-direction: column; gap: 12px; }
+.assessment-form h3, .data-diet h3, .data-lower-grid h3, .strength-section h3 { margin-top: 0; }
+.assessment-form > .muted { margin-top: -7px; }
+.assessment-form > label { display: flex; flex-direction: column; gap: 6px; }
+.parq-question { display: flex; align-items: flex-start; gap: 9px; margin: 10px 0 0; font-size: .86rem; }
+.parq-question input { accent-color: var(--accent); margin-top: 3px; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.metric-card { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 13px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.metric-card > span { color: var(--muted); font-size: .74rem; }
+.metric-card > b { color: var(--accent); font-size: 1.25rem; overflow-wrap: anywhere; }
+.metric-card > small { color: var(--muted); font-size: .69rem; line-height: 1.45; }
+.data-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.data-chart { min-width: 0; padding: 14px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.data-chart-heading h3 { font-size: .88rem; }
+.data-chart-heading span { color: var(--muted); font-size: .7rem; text-align: right; }
+.data-chart svg { width: 100%; display: block; margin-top: 8px; overflow: visible; }
+.chart-axis { stroke: var(--line); stroke-width: 1; }
+.chart-empty { display: grid; place-items: center; min-height: 130px; color: var(--muted); font-size: .78rem; text-align: center; }
+.chart-dates { display: flex; justify-content: space-between; color: var(--muted); font-size: .7rem; }
+.data-lower-grid { display: grid; grid-template-columns: minmax(180px, .7fr) minmax(0, 1.3fr); gap: 12px; }
+.adherence-value { color: var(--accent); font-size: 2.2rem; font-weight: 700; }
+.volume-bars { display: flex; flex-direction: column; gap: 10px; }
+.volume-bar-row { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(70px, 1.4fr) auto; gap: 8px; align-items: center; font-size: .75rem; }
+.volume-bar-row > span { color: var(--muted); }
+.volume-bar-row b { white-space: nowrap; }
+.volume-bar-row b small { color: var(--muted); font-weight: 400; }
+.volume-bar { height: 7px; overflow: hidden; background: var(--surface-3); border-radius: 99px; }
+.volume-bar i { display: block; height: 100%; background: linear-gradient(90deg, var(--accent), var(--ok)); border-radius: inherit; }
+.strength-list { display: flex; flex-direction: column; gap: 8px; }
+.strength-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+.strength-list span { color: var(--muted); font-size: .8rem; text-align: right; }
+@media (max-width: 900px) {
+  .week-cards { grid-template-columns: repeat(7, minmax(96px, 1fr)); }
+  .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .data-charts, .data-lower-grid { grid-template-columns: 1fr; }
+  .planned-exercise { align-items: flex-start; flex-direction: column; }
+  .weekly-plan-intro { align-items: flex-start; flex-direction: column; }
+}

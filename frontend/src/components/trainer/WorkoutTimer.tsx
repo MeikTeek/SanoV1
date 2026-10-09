@@ -4,7 +4,7 @@ import type { ExerciseDetail } from '../../types/trainer';
 
 interface Props {
   /** Blocos na ordem do treino. */
-  blocks: { key: string; name: string }[];
+  blocks: { key: string; name: string; restSeconds?: number }[];
   onFinish: () => void;
   onClose: () => void;
 }
@@ -25,7 +25,7 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   const [index, setIndex] = useState(0);
   const [phase, setPhase] = useState<Phase>('work');
   const [left, setLeft] = useState(0);
-  const [running, setRunning] = useState(true);
+  const [running, setRunning] = useState(false);
   const [detail, setDetail] = useState<ExerciseDetail | null>(null);
 
   const current = blocks[index];
@@ -33,6 +33,8 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   // não pode depender disso para contar.
   const total = useRef(40);
   const phaseRef = useRef<Phase>('work');
+  const audio = useRef<AudioContext | null>(null);
+  const finishBeepPlayed = useRef(false);
 
   const loadDetail = useCallback(async (key: string) => {
     try {
@@ -51,10 +53,41 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   useEffect(() => {
     if (!current) return;
     phaseRef.current = 'work';
+    finishBeepPlayed.current = false;
     setPhase('work');
-    setRunning(true);
+    setRunning(false);
     void loadDetail(current.key);
   }, [current, loadDetail]);
+
+  useEffect(() => () => {
+    if (audio.current && audio.current.state !== 'closed') void audio.current.close();
+  }, []);
+
+  const startTimer = async () => {
+    if (!audio.current) audio.current = new AudioContext();
+    if (audio.current.state === 'suspended') await audio.current.resume();
+    setRunning(true);
+  };
+
+  const playFinishBeep = useCallback(() => {
+    const context = audio.current;
+    if (!context || context.state !== 'running' || finishBeepPlayed.current) return;
+    finishBeepPlayed.current = true;
+    const now = context.currentTime;
+    [0, 0.32].forEach((offset) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = 'sine';
+      oscillator.frequency.value = 880;
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + offset + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + 0.2);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start(now + offset);
+      oscillator.stop(now + offset + 0.22);
+    });
+  }, []);
 
   // Contagem. Usa intervalo de 250 ms para a barra ficar suave.
   useEffect(() => {
@@ -63,26 +96,29 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
       setLeft((s) => {
         if (s > 1) return s - 0.25;
         // Troca de fase ao zerar.
-        const wasWork = phaseRef.current === 'work';
-        phaseRef.current = wasWork ? 'rest' : 'work';
-        setPhase(phaseRef.current);
-
-        if (!wasWork) {
-          // Descanso terminou: próximo bloco ou fim do treino.
-          if (index + 1 < blocks.length) {
-            setIndex((i) => i + 1);
-          } else {
+        if (phaseRef.current === 'work') {
+          if (index + 1 >= blocks.length) {
+            phaseRef.current = 'done';
             setPhase('done');
             setRunning(false);
+            playFinishBeep();
             onFinish();
+            return 0;
           }
-          return 1;
+          phaseRef.current = 'rest';
+          setPhase('rest');
+          total.current = current.restSeconds ?? detail?.restSeconds ?? 45;
+          return total.current;
         }
-        return detail?.restSeconds ?? 45;
+
+        phaseRef.current = 'work';
+        setPhase('work');
+        setIndex((i) => i + 1);
+        return 1;
       });
     }, 250);
     return () => window.clearInterval(id);
-  }, [running, phase, index, blocks.length, detail, onFinish]);
+  }, [running, phase, index, blocks.length, detail, onFinish, current, playFinishBeep]);
 
   if (!current) return null;
 
@@ -112,7 +148,7 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
         <div className="timer-bar"><div style={{ width: `${pct}%` }} /></div>
 
         <div className="nav-row">
-          <button onClick={() => setRunning((r) => !r)}>{running ? 'Pausar' : 'Continuar'}</button>
+          <button onClick={() => running ? setRunning(false) : void startTimer()}>{running ? 'Pausar' : 'Ativar som e iniciar'}</button>
           <button
             className="ghost"
             onClick={() => {

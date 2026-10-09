@@ -10,7 +10,7 @@
 export type Equipment = 'academia' | 'peso-corporal' | 'elastico' | 'barra-fixa' | 'halteres' | 'nenhum';
 export type MuscleGroup = 'peito' | 'costas' | 'pernas' | 'ombros' | 'bracos' | 'core' | 'cardio' | 'mobilidade';
 export type Injury = 'joelho' | 'lombar' | 'ombro' | 'cotovelo' | 'quadril' | 'pescoco';
-export type Goal = 'HYPERTROPHY' | 'WEIGHT_LOSS' | 'CONDITIONING' | 'HEALTH';
+export type Goal = 'HYPERTROPHY' | 'STRENGTH' | 'WEIGHT_LOSS' | 'CONDITIONING' | 'HEALTH';
 
 export interface Exercise {
   key: string;
@@ -53,7 +53,7 @@ export const EQUIPMENT_LABELS: Record<Equipment, string> = {
 };
 
 export const GOAL_LABELS: Record<Goal, string> = {
-  HYPERTROPHY: 'Hipertrofia', WEIGHT_LOSS: 'Emagrecimento',
+  HYPERTROPHY: 'Hipertrofia', STRENGTH: 'Força', WEIGHT_LOSS: 'Emagrecimento',
   CONDITIONING: 'Condicionamento', HEALTH: 'Saúde',
 };
 
@@ -69,6 +69,12 @@ export const GOALS: { key: Goal; label: string; summary: string; focus: string[]
     key: 'HYPERTROPHY',
     label: 'Ganhar massa muscular',
     summary: 'Mais força e músculo, com progressão de carga.',
+    focus: ['pernas', 'peito', 'costas', 'ombros', 'bracos'],
+  },
+  {
+    key: 'STRENGTH',
+    label: 'Ganhar força',
+    summary: 'Prioriza movimentos compostos, cargas progressivas e intervalos maiores.',
     focus: ['pernas', 'peito', 'costas', 'ombros', 'bracos'],
   },
   {
@@ -118,6 +124,11 @@ export const EXERCISES: Exercise[] = [
   { key: 'triceps_cabo', name: 'Tríceps no cabo', group: 'bracos', equipment: ['elastico', 'academia'], contraindicated: ['cotovelo'], impact: 'baixo', difficulty: 2, xp: 12, minutes: 5 },
   { key: 'triceps_bench', name: 'Tríceps na bench', group: 'bracos', equipment: ['peso-corporal'], contraindicated: ['ombro', 'cotovelo'], impact: 'baixo', difficulty: 2, xp: 13, minutes: 5 },
   { key: 'curl_mao', name: 'Curl de mão', group: 'bracos', equipment: ['nenhum', 'halteres'], contraindicated: ['cotovelo'], impact: 'baixo', difficulty: 1, xp: 10, minutes: 5 },
+  { key: 'rosca_direta', name: 'Rosca direta', group: 'bracos', equipment: ['academia', 'halteres', 'elastico'], contraindicated: ['cotovelo'], impact: 'baixo', difficulty: 1, xp: 12, minutes: 5 },
+  { key: 'rosca_martelo', name: 'Rosca martelo', group: 'bracos', equipment: ['academia', 'halteres'], contraindicated: ['cotovelo'], impact: 'baixo', difficulty: 2, xp: 14, minutes: 5 },
+  { key: 'extensao_triceps', name: 'Extensão de tríceps', group: 'bracos', equipment: ['academia', 'halteres', 'elastico'], contraindicated: ['cotovelo', 'ombro'], impact: 'baixo', difficulty: 1, xp: 12, minutes: 5 },
+  { key: 'stiff_romeno', name: 'Levantamento terra romeno', group: 'pernas', equipment: ['academia', 'halteres'], contraindicated: ['lombar', 'quadril'], impact: 'baixo', difficulty: 2, xp: 16, minutes: 7 },
+  { key: 'mesa_flexora', name: 'Flexão de joelhos na máquina', group: 'pernas', equipment: ['academia'], contraindicated: ['joelho'], impact: 'baixo', difficulty: 1, xp: 12, minutes: 6 },
 
   { key: 'prancha', name: 'Prancha', group: 'core', equipment: ['nenhum'], contraindicated: ['ombro'], impact: 'baixo', difficulty: 1, xp: 11, minutes: 4 },
   { key: 'hollow_hold', name: 'Hollow hold', group: 'core', equipment: ['nenhum'], contraindicated: ['lombar'], impact: 'baixo', difficulty: 2, xp: 14, minutes: 4 },

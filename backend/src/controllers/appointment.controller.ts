@@ -20,9 +20,9 @@ export async function list(req: Request, res: Response) {
 export async function create(req: Request, res: Response) {
   const data = createAppointmentSchema.parse(req.body);
 
-  // Coer��o de tipos: o body chega como string.
+  // Coerção de tipos: o body chega como string.
   if (data.endsAt && new Date(data.endsAt) <= new Date(data.startsAt)) {
-    throw new AppError(400, 'O t�rmino deve ser depois do in�cio');
+    throw new AppError(400, 'O término deve ser depois do início');
   }
 
   const appointment = await createAppointment(req.user!.id, {
@@ -43,7 +43,7 @@ export async function update(req: Request, res: Response) {
     ...data,
     startsAt: data.startsAt ? new Date(data.startsAt) : undefined,
     endsAt: data.endsAt ? new Date(data.endsAt) : undefined,
-  }).catch(() => { throw new AppError(404, 'Compromisso n�o encontrado'); });
+  }).catch(() => { throw new AppError(404, 'Compromisso não encontrado'); });
 
   await logAudit(req, 'AGENDA_UPDATED', req.user!.id, { id, fields: Object.keys(data) });
   res.json({ appointment });
@@ -51,14 +51,14 @@ export async function update(req: Request, res: Response) {
 
 export async function remove(req: Request, res: Response) {
   const { id } = idParamSchema.parse(req.params);
-  await deleteAppointment(req.user!.id, id).catch(() => { throw new AppError(404, 'Compromisso n�o encontrado'); });
+  await deleteAppointment(req.user!.id, id).catch(() => { throw new AppError(404, 'Compromisso não encontrado'); });
   await logAudit(req, 'AGENGA_DELETED', req.user!.id, { id });
   res.json({ ok: true });
 }
 
 /**
- * Lembretes que j� venceram. Marca como avisados antes de responder, para que
- * dois polling simult�neos n�o gerem a mesma notifica��o duas vezes.
+ * Lembretes que já venceram. Marca como avisados antes de responder, para que
+ * dois polling simultâneos não gerem a mesma notificação duas vezes.
  */
 export async function due(req: Request, res: Response) {
   const pending = await findDueReminders(req.user!.id);

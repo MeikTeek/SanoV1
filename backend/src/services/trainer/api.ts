@@ -13,6 +13,8 @@ import { fullDetail } from './exerciseDetails';
 import { EXERCISES, GOALS, GOAL_LABELS, EQUIPMENT_LABELS, INJURY_LABELS } from './exercises';
 import { levelTitle } from './progress';
 import { AppError } from '../../utils/errors';
+import { generateWeeklyPlan } from './weeklyPlan';
+import type { BodyAssessmentInput, WorkoutLogInput } from '../../validators/trainer.validator';
 
 /** Perfil do banco → entrada do motor de dieta. */
 function toDietProfile(p: {
@@ -36,6 +38,22 @@ export interface OnboardingInput {
   weightKg: number; heightCm: number; birthYear: number;
   sex: 'M' | 'F' | 'OTHER'; goal: string;
   equipment: string[]; injuries: string[]; minutesPerDay: number;
+  somatotype?: string;
+  experience?: string;
+  trainingDays?: number;
+  trainingWeekdays?: number[];
+  trainingLocation?: string;
+  targetWeightKg?: number;
+  pregnancy?: boolean;
+  heartCondition?: boolean;
+  medicationUse?: boolean;
+  parqAnswers?: Record<string, boolean> | null;
+  sleepHours?: number;
+  waterLiters?: number;
+  mealsPerDay?: number;
+  dietQuality?: string;
+  dietNotes?: string;
+  dietRestrictions?: string[];
   restrictionNotes?: string;
 }
 
@@ -50,6 +68,11 @@ export async function onboardCall(userId: string, username: string, data: Onboar
   const stats = await getStats(userId);
   const plan = generateMission(toRuleProfile(profile, stats.level), 0);
   const mission = await getOrCreateMission(userId);
+  await prisma.bodyAssessment.upsert({
+    where: { userId_day: { userId, day: todayKey() } },
+    create: { userId, day: todayKey(), weightKg: data.weightKg, sleepHours: data.sleepHours ?? 7 },
+    update: { weightKg: data.weightKg, sleepHours: data.sleepHours ?? 7 },
+  });
 
   const intro = await narrateMission({
     username,
@@ -59,6 +82,189 @@ export async function onboardCall(userId: string, username: string, data: Onboar
   });
 
   return { profile, mission, intro };
+}
+
+function ageFromBirthYear(birthYear: number, now = new Date()) {
+  return now.getFullYear() - birthYear;
+}
+
+function bodyMetrics(
+  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
+  latest: {
+    weightKg: number; bodyFatPercent: number | null; waistCm: number | null; neckCm: number | null;
+    hipCm: number | null; restingHeartRate: number | null; sleepHours: number | null;
+    fatigue: number | null; muscleSoreness: number | null; nutritionAdherence: number | null;
+  } | null,
+  loggedExercises: { exercise: string; sets: number; reps: number; loadKg: number | null; muscleGroup: string | null; createdAt: Date }[],
+  assessmentCount: number,
+  daysSinceAssessment: number,
+) {
+  const weightKg = latest?.weightKg ?? profile.weightKg;
+  const heightM = profile.heightCm / 100;
+  const age = ageFromBirthYear(profile.birthYear);
+  const bmi = weightKg / (heightM * heightM);
+  const adult = age >= 18;
+  const waist = latest?.waistCm;
+  const neck = latest?.neckCm;
+  const hip = latest?.hipCm;
+  const inches = (cm: number) => cm / 2.54;
+  let bodyFatPercent = latest?.bodyFatPercent ?? null;
+  let bodyFatMethod: string | null = bodyFatPercent === null ? null : 'informado';
+  if (bodyFatPercent === null && adult && profile.sex === 'M' && waist && neck && waist > neck) {
+    bodyFatPercent = 86.010 * Math.log10(inches(waist - neck)) - 70.041 * Math.log10(inches(profile.heightCm)) + 36.76;
+    bodyFatMethod = 'estimativa Navy';
+  } else if (bodyFatPercent === null && adult && profile.sex === 'F' && waist && neck && hip && waist + hip > neck) {
+    bodyFatPercent = 163.205 * Math.log10(inches(waist + hip - neck)) - 97.684 * Math.log10(inches(profile.heightCm)) - 78.387;
+    bodyFatMethod = 'estimativa Navy';
+  } else if (bodyFatPercent === null && adult && profile.sex !== 'OTHER') {
+    bodyFatPercent = 1.2 * bmi + 0.23 * age - (profile.sex === 'M' ? 10.8 : 0) - 5.4;
+    bodyFatMethod = 'estimativa Deurenberg';
+  }
+  if (bodyFatPercent !== null) bodyFatPercent = Math.max(2, Math.min(70, bodyFatPercent));
+  const leanMassKg = bodyFatPercent === null ? null : weightKg * (1 - bodyFatPercent / 100);
+  const bmrBase = 10 * weightKg + 6.25 * profile.heightCm - 5 * age;
+  const bmr = Math.round(bmrBase + (profile.sex === 'M' ? 5 : profile.sex === 'F' ? -161 : -78));
+  const readinessScore = latest?.sleepHours !== null && latest?.sleepHours !== undefined
+    && latest.fatigue !== null && latest.fatigue !== undefined
+    && latest.muscleSoreness !== null && latest.muscleSoreness !== undefined
+    ? Math.round(Math.min(100, latest.sleepHours / 8 * 100) * 0.4 + (10 - latest.fatigue) * 10 * 0.3 + (10 - latest.muscleSoreness) * 10 * 0.3)
+    : null;
+  const activity: Record<number, number> = { 0: 1.2, 1: 1.35, 2: 1.45, 3: 1.55, 4: 1.65, 5: 1.72, 6: 1.8 };
+  const tdee = Math.round(bmr * (activity[Math.min(6, profile.trainingDays)] ?? 1.45));
+  const epley = loggedExercises
+    .filter((entry) => entry.loadKg !== null && entry.loadKg > 0 && entry.reps > 0)
+    .map((entry) => ({ name: entry.exercise, estimated1RmKg: Math.round(entry.loadKg! * (1 + entry.reps / 30) * 10) / 10, day: entry.createdAt.toISOString().slice(0, 10) }))
+    .sort((a, b) => b.estimated1RmKg - a.estimated1RmKg)
+    .slice(0, 5);
+  const safetyWarnings = [
+    age < 18 ? 'Menor de 18 anos: procure supervisão de um responsável e de profissional qualificado antes de treinar.' : null,
+    profile.pregnancy ? 'Gestação informada: procure orientação individualizada de um profissional de saúde.' : null,
+    profile.heartCondition ? 'Condição cardíaca informada: obtenha liberação e orientação médica antes de iniciar exercícios.' : null,
+    profile.medicationUse ? 'Uso de medicação informado: confirme com um profissional de saúde se há cuidados específicos para o exercício.' : null,
+    profile.parqAnswers && Object.values(profile.parqAnswers as Record<string, boolean>).some(Boolean)
+      ? 'A triagem PAR-Q teve resposta positiva. Procure orientação de um profissional de saúde antes de iniciar ou intensificar os exercícios.'
+      : null,
+  ].filter((warning): warning is string => Boolean(warning));
+  return {
+    age, weightKg, bmi: Math.round(bmi * 10) / 10,
+    bmiCategory: bmi < 18.5 ? 'Abaixo da faixa de referência' : bmi < 25 ? 'Faixa de referência' : bmi < 30 ? 'Acima da faixa de referência' : 'Faixa elevada',
+    bodyFatPercent: bodyFatPercent === null ? null : Math.round(bodyFatPercent * 10) / 10,
+    bodyFatMethod,
+    fatMassKg: bodyFatPercent === null ? null : Math.round(weightKg * bodyFatPercent / 100 * 10) / 10,
+    leanMassKg: leanMassKg === null ? null : Math.round(leanMassKg * 10) / 10,
+    ffmi: leanMassKg === null ? null : Math.round(leanMassKg / (heightM * heightM) * 10) / 10,
+    waistToHeight: waist ? Math.round((waist / profile.heightCm) * 100) / 100 : null,
+    waistToHip: waist && hip ? Math.round((waist / hip) * 100) / 100 : null,
+    bsaM2: Math.round(Math.sqrt(profile.heightCm * weightKg / 3600) * 100) / 100,
+    referenceWeightKg: Math.round(22 * heightM * heightM * 10) / 10,
+    targetWeightKg: profile.targetWeightKg,
+    bmr, tdee,
+    waterLiters: Math.max(1.5, Math.round((weightKg * 0.035 + profile.trainingDays * 0.15) * 10) / 10),
+    restingHeartRate: latest?.restingHeartRate ?? null,
+    sleepHours: latest?.sleepHours ?? null,
+    fatigue: latest?.fatigue ?? null,
+    muscleSoreness: latest?.muscleSoreness ?? null,
+    nutritionAdherence: latest?.nutritionAdherence ?? null,
+    readinessScore,
+    estimated1Rm: epley,
+    assessmentCount,
+    assessmentDue: assessmentCount === 0 || daysSinceAssessment >= 14,
+    daysSinceAssessment,
+    adherenceNote: 'Aderência e tendências ficam mais representativas após registrar treinos e avaliações ao longo do tempo.',
+    safetyWarnings,
+  };
+}
+
+export async function weeklyPlanCall(userId: string) {
+  const profile = await getProfile(userId);
+  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  return generateWeeklyPlan({
+    goal: profile.goal, equipment: profile.equipment, injuries: profile.injuries,
+    birthYear: profile.birthYear, experience: profile.experience,
+    trainingDays: profile.trainingDays, trainingWeekdays: profile.trainingWeekdays,
+    trainingLocation: profile.trainingLocation, sleepHours: profile.sleepHours,
+    minutesPerDay: profile.minutesPerDay,
+  });
+}
+
+export async function dataCall(userId: string) {
+  const profile = await prisma.trainingProfile.findUnique({
+    where: { userId },
+    include: { assessments: { orderBy: { day: 'desc' }, take: 24 } },
+  });
+  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  const logs = await prisma.workoutLog.findMany({
+    where: { userId, day: { gte: new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10) } },
+    orderBy: { createdAt: 'asc' },
+  });
+  const assessments = profile.assessments.slice().reverse();
+  const planned = new Set(profile.trainingWeekdays);
+  const today = new Date();
+  const expectedSessions = Array.from({ length: 30 }, (_, offset) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - offset);
+    return planned.has(date.getDay());
+  }).filter(Boolean).length;
+  const logDays = new Set(logs.map((log) => log.day));
+  const recentDays = new Set(Array.from(logDays).filter((day) => day >= new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)));
+  const plan = await weeklyPlanCall(userId);
+  const latest = assessments[assessments.length - 1] ?? null;
+  const daysSinceAssessment = latest
+    ? Math.floor((Date.now() - new Date(`${latest.day}T12:00:00`).getTime()) / 86_400_000)
+    : 0;
+  return {
+    profile,
+    metrics: {
+      ...bodyMetrics(profile, latest, logs, assessments.length, daysSinceAssessment),
+      weightTrendKg: assessments.length > 1
+        ? Math.round((assessments[assessments.length - 1].weightKg - assessments[0].weightKg) * 10) / 10
+        : null,
+    },
+    assessments,
+    history: assessments.map((entry) => ({ day: entry.day, weightKg: entry.weightKg, bodyFatPercent: entry.bodyFatPercent, waistCm: entry.waistCm, sleepHours: entry.sleepHours, fatigue: entry.fatigue })),
+    adherence: { completedSessions: recentDays.size, plannedSessions: expectedSessions, percent: expectedSessions ? Math.min(100, Math.round(recentDays.size / expectedSessions * 100)) : 0 },
+    weeklyVolume: plan.matrix.map(({ key, label, weeklySets, targetMin, targetMax }) => ({ key, label, weeklySets, targetMin, targetMax })),
+    strengthHistory: logs.filter((entry) => entry.loadKg !== null).map((entry) => ({ day: entry.day, exercise: entry.exercise, loadKg: entry.loadKg, sets: entry.sets, reps: entry.reps })),
+    disclaimer: plan.disclaimer,
+  };
+}
+
+export async function saveAssessmentCall(userId: string, data: BodyAssessmentInput) {
+  const profile = await getProfile(userId);
+  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  const day = todayKey();
+  const assessment = await prisma.bodyAssessment.upsert({
+    where: { userId_day: { userId, day } },
+    create: { ...data, userId, day },
+    update: data,
+  });
+  await prisma.trainingProfile.update({ where: { userId }, data: { weightKg: data.weightKg } });
+  return assessment;
+}
+
+export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
+  const profile = await getProfile(userId);
+  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  const equipment = profile.trainingLocation === 'CALISTHENICS'
+    ? profile.equipment.filter((item) => !['academia', 'halteres'].includes(item))
+    : profile.equipment;
+  const allowed = new Set(EXERCISES.filter((exercise) => screenOut(exercise, {
+    goal: profile.goal as never, equipment: equipment as never, injuries: profile.injuries as never,
+    age: ageFromBirthYear(profile.birthYear), level: 1, minutesAvailable: profile.minutesPerDay,
+  }) === null).map((exercise) => exercise.key));
+  const selected = entries.map((entry) => {
+    const exercise = EXERCISES.find((item) => item.key === entry.exerciseKey);
+    if (!exercise || !allowed.has(exercise.key)) throw new AppError(400, `Exercício não permitido para o perfil: ${entry.exerciseKey}.`);
+    return { ...entry, exercise: exercise.name, muscleGroup: exercise.group };
+  });
+  const day = todayKey();
+  await prisma.workoutLog.createMany({
+    data: selected.map((entry) => ({
+      userId, day, exercise: entry.exercise, exerciseKey: entry.exerciseKey,
+      muscleGroup: entry.muscleGroup, sets: entry.sets, reps: entry.reps, loadKg: entry.loadKg,
+    })),
+  });
+  return { saved: selected.length, day };
 }
 
 /** Opções do cadastro, servidas pelo servidor para o frontend não duplicar rótulos. */

@@ -5,14 +5,21 @@ import type { Equipment, Goal, Injury, Somatotype, TrainerMeta } from '../../typ
 const toggle = <T,>(list: T[], value: T): T[] =>
   list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 
-const LAST_STEP = 5;
+const LAST_STEP = 4;
 
 export interface ProfileDraft {
   goal: Goal;
   weightKg: string; heightCm: string; birthYear: string; sex: 'M' | 'F' | 'OTHER';
+  targetWeightKg: string;
   somatotype: Somatotype | '';
   experience: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
   trainingDays: number;
+  trainingWeekdays: number[];
+  trainingLocation: 'GYM' | 'CALISTHENICS';
+  pregnancy: boolean;
+  heartCondition: boolean;
+  medicationUse: boolean;
+  parqAnswers: Record<string, boolean>;
   minutesPerDay: string;
   equipment: Equipment[];
   injuries: Injury[];
@@ -43,12 +50,21 @@ export default function Onboarding({ onDone, initial }: {
 
   const [f, setF] = useState<ProfileDraft>({
     goal: 'HYPERTROPHY',
-    weightKg: '', heightCm: '',
+    weightKg: '', heightCm: '', targetWeightKg: '',
     birthYear: String(new Date().getFullYear() - 25),
     sex: 'M',
     somatotype: '',
     experience: 'BEGINNER',
     trainingDays: 3,
+    trainingWeekdays: [1, 3, 5],
+    trainingLocation: 'GYM',
+    pregnancy: false,
+    heartCondition: false,
+    medicationUse: false,
+    parqAnswers: {
+      heartDiagnosis: false, chestPain: false, dizziness: false,
+      jointCondition: false, prescribedMedication: false, supervisedExercise: false, otherReason: false,
+    },
     minutesPerDay: '45',
     equipment: ['peso-corporal'],
     injuries: [],
@@ -73,6 +89,7 @@ export default function Onboarding({ onDone, initial }: {
     try {
       const { intro } = await onboard({
         weightKg: Number(f.weightKg),
+        targetWeightKg: f.targetWeightKg ? Number(f.targetWeightKg) : undefined,
         heightCm: Number(f.heightCm),
         birthYear: Number(f.birthYear),
         sex: f.sex,
@@ -80,6 +97,12 @@ export default function Onboarding({ onDone, initial }: {
         somatotype: f.somatotype || undefined,
         experience: f.experience,
         trainingDays: f.trainingDays,
+        trainingWeekdays: f.trainingWeekdays,
+        trainingLocation: f.trainingLocation,
+        pregnancy: f.pregnancy,
+        heartCondition: f.heartCondition,
+        medicationUse: f.medicationUse,
+        parqAnswers: f.parqAnswers,
         equipment: f.equipment,
         injuries: f.injuries,
         sleepHours: Number(f.sleepHours),
@@ -129,6 +152,7 @@ export default function Onboarding({ onDone, initial }: {
             <h3>Seus dados corporais</h3>
             <div className="field-grid">
               <label>Peso (kg)<input type="number" step="0.1" value={f.weightKg} onChange={(e) => setF({ ...f, weightKg: e.target.value })} required /></label>
+              <label>Peso desejado (kg, opcional)<input type="number" min="30" max="300" step="0.1" value={f.targetWeightKg} onChange={(e) => setF({ ...f, targetWeightKg: e.target.value })} /></label>
               <label>Altura (cm)<input type="number" value={f.heightCm} onChange={(e) => setF({ ...f, heightCm: e.target.value })} required /></label>
               <label>Ano de nascimento<input type="number" value={f.birthYear} onChange={(e) => setF({ ...f, birthYear: e.target.value })} required /></label>
               <label>Sexo
@@ -161,10 +185,29 @@ export default function Onboarding({ onDone, initial }: {
               ))}
             </div>
 
-            <h3>Dias por semana</h3>
+            <h3>Dias de treino</h3>
             <div className="chip-grid">
-              {[2, 3, 4, 5, 6].map((d) => (
-                <button key={d} type="button" className={chip(f.trainingDays === d)} onClick={() => setF({ ...f, trainingDays: d })}>{d}x</button>
+              {([
+                [1, 'Segunda'], [2, 'Terça'], [3, 'Quarta'], [4, 'Quinta'],
+                [5, 'Sexta'], [6, 'Sábado'], [0, 'Domingo'],
+              ] as const).map(([day, label]) => (
+                <button key={day} type="button" className={chip(f.trainingWeekdays.includes(day))}
+                  onClick={() => {
+                    const next = toggle(f.trainingWeekdays, day);
+                    if (next.length >= 2 && next.length <= 6) setF({ ...f, trainingWeekdays: next, trainingDays: next.length });
+                  }}>{label}</button>
+              ))}
+            </div>
+            <small className="muted">Escolha de 2 a 6 dias. O plano avisa se algum músculo não tiver 48h de recuperação.</small>
+
+            <h3>Onde você treina?</h3>
+            <div className="chip-grid">
+              {([['GYM', 'Academia'], ['CALISTHENICS', 'Calistenia']] as const).map(([location, label]) => (
+                <button key={location} type="button" className={chip(f.trainingLocation === location)} onClick={() => setF({
+                  ...f,
+                  trainingLocation: location,
+                  equipment: location === 'GYM' ? ['academia'] : ['peso-corporal', 'nenhum'],
+                })}>{label}</button>
               ))}
             </div>
 
@@ -207,6 +250,36 @@ export default function Onboarding({ onDone, initial }: {
               <textarea value={f.restrictionNotes} onChange={(e) => setF({ ...f, restrictionNotes: e.target.value })} rows={2} maxLength={500} />
             </label>
             <small className="muted">Isto não substitui avaliação médica profissional.</small>
+            <h3>Triagem de saúde</h3>
+            <p className="muted">Responda com sinceridade. Uma resposta positiva exige avaliação antes de iniciar ou intensificar exercícios.</p>
+            {([
+              ['heartDiagnosis', 'Você tem doença cardíaca diagnosticada?'],
+              ['chestPain', 'Sentiu dor no peito durante atividade física no último mês?'],
+              ['dizziness', 'Teve tontura ou perda de consciência recentemente?'],
+              ['jointCondition', 'Tem condição óssea ou articular que pode piorar com exercício?'],
+              ['prescribedMedication', 'Usa medicação prescrita que afeta exercício ou frequência cardíaca?'],
+              ['supervisedExercise', 'Um profissional recomendou que se exercite apenas sob supervisão?'],
+              ['otherReason', 'Há outro motivo de saúde para não se exercitar sem orientação?'],
+            ] as const).map(([key, label]) => (
+              <label key={key} className="parq-question">
+                <input type="checkbox" checked={f.parqAnswers[key]} onChange={(event) => setF({
+                  ...f, parqAnswers: { ...f.parqAnswers, [key]: event.target.checked },
+                })} />
+                {label}
+              </label>
+            ))}
+            <label className="parq-question">
+              <input type="checkbox" checked={f.pregnancy} onChange={(event) => setF({ ...f, pregnancy: event.target.checked })} />
+              Estou grávida ou no período pós-parto
+            </label>
+            <label className="parq-question">
+              <input type="checkbox" checked={f.heartCondition} onChange={(event) => setF({ ...f, heartCondition: event.target.checked })} />
+              Tenho condição cardíaca diagnosticada
+            </label>
+            <label className="parq-question">
+              <input type="checkbox" checked={f.medicationUse} onChange={(event) => setF({ ...f, medicationUse: event.target.checked })} />
+              Uso medicação que pode afetar o exercício
+            </label>
           </>
         )}
 
@@ -259,7 +332,7 @@ export default function Onboarding({ onDone, initial }: {
               <b>Seu plano</b>
               <span>Objetivo: {selected?.label}</span>
               <span>Biótipo: {f.somatotype || 'não informado'}</span>
-              <span>{f.trainingDays}x por semana · {f.minutesPerDay} min</span>
+              <span>{f.trainingWeekdays.length} dias por semana · {f.minutesPerDay} min · {f.trainingLocation === 'GYM' ? 'academia' : 'calistenia'}</span>
               <span>Equipamento: {f.equipment.map((e) => meta.equipment[e]).join(', ')}</span>
               <span>Alimentação: {({ POOR: 'ruim', FAIR: 'razoável', GOOD: 'boa' } as const)[f.dietQuality]} · {f.mealsPerDay} refeições/dia</span>
               <span>Sono: {f.sleepHours}h · Água: {f.waterLiters} L</span>
@@ -279,7 +352,7 @@ export default function Onboarding({ onDone, initial }: {
           {step > 0 && <button type="button" className="ghost" onClick={back}>Voltar</button>}
           {step < LAST_STEP
             ? <button type="button" onClick={next}>Continuar</button>
-            : <button disabled={busy || f.equipment.length === 0}>{busy ? 'Montando plano…' : initial ? 'Salvar perfil' : 'Montar meu treino'}</button>}
+            : <button disabled={busy || f.equipment.length === 0 || f.trainingWeekdays.length < 2}>{busy ? 'Montando plano…' : initial ? 'Salvar perfil' : 'Montar meu treino'}</button>}
         </div>
       </form>
     </section>

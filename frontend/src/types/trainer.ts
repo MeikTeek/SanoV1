@@ -1,4 +1,4 @@
-export type Goal = 'HYPERTROPHY' | 'WEIGHT_LOSS' | 'CONDITIONING' | 'HEALTH';
+export type Goal = 'HYPERTROPHY' | 'STRENGTH' | 'WEIGHT_LOSS' | 'CONDITIONING' | 'HEALTH';
 export type Somatotype = 'ECTOMORPH' | 'MESOMORPH' | 'ENDOMORPH';
 
 export interface ExerciseDetail {
@@ -39,6 +39,13 @@ export interface TrainingProfile {
   somatotype: Somatotype | null;
   experience: string;
   trainingDays: number;
+  trainingWeekdays: number[];
+  trainingLocation: 'GYM' | 'CALISTHENICS';
+  targetWeightKg: number | null;
+  pregnancy: boolean | null;
+  heartCondition: boolean | null;
+  medicationUse: boolean | null;
+  parqAnswers: Record<string, boolean> | null;
   sleepHours: number;
   waterLiters: number;
   mealsPerDay: number;
@@ -97,4 +104,86 @@ export interface TrainerDashboard {
 export interface LibraryResponse {
   allowed: { key: string; name: string; group: string; difficulty: number; equipment: Equipment[] }[];
   blocked: { name: string; reason: string }[];
+}
+
+export interface PlannedExercise {
+  key: string;
+  name: string;
+  muscle: string;
+  muscleLabel: string;
+  sets: number;
+  reps: string;
+  restSeconds: number;
+  rir: string;
+  minutes: number;
+}
+
+export interface WeeklyWorkout {
+  weekday: number;
+  label: string;
+  shortLabel: string;
+  title: string;
+  muscles: string[];
+  muscleLabels: string[];
+  exercises: PlannedExercise[];
+  plannedMinutes: number;
+  warnings: string[];
+  isTrainingDay: boolean;
+}
+
+export interface WeeklyPlan {
+  split: string;
+  goal: string;
+  prescription: { sets: number; reps: string; restSeconds: number; rir: string };
+  days: WeeklyWorkout[];
+  matrix: {
+    key: string;
+    label: string;
+    weeklySets: number;
+    targetMin: number;
+    targetMax: number;
+    days: { weekday: number; state: 'TRAIN' | 'RECOVERY' | 'RECOVERED' }[];
+  }[];
+  disclaimer: string;
+}
+
+export interface TrainerData {
+  profile: TrainingProfile;
+  metrics: {
+    age: number; weightKg: number; bmi: number; bmiCategory: string;
+    bodyFatPercent: number | null; bodyFatMethod: string | null;
+    fatMassKg: number | null; leanMassKg: number | null; ffmi: number | null;
+    waistToHeight: number | null; waistToHip: number | null; bsaM2: number;
+    referenceWeightKg: number; targetWeightKg: number | null; weightTrendKg: number | null;
+    bmr: number; tdee: number; waterLiters: number;
+    restingHeartRate: number | null; sleepHours: number | null; fatigue: number | null;
+    muscleSoreness: number | null; nutritionAdherence: number | null; readinessScore: number | null;
+    assessmentCount: number; assessmentDue: boolean;
+    daysSinceAssessment: number; safetyWarnings: string[];
+    estimated1Rm: { name: string; estimated1RmKg: number; day: string }[];
+  };
+  history: { day: string; weightKg: number; bodyFatPercent: number | null; waistCm: number | null; sleepHours: number | null; fatigue: number | null }[];
+  adherence: { completedSessions: number; plannedSessions: number; percent: number };
+  weeklyVolume: { key: string; label: string; weeklySets: number; targetMin: number; targetMax: number }[];
+  strengthHistory: { day: string; exercise: string; loadKg: number | null; sets: number; reps: number }[];
+  disclaimer: string;
+}
+
+export interface BodyAssessmentPayload {
+  weightKg: number;
+  bodyFatPercent?: number;
+  waistCm?: number;
+  neckCm?: number;
+  hipCm?: number;
+  chestCm?: number;
+  armCm?: number;
+  thighCm?: number;
+  calfCm?: number;
+  wristCm?: number;
+  restingHeartRate?: number;
+  sleepHours?: number;
+  fatigue?: number;
+  muscleSoreness?: number;
+  nutritionAdherence?: number;
+  notes?: string;
 }

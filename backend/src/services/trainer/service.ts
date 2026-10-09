@@ -74,19 +74,19 @@ export type CompleteResult =
   | { ok: true; done: string[]; completed: boolean; leveledUp?: boolean; level?: number };
 
 /**
- * Marca um bloco como conclu�do. Quando todos terminam, a miss�o fecha e o
- * ganho de XP/atributos � aplicado de uma vez.
+ * Marca um bloco como concluído. Quando todos terminam, a missão fecha e o
+ * ganho de XP/atributos — aplicado de uma vez.
  */
 export async function completeBlock(userId: string, missionId: string, blockKey: string): Promise<CompleteResult> {
   const mission = await prisma.dailyMission.findFirst({
     where: { id: missionId, userId },
     include: { progress: true },
   });
-  if (!mission) return { ok: false as const, error: 'Miss�o n�o encontrada' };
-  if (mission.completedAt) return { ok: false as const, error: 'Miss�o j� conclu�da' };
+  if (!mission) return { ok: false as const, error: 'Missão não encontrada' };
+  if (mission.completedAt) return { ok: false as const, error: 'Missão já concluída' };
 
   const blocks = mission.blocks as unknown as Block[];
-  if (!blocks.some((b) => b.key === blockKey)) return { ok: false as const, error: 'Bloco n�o encontrado' };
+  if (!blocks.some((b) => b.key === blockKey)) return { ok: false as const, error: 'Bloco não encontrado' };
 
   await prisma.missionProgress.upsert({
     where: { missionId_blockKey: { missionId, blockKey } },
@@ -138,7 +138,7 @@ export async function completeBlock(userId: string, missionId: string, blockKey:
 
 /**
  * Penalidade: zera a ofensiva e aplica o debuff quando houve dias em branco
- * entre a �ltima conclus�o e hoje.
+ * entre a última conclus—o e hoje.
  */
 export async function applyPenaltyIfMissed(userId: string, now = new Date()) {
   const stats = await prisma.playerStats.findUnique({ where: { userId } });

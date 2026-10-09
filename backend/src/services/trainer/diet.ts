@@ -56,9 +56,13 @@ export function computeDiet(p: DietProfile): DietPlanNumbers {
   rationale.push(`Gasto calórico estimado (BMR × atividade de ${p.trainingDays}x/semana): ${tdee} kcal.`);
 
   // Ajuste do objetivo.
-  const DELTA: Record<string, number> = { HYPERTROPHY: 300, WEIGHT_LOSS: -400, CONDITIONING: 0, HEALTH: -100 };
+  const DELTA: Record<string, number> = { HYPERTROPHY: 300, STRENGTH: 0, WEIGHT_LOSS: -400, CONDITIONING: 0, HEALTH: -100 };
   const delta = DELTA[p.goal] ?? 0;
-  const kcal = Math.max(1200, tdee + delta);
+  const minimumKcal = Math.max(bmr(p), p.sex === 'F' ? 1200 : 1500);
+  const kcal = Math.max(minimumKcal, tdee + delta);
+  if (tdee + delta < minimumKcal) {
+    rationale.push(`A meta foi limitada a ${Math.round(minimumKcal)} kcal por segurança; não fica abaixo da TMB estimada nem do piso conservador adotado.`);
+  }
   rationale.push(
     delta > 0 ? `Superávit de ${delta} kcal para ganhar massa.` :
     delta < 0 ? `Déficit de ${Math.abs(delta)} kcal para emagrecer.` :
@@ -66,7 +70,7 @@ export function computeDiet(p: DietProfile): DietPlanNumbers {
   );
 
   // Proteína: 1,6 a 2,2 g/kg. Sobe com treino de força, cai em déficit.
-  const proteinPerKg = p.goal === 'HYPERTROPHY' ? 2.0 : p.goal === 'WEIGHT_LOSS' ? 2.2 : 1.6;
+  const proteinPerKg = p.goal === 'HYPERTROPHY' ? 2.0 : p.goal === 'WEIGHT_LOSS' ? 2.2 : p.goal === 'STRENGTH' ? 2.0 : 1.6;
   const proteinG = Math.round(p.weightKg * proteinPerKg);
   rationale.push(`Proteína: ${proteinPerKg} g/kg (${proteinG} g/dia) para preservar e construir massa.`);
 
