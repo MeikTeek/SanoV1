@@ -10,9 +10,10 @@
  * A saída é esta: `MAIN=src/index.js`, um arquivo versionado que só existe para
  * ser o ponto de entrada. Ele roda o que o processo realmente precisa:
  *
- *   1. aplica as migrations do banco
- *   2. garante que exista um administrador
- *   3. carrega o servidor compilado (backend/dist/server.js), que sobe o Express
+ *   1. recompila backend e frontend a partir do código recebido
+ *   2. aplica as migrations do banco
+ *   3. garante que exista um administrador
+ *   4. carrega o servidor compilado (backend/dist/server.js), que sobe o Express
  *
  * JavaScript puro, sem dependência de build.
  */
@@ -77,18 +78,14 @@ function logFrontendAssets() {
 }
 
 function main() {
-  // 0. Garante que o build existe.
-  //
-  // A hospedagem pode rodar o BUILD numa etapa separada e subir o processo a
-  // partir de uma cópia limpa do repositório — onde `dist/` não está, porque
-  // é gerado. Nesse caso o start caía com "server.js não encontrado".
-  // Compilar aqui é idempotente: se o build já existe, não faz nada.
-  if (!existsSync(SERVER)) {
-    console.log('[start] build ausente; compilando agora...');
+  // A Discloud pode preservar dist/ entre deploys. Sua presença não garante que
+  // o JavaScript compilado corresponda ao código-fonte recebido.
+  if (!existsSync(path.join(ROOT, 'node_modules'))) {
+    console.log('[start] dependências ausentes; instalando e compilando...');
     step('build', 'npm', ['run', 'build:host']);
   } else {
-    // O backend compilado pode persistir entre deploys; sua presença não prova
-    // que frontend/dist corresponde ao código-fonte do commit atual.
+    console.log('[start] reconstruindo backend do código atual...');
+    step('backend build', 'npm', ['run', 'build', '--workspace', 'backend']);
     console.log('[start] reconstruindo frontend do código atual...');
     step('frontend build', 'npm', ['run', 'build', '--workspace', 'frontend']);
   }
