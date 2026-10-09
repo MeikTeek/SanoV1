@@ -9,18 +9,19 @@ export function originCheck(req: Request, _res: Response, next: NextFunction) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
 
   const originHeader = req.get('origin') ?? req.get('referer');
-  const fallbackOrigin = (() => {
+  const requestOrigin = (() => {
     const host = req.get('host');
     if (!host) return null;
     const protoHeader = req.get('x-forwarded-proto');
     const proto = (protoHeader ?? (req.secure ? 'https' : 'http')).split(',')[0].trim();
-    return `${proto}://${host}`;
+    return normalizeOrigin(`${proto}://${host}`);
   })();
 
-  const candidateOrigins = [originHeader, fallbackOrigin].filter(Boolean) as string[];
-  for (const candidate of candidateOrigins) {
-    const normalized = normalizeOrigin(candidate);
-    if (normalized && isAllowedOrigin(normalized)) return next();
+  if (originHeader) {
+    const normalized = normalizeOrigin(originHeader);
+    if (normalized && (isAllowedOrigin(normalized) || normalized === requestOrigin)) return next();
+  } else if (requestOrigin && isAllowedOrigin(requestOrigin)) {
+    return next();
   }
 
   return next(new AppError(403, 'Origem não permitida para esta operação. Revise FRONTEND_URL e FRONTEND_URLS no ambiente do deploy.'));
