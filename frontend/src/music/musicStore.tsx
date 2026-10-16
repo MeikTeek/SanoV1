@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { isAudioFile, type EditableMusicMetadata, type MusicPlaylist, type MusicTrack, type NewMusicMetadata } from './musicTypes';
+import { ApiError, api } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 interface MusicState {
   tracks: MusicTrack[];
@@ -26,6 +28,7 @@ interface MusicState {
   search: (term: string) => MusicTrack[];
   importPackage: (file: File) => Promise<number>;
   exportPackage: (trackIds: string[]) => Promise<Blob>;
+  downloadTrack: (track: MusicTrack) => Promise<{ blob: Blob; fileName: string }>;
 }
 
 const Ctx = createContext<MusicState>(null!);
@@ -78,27 +81,32 @@ async function readAudio(id: string) {
   return file;
 }
 
-const readMeta = (): MusicTrack[] => {
+const scopedKey = (key: string, userId: string) => `${key}:${userId}`;
+
+const readMeta = (userId: string): MusicTrack[] => {
   try {
-    const value = JSON.parse(localStorage.getItem(META_KEY) || '[]') as MusicTrack[];
+    const value = JSON.parse(localStorage.getItem(scopedKey(META_KEY, userId)) || '[]') as MusicTrack[];
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
   }
 };
 
-const writeMeta = (tracks: MusicTrack[]) => localStorage.setItem(META_KEY, JSON.stringify(tracks));
-const readPlaylists = (): MusicPlaylist[] => {
+const writeMeta = (tracks: MusicTrack[], userId: string) => localStorage.setItem(scopedKey(META_KEY, userId), JSON.stringify(tracks));
+const readPlaylists = (userId: string): MusicPlaylist[] => {
   try {
-    const value = JSON.parse(localStorage.getItem(PLAYLIST_KEY) || '[]') as MusicPlaylist[];
+    const value = JSON.parse(localStorage.getItem(scopedKey(PLAYLIST_KEY, userId)) || '[]') as MusicPlaylist[];
     return Array.isArray(value) ? value.filter((item) => item && typeof item.name === 'string' && Array.isArray(item.trackIds)) : [];
   } catch { return []; }
 };
-const writePlaylists = (playlists: MusicPlaylist[]) => localStorage.setItem(PLAYLIST_KEY, JSON.stringify(playlists));
+const writePlaylists = (playlists: MusicPlaylist[], userId: string) => localStorage.setItem(scopedKey(PLAYLIST_KEY, userId), JSON.stringify(playlists));
 
 export function MusicProvider({ children }: { children: ReactNode }) {
-  const [tracks, setTracks] = useState<MusicTrack[]>(readMeta);
-  const [playlists, setPlaylists] = useState<MusicPlaylist[]>(readPlaylists);
+  const { user } = useAuth();
+  const userId = user?.id ?? 'guest';
+  const storageUserRef = useRef(userId);
+  const [tracks, setTracks] = useState<MusicTrack[]>(() => readMeta(userId));
+  const [playlists, setPlaylists] = useState<MusicPlaylist[]>(() => readPlaylists(userId));
   const [current, setCurrent] = useState<MusicTrack | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgressState] = useState(0);
@@ -115,6 +123,54 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const loadedIdRef = useRef<string | null>(null); // id da música cujo arquivo está no <audio>
   const nextRef = useRef<() => void>(() => {});
   const audioCacheRef = useRef(new Map<string, Blob>());
+
+  useEffect(() => {
+    storageUserRef.current = userId;
+    setTracks(readMeta(userId));
+    setPlaylists(readPlaylists(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.get<MusicTrack[]>('/music/tracks').then(async (remoteTracks) => {
+      const localTracks = readMeta(userId);
+      const remoteIds = new Set(remoteTracks.map((track) => track.id));
+      const migrated: MusicTrack[] = [];
+      const migratedLocalIds = new Set<string>();
+      for (const localTrack of localTracks.filter((track) => !remoteIds.has(track.id))) {
+        const localFile = await readAudio(localTrack.id).catch(() => undefined);
+        if (!localFile) continue;
+        try {
+          const remote = await api.post<MusicTrack>('/music/tracks', {
+            title: localTrack.title,
+            artist: localTrack.artist,
+            album: localTrack.album,
+            genre: localTrack.genre,
+            mood: localTrack.mood,
+            duration: localTrack.duration,
+            fileName: localTrack.fileName,
+            mimeType: localTrack.mimeType || localFile.type || 'application/octet-stream',
+            size: localFile.size,
+          });
+          await api.post(`/music/tracks/${remote.id}/upload`, localFile);
+          await saveAudio(remote.id, new File([localFile], remote.fileName, { type: remote.mimeType }));
+          migrated.push(remote);
+          migratedLocalIds.add(localTrack.id);
+        } catch (err) {
+          console.warn('[música] não foi possível migrar uma música local:', localTrack.fileName, err);
+        }
+      }
+      if (cancelled) return;
+      const merged = [...migrated, ...remoteTracks, ...localTracks.filter((track) => !remoteIds.has(track.id) && !migratedLocalIds.has(track.id))];
+      setTracks(merged);
+      writeMeta(merged, userId);
+    }).catch((err) => {
+      if (!(err instanceof ApiError && err.status === 401)) {
+        console.warn('[música] não foi possível sincronizar a biblioteca:', err);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   useEffect(() => { queueRef.current = queue; }, [queue]);
 
@@ -185,6 +241,13 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       let stored = audioCacheRef.current.get(track.id);
       if (!stored) {
         stored = await readAudio(track.id);
+        if (!stored) {
+          const remote = await api.get<{ downloadUrl: string }>('/music/tracks/' + track.id + '/download');
+          const response = await fetch(remote.downloadUrl);
+          if (!response.ok) throw new Error('Não foi possível baixar a música para reprodução.');
+          stored = await response.blob();
+          await saveAudio(track.id, new File([stored], track.fileName, { type: track.mimeType || stored.type }));
+        }
         if (stored) audioCacheRef.current.set(track.id, stored);
       }
       if (requestId !== requestRef.current) return;
@@ -262,19 +325,25 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const remove = useCallback((id: string) => {
+    void api.delete(`/music/tracks/${id}`).catch((err) => {
+      if (!(err instanceof ApiError && err.status === 404)) console.warn('[música] não foi possível remover a cópia online:', err);
+    });
     setTracks((items) => {
       const nextTracks = items.filter((item) => item.id !== id);
-      writeMeta(nextTracks);
+      writeMeta(nextTracks, storageUserRef.current);
       return nextTracks;
     });
   }, []);
 
   const updateTrack = useCallback((id: string, metadata: EditableMusicMetadata) => {
+    void api.patch(`/music/tracks/${id}`, metadata).catch((err) => {
+      if (!(err instanceof ApiError && err.status === 404)) console.warn('[música] não foi possível atualizar a cópia online:', err);
+    });
     setTracks((items) => {
       const nextTracks = items.map((track) => track.id === id
         ? { ...track, title: metadata.title.trim() || track.title, artist: metadata.artist.trim(), album: metadata.album.trim(), genre: metadata.genre.trim(), mood: metadata.mood.trim() }
         : track);
-      writeMeta(nextTracks);
+      writeMeta(nextTracks, storageUserRef.current);
       return nextTracks;
     });
     setCurrent((currentTrack) => currentTrack?.id === id
@@ -285,7 +354,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const nextPlaylists = metadata.playlistId
         ? withoutTrack.map((playlist) => playlist.id === metadata.playlistId ? { ...playlist, trackIds: [...playlist.trackIds, id] } : playlist)
         : withoutTrack;
-      writePlaylists(nextPlaylists);
+      writePlaylists(nextPlaylists, storageUserRef.current);
       return nextPlaylists;
     });
   }, []);
@@ -294,22 +363,32 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const added: MusicTrack[] = [];
     for (const file of files) {
       if (!isAudioFile(file)) throw new Error(`${file.name} não é um arquivo de áudio compatível.`);
-      const id = crypto.randomUUID();
+      const remote = await api.post<MusicTrack>('/music/tracks', {
+        ...metadata,
+        title: metadata.title?.trim() || file.name.replace(/\.[^.]+$/, ''),
+        album: metadata.album.trim() || 'Uploads do Sano',
+        fileName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+      });
+      await api.post(`/music/tracks/${remote.id}/upload`, file);
       const track: MusicTrack = {
         ...metadata,
-        id,
+        id: remote.id,
         title: metadata.title?.trim() || file.name.replace(/\.[^.]+$/, ''),
         duration: 0,
         fileName: file.name,
         createdAt: new Date().toISOString(),
+        size: file.size,
+        mimeType: file.type || 'application/octet-stream',
       };
-      await saveAudio(id, file);
-      audioCacheRef.current.set(id, file);
+      await saveAudio(remote.id, file);
+      audioCacheRef.current.set(remote.id, file);
       added.push(track);
     }
     setTracks((items) => {
       const nextTracks = [...added, ...items];
-      writeMeta(nextTracks);
+      writeMeta(nextTracks, storageUserRef.current);
       return nextTracks;
     });
     if (metadata.playlistId && added.length) {
@@ -317,7 +396,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         const nextPlaylists = items.map((playlist) => playlist.id === metadata.playlistId
           ? { ...playlist, trackIds: [...playlist.trackIds, ...added.map((track) => track.id)] }
           : playlist);
-        writePlaylists(nextPlaylists);
+        writePlaylists(nextPlaylists, storageUserRef.current);
         return nextPlaylists;
       });
     }
@@ -329,7 +408,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     const playlist = { id: crypto.randomUUID(), name: normalized, trackIds: [] };
     setPlaylists((items) => {
       const nextPlaylists = [playlist, ...items];
-      writePlaylists(nextPlaylists);
+      writePlaylists(nextPlaylists, storageUserRef.current);
       return nextPlaylists;
     });
     return playlist;
@@ -338,7 +417,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const deletePlaylist = useCallback((id: string) => {
     setPlaylists((items) => {
       const nextPlaylists = items.filter((playlist) => playlist.id !== id);
-      writePlaylists(nextPlaylists);
+      writePlaylists(nextPlaylists, storageUserRef.current);
       return nextPlaylists;
     });
   }, []);
@@ -388,7 +467,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     if (!imported.length) throw new Error('O pacote não contém músicas compatíveis.');
     setTracks((items) => {
       const nextTracks = [...imported, ...items];
-      writeMeta(nextTracks);
+      writeMeta(nextTracks, storageUserRef.current);
       return nextTracks;
     });
     return imported.length;
@@ -411,9 +490,16 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
   }, [tracks]);
 
+  const downloadTrack = useCallback(async (track: MusicTrack) => {
+    const remote = await api.get<{ downloadUrl: string; fileName: string }>(`/music/tracks/${track.id}/download`);
+    const response = await fetch(remote.downloadUrl);
+    if (!response.ok) throw new Error(`Não foi possível baixar "${track.title}".`);
+    return { blob: await response.blob(), fileName: remote.fileName };
+  }, []);
+
   const value = useMemo(
-    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage }),
-    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage],
+    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack }),
+    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

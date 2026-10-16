@@ -8,6 +8,8 @@ export interface MusicTrack {
   duration: number;
   fileName: string;
   createdAt: string;
+  size?: number;
+  mimeType?: string;
 }
 
 export interface MusicPlaylist {

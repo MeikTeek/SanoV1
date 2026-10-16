@@ -703,7 +703,9 @@ td.actions { display: flex; gap: 6px; }
 .track-row.playing .track-info strong { color: var(--sp-green); }
 
 .track-play { opacity: 0; transition: opacity var(--sp-ease); }
-.track-row:hover .track-play, .track-play:focus-visible { opacity: 1; }
+.track-row:hover .track-play, .track-play:focus-visible,
+.track-row:hover .track-download, .track-download:focus-visible { opacity: 1; }
+.track-download { opacity: 0; transition: opacity var(--sp-ease); }
 .track-remove {
   background: transparent;
   border: 0;
@@ -789,7 +791,7 @@ td.actions { display: flex; gap: 6px; }
   .music-upload-fields { grid-template-columns: 1fr; padding: 16px 20px; }
   .music-search, .music-section-head, .music-message { margin-left: 20px; margin-right: 20px; }
   .track-list { margin: 0 8px; }
-  .track-play, .track-edit, .track-remove { opacity: 1; }
+  .track-play, .track-download, .track-edit, .track-remove { opacity: 1; }
 }
 
 /* ── Player: ajustes do componente React ─────────────────── */

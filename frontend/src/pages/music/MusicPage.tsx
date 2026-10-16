@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { parseBlob } from 'music-metadata';
 import AppShell from '../../components/layout/AppShell';
-import { IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
+import { IconDownload, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import { useMusic } from '../../music/musicStore';
 import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
 import { api } from '../../services/api';
@@ -22,7 +22,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage, downloadTrack } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -49,6 +49,7 @@ export default function MusicPage() {
   const [shareCode, setShareCode] = useState('');
   const [claimCode, setClaimCode] = useState('');
   const [sharing, setSharing] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -251,6 +252,49 @@ export default function MusicPage() {
     setShareOpen(true);
   };
 
+  const saveDownload = (blob: Blob, fileName: string) => {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const downloadOne = async (track: MusicTrack) => {
+    if (downloading) return;
+    setDownloading(true);
+    try {
+      const result = await downloadTrack(track);
+      saveDownload(result.blob, result.fileName);
+      setMessage({ text: `"${track.title}" pronta para ouvir offline.` });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'Não foi possível baixar a música.', error: true });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const downloadAll = async () => {
+    if (downloading || !tracks.length) return;
+    setDownloading(true);
+    try {
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      for (const track of tracks) {
+        const result = await downloadTrack(track);
+        zip.file(`${track.artist || 'Sano'}/${result.fileName}`, result.blob);
+      }
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+      saveDownload(blob, 'sano-musicas.zip');
+      setMessage({ text: `${tracks.length} músicas reunidas em um pacote para download.` });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'Não foi possível baixar a biblioteca.', error: true });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const claimMusicShare = async () => {
     if (!claimCode.trim() || sharing) return;
     setSharing(true);
@@ -370,6 +414,9 @@ export default function MusicPage() {
             <h3>Suas músicas</h3>
             <div className="music-share-actions">
               <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
+              <button className="ghost" onClick={() => void downloadAll()} disabled={downloading || !tracks.length}>
+                <IconDownload size={15} /> {downloading ? 'Baixando…' : 'Baixar todas'}
+              </button>
               <button className="ghost" onClick={selectionMode ? openSendShare : openShare}>{selectionMode ? `Gerar código (${selectedTrackIds.length})` : 'Compartilhar lista'}</button>
             </div>
           </div>
@@ -399,6 +446,7 @@ export default function MusicPage() {
                     <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
                   </div>
                   <button className="icon-btn track-play" onClick={() => play(track, visible.slice(index + 1))} aria-label={`Tocar ${track.title}`}><IconPlay /></button>
+                  <button className="icon-btn track-download" onClick={() => void downloadOne(track)} disabled={downloading} aria-label={`Baixar ${track.title}`} title="Baixar para este dispositivo"><IconDownload size={16} /></button>
                   <button className="track-edit" onClick={() => openEdit(track)}>Editar</button>
                   <button className="track-remove" onClick={() => remove(track.id)} aria-label={`Remover ${track.title}`}>×</button>
                 </div>

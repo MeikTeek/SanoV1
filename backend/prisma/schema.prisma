@@ -67,6 +67,29 @@ model User {
   chatMembers   ChatMember[]
   chatMessages  ChatMessage[]
   musicSharesCreated MusicShare[] @relation("MusicShareOwner")
+  musicTracks       MusicTrack[]
+}
+
+model MusicTrack {
+  id        String   @id @default(uuid())
+  ownerId   String
+  title     String
+  artist    String
+  album     String
+  genre     String
+  mood      String
+  duration  Float    @default(0)
+  fileName  String
+  mimeType  String
+  size      Int
+  objectKey String   @unique
+  status    String   @default("PENDING") // PENDING | READY
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, status, createdAt])
 }
 
 model MusicShare {

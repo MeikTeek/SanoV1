@@ -30,7 +30,38 @@ function requireStorage() {
     const details = missingConfiguration.length ? ` Variáveis ausentes: ${missingConfiguration.join(', ')}.` : '';
     throw new AppError(503, `Compartilhamento de músicas não está configurado.${details}`);
   }
+
   return { client: storage, bucket };
+}
+
+export async function putMusicObject(objectKey: string, body: Buffer, contentType: string) {
+  const { client, bucket: targetBucket } = requireStorage();
+  await client.send(new PutObjectCommand({
+    Bucket: targetBucket,
+    Key: objectKey,
+    Body: body,
+    ContentType: contentType || 'application/octet-stream',
+    ContentLength: body.length,
+  }));
+}
+
+export async function signMusicObject(objectKey: string, fileName: string, contentType: string) {
+  const { client, bucket: targetBucket } = requireStorage();
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: targetBucket,
+      Key: objectKey,
+      ResponseContentType: contentType || 'application/octet-stream',
+      ResponseContentDisposition: `attachment; filename="${fileName.replace(/["\\\r\n]/g, '_')}"`,
+    }),
+    { expiresIn: 900 },
+  );
+}
+
+export async function deleteMusicObject(objectKey: string) {
+  const { client, bucket: targetBucket } = requireStorage();
+  await client.send(new DeleteObjectCommand({ Bucket: targetBucket, Key: objectKey }));
 }
 
 export function getMusicStorageStatus() {
