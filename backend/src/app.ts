@@ -12,7 +12,16 @@ const app = express();
 
 app.set('trust proxy', 1); // atrás do proxy da hospedagem (IP real nos logs/rate limit)
 app.disable('x-powered-by');
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // O player local usa URL.createObjectURL(blob) para arquivos do IndexedDB.
+      // Libere blob apenas para mídia; scripts e demais recursos continuam
+      // restritos pela política padrão do Helmet.
+      'media-src': ["'self'", 'blob:'],
+    },
+  },
+}));
 // `origin: allowedOrigins` (lista) em vez da string única: o CORS precisa
 // liberar exatamente as mesmas origens que o `originCheck` aceita logo abaixo.
 app.use(cors({ origin: allowedOrigins, credentials: true }));
