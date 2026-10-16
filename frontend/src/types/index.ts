@@ -1,5 +1,5 @@
 export type Role = 'ADMIN' | 'USER';
-export type AuthStep = 'CHANGE_PASSWORD' | 'SETUP_2FA' | 'VERIFY_2FA';
+export type AuthStep = 'CHANGE_PASSWORD';
 
 export interface User {
   id: string;
