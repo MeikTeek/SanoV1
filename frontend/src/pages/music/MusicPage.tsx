@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'r
 import AppShell from '../../components/layout/AppShell';
 import { IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import { useMusic } from '../../music/musicStore';
-import { isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS } from '../../music/musicTypes';
+import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS } from '../../music/musicTypes';
 
 function Equalizer() {
   return (
@@ -51,6 +51,7 @@ export default function MusicPage() {
       return;
     }
     const ignored = files.length - audio.length;
+    const rejectedNames = files.filter((file) => !isAudioFile(file)).map((file) => file.name);
     setUploading(true);
     setMessage(null);
     try {
@@ -61,7 +62,11 @@ export default function MusicPage() {
         mood,
       });
       const added = `${audio.length} ${audio.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
-      setMessage({ text: ignored ? `${added} ${ignored} arquivo(s) que não eram áudio foram ignorados.` : added });
+      setMessage({
+        text: ignored
+          ? `${added} ${ignored} arquivo(s) não suportado(s) foram bloqueados${rejectedNames.length ? `: ${rejectedNames.join(', ')}` : ''}.`
+          : added,
+      });
       setUploadOpen(false);
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'Não foi possível adicionar as músicas.', error: true });
@@ -168,6 +173,7 @@ export default function MusicPage() {
                   <div className="track-info">
                     <strong title={track.title}>{track.title}</strong>
                     <span>{track.artist} · {track.genre} · {track.mood}</span>
+                    <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
                   </div>
                   <button className="icon-btn track-play" onClick={() => play(track, visible.slice(index + 1))} aria-label={`Tocar ${track.title}`}><IconPlay /></button>
                   <button className="track-remove" onClick={() => remove(track.id)} aria-label={`Remover ${track.title}`}>×</button>

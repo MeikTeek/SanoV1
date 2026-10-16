@@ -23,10 +23,17 @@ export const SUPPORTED_AUDIO_EXTENSIONS = [
 ] as const;
 
 export const SUPPORTED_AUDIO_ACCEPT = [
-  'audio/*',
   ...SUPPORTED_AUDIO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(',');
 
 const AUDIO_EXTENSION = new RegExp(`\\.(${SUPPORTED_AUDIO_EXTENSIONS.join('|')})$`, 'i');
 
-export const isAudioFile = (file: File) => file.type.startsWith('audio/') || AUDIO_EXTENSION.test(file.name);
+export const getAudioFormat = (fileName: string) => {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  return extension && SUPPORTED_AUDIO_EXTENSIONS.includes(extension as typeof SUPPORTED_AUDIO_EXTENSIONS[number])
+    ? extension.toUpperCase()
+    : null;
+};
+
+/** Exige uma extensão conhecida; MIME audio/* sozinho não libera formatos desconhecidos. */
+export const isAudioFile = (file: File) => AUDIO_EXTENSION.test(file.name);

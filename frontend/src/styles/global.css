@@ -666,6 +666,7 @@ td.actions { display: flex; gap: 6px; }
 .track-art { width: 40px; height: 40px; border-radius: 4px; flex: 0 0 auto; }
 .track-info { flex: 1; min-width: 0; }
 .track-info strong, .track-info span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-info .track-format { display: block; margin-top: 2px; color: var(--sp-muted); font-size: .68rem; letter-spacing: .03em; }
 .track-info strong { font-size: 1rem; font-weight: 400; color: var(--sp-text); }
 .track-row:hover .track-info span { color: var(--sp-text); }
 .track-row.playing .track-info strong { color: var(--sp-green); }
