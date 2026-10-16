@@ -30,6 +30,7 @@ export default function MusicPage() {
   const [dragging, setDragging] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -45,7 +46,7 @@ export default function MusicPage() {
   // Fecha o modal com Esc
   useEffect(() => {
     if (!uploadOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setUploadOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeUpload(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [uploadOpen]);
@@ -55,24 +56,38 @@ export default function MusicPage() {
     if (moodFilter && !moods.includes(moodFilter)) setMoodFilter('');
   }, [moodFilter, moods]);
 
-  // Único ponto de upload (seletor de arquivos e arrastar e soltar)
-  const uploadFiles = async (files: File[]) => {
+  const closeUpload = () => {
+    if (uploading) return;
+    setUploadOpen(false);
+    setPendingFiles([]);
+    setDragging(false);
+    if (inputRef.current) inputRef.current.value = '';
+  };
+
+  // Selecionar/soltar apenas prepara a prévia. O IndexedDB só é alterado em
+  // confirmUpload, depois que o usuário revisar os dados.
+  const stageFiles = (files: File[]) => {
     if (!files.length || uploading) return;
+    const audio = files.filter(isAudioFile);
+    const rejectedNames = files.filter((file) => !isAudioFile(file)).map((file) => file.name);
+    if (rejectedNames.length) {
+      setMessage({ text: `Arquivo(s) não suportado(s): ${rejectedNames.join(', ')}`, error: true });
+    } else {
+      setMessage(null);
+    }
+    if (audio.length) setPendingFiles((currentFiles) => [...currentFiles, ...audio]);
+  };
+
+  const confirmUpload = async () => {
+    if (!pendingFiles.length || uploading) return;
     if (!artist.trim() || !genre.trim() || !mood.trim()) {
       setMessage({ text: 'Preencha autor, gênero e clima antes de adicionar as músicas.', error: true });
       return;
     }
-    const audio = files.filter(isAudioFile);
-    if (!audio.length) {
-      setMessage({ text: `Nenhum arquivo de áudio encontrado. Use ${SUPPORTED_AUDIO_EXTENSIONS.map((extension) => extension.toUpperCase()).join(', ')}.`, error: true });
-      return;
-    }
-    const ignored = files.length - audio.length;
-    const rejectedNames = files.filter((file) => !isAudioFile(file)).map((file) => file.name);
     setUploading(true);
     setMessage(null);
     try {
-      await addFiles(audio, {
+      await addFiles(pendingFiles, {
         artist: artist.trim() || 'Artista independente',
         album: 'Uploads do Sano',
         genre: genre.trim() || 'Geral',
@@ -80,12 +95,9 @@ export default function MusicPage() {
         title,
         playlistId: playlistId || undefined,
       });
-      const added = `${audio.length} ${audio.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
-      setMessage({
-        text: ignored
-          ? `${added} ${ignored} arquivo(s) não suportado(s) foram bloqueados${rejectedNames.length ? `: ${rejectedNames.join(', ')}` : ''}.`
-          : added,
-      });
+      const added = `${pendingFiles.length} ${pendingFiles.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
+      setMessage({ text: added });
+      setPendingFiles([]);
       setUploadOpen(false);
       setTitle('');
     } catch (error) {
@@ -96,12 +108,15 @@ export default function MusicPage() {
     }
   };
 
-  const onPick = (event: ChangeEvent<HTMLInputElement>) => void uploadFiles(Array.from(event.target.files || []));
+  const onPick = (event: ChangeEvent<HTMLInputElement>) => {
+    stageFiles(Array.from(event.target.files || []));
+    event.target.value = '';
+  };
 
   const onDrop = (event: DragEvent) => {
     event.preventDefault();
     setDragging(false);
-    void uploadFiles(Array.from(event.dataTransfer.files));
+    stageFiles(Array.from(event.dataTransfer.files));
   };
   const onDragOver = (event: DragEvent) => { event.preventDefault(); setDragging(true); };
   const onDragLeave = () => setDragging(false);
@@ -255,12 +270,12 @@ export default function MusicPage() {
         <div
           className="music-modal-backdrop"
           role="presentation"
-          onMouseDown={(event) => { if (event.target === event.currentTarget) setUploadOpen(false); }}
+          onMouseDown={(event) => { if (event.target === event.currentTarget) closeUpload(); }}
         >
           <section className="music-modal" role="dialog" aria-modal="true" aria-labelledby="music-modal-title">
             <div className="music-modal-head">
               <h2 id="music-modal-title">Adicione à sua biblioteca</h2>
-              <button className="track-remove" style={{ opacity: 1 }} onClick={() => setUploadOpen(false)} aria-label="Fechar">×</button>
+              <button className="track-remove" style={{ opacity: 1 }} onClick={closeUpload} aria-label="Fechar">×</button>
             </div>
             <p className="muted">Escolha um ou mais arquivos e complete os detalhes para encontrá-los depois.</p>
             <div className="music-upload-fields">
@@ -285,10 +300,24 @@ export default function MusicPage() {
               <strong>Arraste seus arquivos aqui</strong>
               <span>ou</span>
               <button className="primary" onClick={() => inputRef.current?.click()} disabled={uploading}>
-                {uploading ? 'Adicionando…' : 'Escolher arquivos'}
+                Escolher arquivos
               </button>
-              <small>{SUPPORTED_AUDIO_EXTENSIONS.map((extension) => extension.toUpperCase()).join(', ')} · vários arquivos</small>
+              <small>{SUPPORTED_AUDIO_EXTENSIONS.map((extension) => extension.toUpperCase()).join(', ')} · vários arquivos · nada é salvo ainda</small>
             </div>
+            {pendingFiles.length > 0 && (
+              <div className="music-pending-files">
+                <strong>{pendingFiles.length} arquivo(s) selecionado(s)</strong>
+                {pendingFiles.map((file, index) => (
+                  <div className="music-pending-file" key={`${file.name}-${file.lastModified}-${index}`}>
+                    <span>{file.name}</span>
+                    <button type="button" className="track-remove" onClick={() => setPendingFiles((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remover ${file.name}`}>×</button>
+                  </div>
+                ))}
+                <button type="button" className="music-confirm-upload" onClick={() => void confirmUpload()} disabled={uploading}>
+                  {uploading ? 'Adicionando…' : 'Confirmar e adicionar músicas'}
+                </button>
+              </div>
+            )}
           </section>
         </div>
       )}
