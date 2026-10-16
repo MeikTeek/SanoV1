@@ -43,6 +43,7 @@ export default function MusicPage() {
   const [pendingFiles, setPendingFiles] = useState<PendingMusicFile[]>([]);
   const [editingTrack, setEditingTrack] = useState<MusicTrack | null>(null);
   const [selectedTrackIds, setSelectedTrackIds] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCode, setShareCode] = useState('');
   const [claimCode, setClaimCode] = useState('');
@@ -214,6 +215,21 @@ export default function MusicPage() {
     }
   };
 
+  const openShare = () => {
+    setSelectionMode(true);
+    setShareOpen(true);
+    setShareCode('');
+    setMessage(null);
+  };
+
+  const closeShare = () => {
+    if (sharing) return;
+    setShareOpen(false);
+    setSelectionMode(false);
+    setSelectedTrackIds([]);
+    setShareCode('');
+  };
+
   const claimMusicShare = async () => {
     if (!claimCode.trim() || sharing) return;
     setSharing(true);
@@ -333,7 +349,7 @@ export default function MusicPage() {
             <h3>Suas músicas</h3>
             <div className="music-share-actions">
               <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
-              <button className="ghost" onClick={() => setShareOpen(true)}>Compartilhar lista</button>
+              <button className="ghost" onClick={selectionMode ? closeShare : openShare}>{selectionMode ? 'Cancelar seleção' : 'Compartilhar lista'}</button>
             </div>
           </div>
 
@@ -346,14 +362,14 @@ export default function MusicPage() {
                   key={track.id}
                   onDoubleClick={() => play(track, visible.slice(index + 1))}
                 >
-                  <label className="track-select" onClick={(event) => event.stopPropagation()}>
-                    <input
-                      type="checkbox"
-                      checked={selectedTrackIds.includes(track.id)}
-                      onChange={() => setSelectedTrackIds((ids) => ids.includes(track.id) ? ids.filter((id) => id !== track.id) : [...ids, track.id])}
-                      aria-label={`Selecionar ${track.title} para compartilhar`}
-                    />
-                  </label>
+                  {selectionMode && <label className="track-select" onClick={(event) => event.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedTrackIds.includes(track.id)}
+                        onChange={() => setSelectedTrackIds((ids) => ids.includes(track.id) ? ids.filter((id) => id !== track.id) : [...ids, track.id])}
+                        aria-label={`Selecionar ${track.title} para compartilhar`}
+                      />
+                    </label>}
                   <span className="track-index">{isCurrent && playing ? <Equalizer /> : index + 1}</span>
                   <div className="track-art" aria-hidden="true">{track.title.slice(0, 1).toUpperCase()}</div>
                   <div className="track-info">
@@ -440,16 +456,17 @@ export default function MusicPage() {
             )}
 
             {shareOpen && (
-              <div className="music-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
+              <div className="music-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeShare(); }}>
                 <section className="music-modal music-share-modal" role="dialog" aria-modal="true" aria-labelledby="music-share-title">
                   <div className="music-modal-head">
                     <h2 id="music-share-title">Compartilhar músicas</h2>
-                    <button className="track-remove" style={{ opacity: 1 }} onClick={() => setShareOpen(false)} aria-label="Fechar">×</button>
+                    <button className="track-remove" style={{ opacity: 1 }} onClick={closeShare} aria-label="Fechar">×</button>
                   </div>
                   <p className="muted">Selecione músicas na biblioteca, gere um código e envie-o para outro usuário. O código expira em 24 horas e só pode ser usado uma vez.</p>
                   <button className="music-confirm-upload" onClick={() => void createMusicShare()} disabled={!selectedTrackIds.length || sharing}>
                     {sharing ? 'Preparando pacote…' : `Gerar código (${selectedTrackIds.length} selecionada(s))`}
                   </button>
+                  {message && <p className={`music-message share-message${message.error ? ' error' : ''}`} role="status">{message.text}</p>}
                   {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong></div>}
                   <div className="music-share-divider"><span>ou resgatar um código</span></div>
                   <label>Código recebido
