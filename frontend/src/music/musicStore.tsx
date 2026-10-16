@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { MusicTrack } from './musicTypes';
+import { isAudioFile, type MusicTrack } from './musicTypes';
 
 interface MusicState {
   tracks: MusicTrack[];
@@ -174,8 +174,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const addFiles = useCallback(async (files: File[], metadata: Omit<MusicTrack, 'id' | 'title' | 'duration' | 'fileName' | 'createdAt'>) => {
     const added: MusicTrack[] = [];
     for (const file of files) {
-      const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|oga|m4a|aac|flac|webm)$/i.test(file.name);
-      if (!isAudio) throw new Error(`${file.name} não é um arquivo de áudio válido.`);
+      if (!isAudioFile(file)) throw new Error(`${file.name} não é um arquivo de áudio compatível.`);
       const id = crypto.randomUUID();
       const track: MusicTrack = {
         ...metadata,
