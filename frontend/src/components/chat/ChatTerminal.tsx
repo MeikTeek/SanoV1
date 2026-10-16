@@ -8,6 +8,7 @@ import { useCommandHistory } from '../../hooks/useCommandHistory';
 import type { ChatMessage } from '../../types/sano';
 import { IconSend } from '../ui/icons';
 import ViewRenderer from './ViewRenderer';
+import { useMusic } from '../../music/musicStore';
 import '../../styles/chat.css';
 
 const hhmm = (d: Date) => new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(d);
@@ -24,6 +25,7 @@ export default function ChatTerminal() {
   const navigate = useNavigate();
   const history = useCommandHistory();
   const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking } = useChat();
+  const { tracks, play } = useMusic();
   const nextId = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,6 +70,22 @@ export default function ChatTerminal() {
     }
 
     setMessages((m) => [...m, make('user', trimmed)]);
+
+    const musicRequest = trimmed.match(/^(?:sano[,:]?\s*)?(?:tocar|toque|reproduzir|reproduza)\s+(?:a\s+)?(?:m[uú]sica\s+|playlist\s+|autor\s+)?(.+)$/i);
+    if (musicRequest) {
+      const term = musicRequest[1].trim().toLocaleLowerCase();
+      const matches = tracks.filter((track) => `${track.title} ${track.artist} ${track.album}`.toLocaleLowerCase().includes(term));
+      if (matches.length) {
+        play(matches[0], matches.slice(1));
+        setMessages((m) => [...m, make('sano', `Tocando "${matches[0].title}" de ${matches[0].artist}.`)]);
+      } else {
+        setMessages((m) => [...m, make('sano', `Não encontrei "${musicRequest[1].trim()}" na sua biblioteca. Abra Música para adicionar arquivos.`)]);
+      }
+      setBusy(false);
+      inputRef.current?.focus();
+      return;
+    }
+
     setBusy(true);
     // Pergunta (com "?") e o caminho mais lento: avisa que esta consultando.
     setThinking(/\?$/.test(trimmed) ? 'consultando...' : 'processando...');

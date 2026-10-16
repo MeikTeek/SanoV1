@@ -106,7 +106,13 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
 .week-detail { padding: 14px; }
 .planned-exercises { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .planned-exercise { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.planned-exercise > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.planned-exercise-main { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; }
+.planned-exercise-heading { display: flex; align-items: center; gap: 8px; }
+.exercise-info-toggle { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; color: var(--accent); background: transparent; border: 1px solid var(--line); border-radius: 50%; font-size: 1.1rem; line-height: 1; }
+.exercise-info-toggle:hover { background: var(--surface-3); }
+.planned-exercise-details { display: flex; flex-direction: column; gap: 5px; padding-top: 7px; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.planned-exercise-details p { margin: 0; }
+.planned-exercise-details b { color: var(--text); }
 .planned-exercise .muted { font-size: .78rem; }
 .load-field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .73rem; white-space: nowrap; }
 .load-field input { width: 78px; padding: 7px; }

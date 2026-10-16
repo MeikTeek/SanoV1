@@ -140,6 +140,8 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
             <p><b>Músculos:</b> {detail.muscles}</p>
             <p><b>Como fazer:</b> {detail.howTo}</p>
             <p className="warn"><b>Erro comum:</b> {detail.commonMistake}</p>
+            {detail.progression && <p><b>Progressão:</b> {detail.progression}</p>}
+            {detail.regression && <p><b>Regressão:</b> {detail.regression}</p>}
           </div>
         )}
 

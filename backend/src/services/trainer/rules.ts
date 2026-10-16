@@ -134,7 +134,9 @@ export function generateMission(p: RuleProfile, dayIndex: number): MissionPlan {
     blocks,
     plannedMinutes: total,
     totalXp: blocks.reduce((s, b) => s + b.xp, 0),
-    excluded: excluded.slice(0, 12),
+    excluded: excluded
+      .sort((a, b) => Number(/contraindicado/.test(b.reason)) - Number(/contraindicado/.test(a.reason)))
+      .slice(0, 12),
   };
 }
 

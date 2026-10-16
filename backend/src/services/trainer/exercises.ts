@@ -3,9 +3,12 @@
  *
  * É o insumo do motor de REGRAS (não da IA): cada exercício declara equipamento
  * necessário e contraindicações, e o filtro de segurança usa isso para nunca
- * prescrever algo impróprio para o perfil. Base enxuta e revisável — ampliar
- * aqui é mais seguro do que pedir ao modelo que invente exercícios.
+ * prescrever algo impróprio para o perfil. O catálogo versionado em
+ * `exercise-catalog.json` é mesclado aos exercícios legados, com equipamento e
+ * contraindicações normalizados para este motor.
  */
+
+import sourceExercises from './exercise-catalog.json';
 
 export type Equipment = 'academia' | 'peso-corporal' | 'elastico' | 'barra-fixa' | 'halteres' | 'nenhum';
 export type MuscleGroup = 'peito' | 'costas' | 'pernas' | 'ombros' | 'bracos' | 'core' | 'cardio' | 'mobilidade';
@@ -36,6 +39,14 @@ export interface Exercise {
   /** Segundos de trabalho e descanso sugeridos (usados pelo cronômetro). */
   workSeconds?: number;
   restSeconds?: number;
+  sourceId?: number;
+  sourceMuscles?: string[];
+  progression?: string;
+  regression?: string;
+  suggestedSets?: number;
+  repsMin?: number;
+  repsMax?: number;
+  unit?: 'reps' | 'segundos' | 'minutos';
 }
 
 export const INJURY_LABELS: Record<Injury, string> = {
@@ -97,7 +108,7 @@ export const GOALS: { key: Goal; label: string; summary: string; focus: string[]
   },
 ];
 
-export const EXERCISES: Exercise[] = [
+const LEGACY_EXERCISES: Exercise[] = [
   { key: 'flexao', name: 'Flexão', group: 'peito', equipment: ['peso-corporal', 'nenhum'], contraindicated: ['ombro', 'cotovelo'], impact: 'baixo', difficulty: 1, xp: 10, minutes: 5 },
   { key: 'flexao_diamante', name: 'Flexão diamante', group: 'peito', equipment: ['peso-corporal', 'nenhum'], contraindicated: ['ombro', 'cotovelo'], impact: 'baixo', difficulty: 2, xp: 14, minutes: 5 },
   { key: 'flexao_declaracao', name: 'Flexão declinada', group: 'peito', equipment: ['academia', 'halteres'], contraindicated: [], impact: 'baixo', difficulty: 1, xp: 12, minutes: 6 },
@@ -147,6 +158,227 @@ export const EXERCISES: Exercise[] = [
   { key: 'stretch_hamstring', name: 'Alongamento posterior', group: 'mobilidade', equipment: ['nenhum'], contraindicated: [], impact: 'baixo', difficulty: 1, xp: 7, minutes: 5 },
   { key: 'rotacao_externa_elastico', name: 'Rotação externa com elástico', group: 'mobilidade', equipment: ['elastico'], contraindicated: [], impact: 'baixo', difficulty: 1, xp: 9, minutes: 5 },
   { key: 'elevacao_ombro_elastico', name: 'Elevação de ombro com elástico', group: 'mobilidade', equipment: ['elastico', 'nenhum'], contraindicated: [], impact: 'baixo', difficulty: 1, xp: 8, minutes: 4 },
+];
+
+const SOURCE_KEYS: Record<number, string> = {
+  1: 'flexao',
+  2: 'flexao_inclinada',
+  3: 'flexao_declaracao',
+  4: 'supino_reto_barra',
+  5: 'supino_inclinado',
+  6: 'crucifixo_peck_deck',
+  7: 'crossover_polia',
+  8: 'barra_fixa',
+  9: 'remada_invertida',
+  10: 'superman',
+  11: 'remada_elastico',
+  12: 'prone_y_raise',
+  13: 'puxada_frontal',
+  14: 'remada_curvada_barra',
+  15: 'remada_baixa',
+  16: 'remada_unilateral',
+  17: 'flexao_pike',
+  18: 'parada_mao_parede',
+  19: 'desenvolvimento_militar',
+  20: 'elevacao_lateral',
+  21: 'face_pull',
+  22: 'rosca_direta',
+  23: 'rosca_martelo',
+  24: 'chin_up',
+  25: 'rosca_elastico',
+  26: 'triceps_bench',
+  27: 'flexao_diamante',
+  28: 'triceps_cabo',
+  29: 'triceps_testa_barra_w',
+  30: 'triceps_frances_halter',
+  31: 'agachamento_livre',
+  32: 'agachamento_sumido',
+  33: 'agachamento_bulgario',
+  34: 'afundo_estatico',
+  35: 'agachamento_salto',
+  36: 'agachamento_parede',
+  37: 'leg_press_45',
+  38: 'cadeira_extensora',
+  39: 'agachamento_goblet',
+  40: 'ponte_gluteo',
+  41: 'ponte_gluteo_unilateral',
+  42: 'good_morning',
+  43: 'coice_gluteo_elastico',
+  44: 'stiff_romeno',
+  45: 'mesa_flexora',
+  46: 'hip_thrust_barra',
+  47: 'elevacao_calf',
+  48: 'panturrilha_unilateral_degrau',
+  49: 'panturrilha_sentado_maquina',
+  50: 'prancha',
+  51: 'prancha_lateral',
+  52: 'abdominal_crunch',
+  53: 'leg_raise',
+  54: 'mountain_climber',
+  55: 'bicicleta_ar',
+  56: 'dead_bug',
+  57: 'crunch_polia',
+  58: 'burpee',
+  59: 'polichinelo',
+  60: 'caminhada_inclinada_esteira',
+};
+
+const SOURCE_GROUPS: Record<string, MuscleGroup> = {
+  peito: 'peito',
+  costas: 'costas',
+  ombros: 'ombros',
+  biceps: 'bracos',
+  triceps: 'bracos',
+  quadriceps: 'pernas',
+  posterior: 'pernas',
+  panturrilha: 'pernas',
+  abdomen: 'core',
+  corpo_inteiro: 'cardio',
+};
+
+const SOURCE_EQUIPMENT: Record<string, Equipment> = {
+  nenhum: 'nenhum',
+  halteres: 'halteres',
+  elastico: 'elastico',
+  barra_fixa: 'barra-fixa',
+  barra: 'academia',
+  barra_w: 'academia',
+  banco_supino: 'academia',
+  maquina: 'academia',
+  polia: 'academia',
+  esteira: 'academia',
+  banco_ou_cadeira: 'peso-corporal',
+  barra_baixa_ou_mesa: 'peso-corporal',
+  degrau: 'peso-corporal',
+  parede: 'peso-corporal',
+};
+
+const SOURCE_INJURIES: Partial<Record<number, Injury[]>> = {
+  1: ['ombro', 'cotovelo'],
+  2: ['ombro', 'cotovelo'],
+  3: ['ombro', 'cotovelo'],
+  4: ['ombro'],
+  5: ['ombro'],
+  6: ['ombro'],
+  7: ['ombro'],
+  8: ['ombro'],
+  17: ['ombro', 'cotovelo'],
+  18: ['ombro', 'pescoco'],
+  19: ['ombro', 'pescoco'],
+  20: ['ombro'],
+  26: ['ombro', 'cotovelo'],
+  27: ['ombro', 'cotovelo'],
+  29: ['cotovelo'],
+  30: ['cotovelo'],
+  31: ['joelho', 'lombar'],
+  32: ['joelho', 'lombar'],
+  33: ['joelho'],
+  34: ['joelho'],
+  35: ['joelho', 'quadril'],
+  36: ['joelho'],
+  37: ['joelho'],
+  38: ['joelho'],
+  39: ['joelho', 'lombar'],
+  42: ['lombar', 'quadril'],
+  44: ['lombar', 'quadril'],
+  46: ['lombar', 'quadril'],
+  50: ['ombro'],
+  51: ['ombro'],
+  53: ['lombar'],
+  54: ['ombro', 'quadril'],
+  58: ['joelho', 'lombar', 'quadril'],
+  59: ['joelho', 'quadril'],
+};
+
+const SOURCE_MUSCLE_LABELS: Record<string, string> = {
+  peito: 'peitoral',
+  costas: 'costas',
+  ombros: 'ombros',
+  biceps: 'bíceps',
+  triceps: 'tríceps',
+  antebraco: 'antebraços',
+  quadriceps: 'quadríceps',
+  posterior: 'posterior da coxa',
+  gluteo: 'glúteos',
+  adutores: 'adutores',
+  panturrilha: 'panturrilhas',
+  abdomen: 'abdômen',
+  obliquos: 'oblíquos',
+  flexores_quadril: 'flexores do quadril',
+  lombar: 'lombar',
+  trapezio: 'trapézio',
+};
+
+function sourceDurationSeconds(unit: string, min: number, max: number) {
+  const average = (min + max) / 2;
+  if (unit === 'segundos') return Math.round(average);
+  if (unit === 'minutos') return Math.round(average * 60);
+  return Math.max(30, Math.round(average * 3));
+}
+
+function isExerciseUnit(unit: string): unit is NonNullable<Exercise['unit']> {
+  return unit === 'reps' || unit === 'segundos' || unit === 'minutos';
+}
+
+function fromSource(
+  source: (typeof sourceExercises)[number],
+): Exercise {
+  const key = SOURCE_KEYS[source.id];
+  const mainGroup = SOURCE_GROUPS[source.grupo_principal];
+  if (!isExerciseUnit(source.unidade)) {
+    throw new Error(`Unidade não mapeada no exercício ${source.id}: ${source.unidade}.`);
+  }
+  const unit = source.unidade;
+  const difficulty = source.nivel === 'avancado' ? 3 : source.nivel === 'intermediario' ? 2 : source.nivel === 'iniciante' ? 1 : null;
+  if (!key) throw new Error(`Exercício de catálogo sem chave mapeada: ${source.id}.`);
+  if (!mainGroup) throw new Error(`Grupo muscular não mapeado no exercício ${source.id}: ${source.grupo_principal}.`);
+  if (difficulty === null) throw new Error(`Nível não mapeado no exercício ${source.id}: ${source.nivel}.`);
+  const equipment = source.equipamento.map((item) => {
+    const mapped = SOURCE_EQUIPMENT[item];
+    if (!mapped) throw new Error(`Equipamento não mapeado no exercício ${source.id}: ${item}.`);
+    return mapped;
+  });
+  const sourceMuscles = [source.grupo_principal, ...source.grupos_secundarios];
+  const muscles = sourceMuscles
+    .map((muscle) => SOURCE_MUSCLE_LABELS[muscle] ?? muscle.replaceAll('_', ' '))
+    .join(', ');
+  const impact: Exercise['impact'] = [35, 58, 59].includes(source.id) ? 'alto' : 'baixo';
+  const workSeconds = sourceDurationSeconds(unit, source.reps_min, source.reps_max);
+  const name = source.nome;
+
+  return {
+    key,
+    name,
+    group: mainGroup,
+    equipment: Array.from(new Set(equipment)),
+    contraindicated: SOURCE_INJURIES[source.id] ?? [],
+    impact,
+    difficulty,
+    xp: source.mecanica === 'composto' ? 15 : 10,
+    minutes: unit === 'minutos' ? Math.round((source.reps_min + source.reps_max) / 2) : 5,
+    muscles: `Músculos principais: ${muscles}.`,
+    howTo: source.instrucao,
+    commonMistake: 'Evite compensar com impulso ou perder o alinhamento. Execute com controle e interrompa se sentir dor.',
+    benefits: `Trabalha ${muscles.toLowerCase()} e complementa o treino de ${SOURCE_MUSCLE_LABELS[source.grupo_principal] ?? source.grupo_principal}.`,
+    workSeconds,
+    restSeconds: source.descanso_s,
+    sourceId: source.id,
+    sourceMuscles,
+    progression: source.progressao,
+    regression: source.regressao,
+    suggestedSets: source.series_sugeridas,
+    repsMin: source.reps_min,
+    repsMax: source.reps_max,
+    unit,
+  };
+}
+
+const CATALOG_EXERCISES = sourceExercises.map(fromSource);
+const catalogKeys = new Set(CATALOG_EXERCISES.map((exercise) => exercise.key));
+
+export const EXERCISES: Exercise[] = [
+  ...CATALOG_EXERCISES,
+  ...LEGACY_EXERCISES.filter((exercise) => !catalogKeys.has(exercise.key)),
 ];
 
 export const byKey = (key: string) => EXERCISES.find((e) => e.key === key);

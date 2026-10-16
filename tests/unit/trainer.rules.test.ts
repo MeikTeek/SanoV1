@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateMission, screenOut, type RuleProfile } from '../../backend/src/services/trainer/rules';
 import { byKey, GOALS, EXERCISES } from '../../backend/src/services/trainer/exercises';
-import { DETAILS, fullDetail } from '../../backend/src/services/trainer/exerciseDetails';
+import { fullDetail } from '../../backend/src/services/trainer/exerciseDetails';
 
 const base: RuleProfile = {
   goal: 'HYPERTROPHY',
@@ -117,19 +117,34 @@ test('todo objetivo tem rótulo e resumo legíveis', () => {
 });
 
 test('todo exercício tem detalhe de execução e tempos de cronômetro', () => {
-  // Sem isso o usuário receberia "não mapeado" ao pedir detalhes.
+  // Os detalhes podem vir do catálogo importado ou do catálogo local legado.
   for (const e of EXERCISES) {
-    const d = DETAILS[e.key];
-    assert.ok(d, `exercício sem detalhe: ${e.key}`);
-    assert.ok((d!.muscles ?? '').length > 10, `músculo vago em ${e.key}`);
-    assert.ok((d!.howTo ?? '').length > 30, `execução curta demais em ${e.key}`);
-    assert.ok((d!.commonMistake ?? '').length > 20, `erro comum vago em ${e.key}`);
-    assert.ok(d!.workSeconds! >= 15 && d!.restSeconds! >= 15, `tempos absurdos em ${e.key}`);
+    const detail = fullDetail(e);
+    assert.ok(detail.muscles.length > 10, `músculo vago em ${e.key}`);
+    assert.ok(detail.howTo.length > 30, `execução curta demais em ${e.key}`);
+    assert.ok(detail.commonMistake.length > 20, `erro comum vago em ${e.key}`);
+    assert.ok(detail.workSeconds >= 15 && detail.restSeconds >= 15, `tempos absurdos em ${e.key}`);
   }
 });
 
 test('fullDetail nunca devolve placeholder para exercício do catálogo', () => {
   for (const e of EXERCISES) {
     assert.notEqual(fullDetail(e).muscles, 'Não mapeado.', `mapeado ausente: ${e.key}`);
+  }
+});
+
+test('catálogo enviado inclui os 60 exercícios com dados de detalhe e prescrição', () => {
+  const imported = EXERCISES.filter((exercise) => exercise.sourceId !== undefined);
+  assert.equal(imported.length, 60);
+  assert.equal(new Set(imported.map((exercise) => exercise.sourceId)).size, 60);
+  assert.equal(new Set(imported.map((exercise) => exercise.key)).size, 60);
+
+  for (const exercise of imported) {
+    const detail = fullDetail(exercise);
+    assert.ok(detail.howTo.length > 30, `${exercise.name} sem instrução`);
+    assert.ok(detail.progression, `${exercise.name} sem progressão`);
+    assert.ok(detail.regression, `${exercise.name} sem regressão`);
+    assert.ok(detail.restSeconds >= 15, `${exercise.name} sem descanso válido`);
+    assert.ok(exercise.sourceMuscles?.length, `${exercise.name} sem grupos musculares`);
   }
 });

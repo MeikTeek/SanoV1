@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './context/AuthContext';
 import { ChatProvider } from './store/chatStore';
+import { MusicProvider } from './music/musicStore';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import './styles/global.css';
 
@@ -15,7 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <AuthProvider>
           {/* O histórico do chat vive fora das rotas: navegar não apaga a conversa. */}
           <ChatProvider>
-            <App />
+            <MusicProvider><App /></MusicProvider>
           </ChatProvider>
         </AuthProvider>
       </BrowserRouter>

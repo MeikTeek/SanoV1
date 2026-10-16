@@ -4,6 +4,7 @@
  * O controller só valida entrada e formata resposta; a lógica fica aqui. Isso
  * deixa o módulo testável sem subir servidor e sem simular cookies.
  */
+import { createHash } from 'node:crypto';
 import { prisma } from '../../config/prisma';
 import { getProfile, getStats, getOrCreateMission, getDashboard, completeBlock, applyPenaltyIfMissed, weeklyRawData, toRuleProfile, todayKey } from './service';
 import { generateMission, screenOut, type Block } from './rules';
@@ -15,6 +16,51 @@ import { levelTitle } from './progress';
 import { AppError } from '../../utils/errors';
 import { generateWeeklyPlan } from './weeklyPlan';
 import type { BodyAssessmentInput, WorkoutLogInput } from '../../validators/trainer.validator';
+
+/* ── Constantes e helpers compartilhados ────────────────────────────────── */
+
+const ONBOARDING_REQUIRED = 'Faça o cadastro do treino primeiro.';
+const DAY_MS = 86_400_000;
+/** Cada 100 XP equivalem a 1 ponto de Disciplina no relatório semanal. */
+const XP_PER_DISCIPLINE_POINT = 100;
+/** Fator de atividade por nº de dias de treino na semana (índice = dias). */
+const ACTIVITY_FACTORS = [1.2, 1.35, 1.45, 1.55, 1.65, 1.72, 1.8];
+
+type Profile = NonNullable<Awaited<ReturnType<typeof getProfile>>>;
+
+interface LatestAssessment {
+  weightKg: number; bodyFatPercent: number | null; waistCm: number | null; neckCm: number | null;
+  hipCm: number | null; restingHeartRate: number | null; sleepHours: number | null;
+  fatigue: number | null; muscleSoreness: number | null; nutritionAdherence: number | null;
+}
+
+/** Índice por chave: evita varrer EXERCISES com .find a cada consulta. */
+const EXERCISE_BY_KEY = new Map(EXERCISES.map((e) => [e.key, e]));
+
+const round1 = (n: number) => Math.round(n * 10) / 10;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const goalLabel = (goal: string) => GOAL_LABELS[goal as never] ?? 'Treino';
+
+/**
+ * Chave de dia (YYYY-MM-DD) de N dias atrás.
+ * ATENÇÃO: deve usar o mesmo critério de fuso que `todayKey()`. O ideal é
+ * mover este helper para ./service, ao lado dele.
+ */
+const daysAgoKey = (days: number) => new Date(Date.now() - days * DAY_MS).toISOString().slice(0, 10);
+
+/** Busca o perfil ou falha com a mesma mensagem em todos os casos de uso. */
+async function requireProfile(userId: string): Promise<Profile> {
+  const profile = await getProfile(userId);
+  if (!profile) throw new AppError(400, ONBOARDING_REQUIRED);
+  return profile;
+}
+
+/** Perfil + stats em paralelo, já convertidos para o formato do motor de regras. */
+async function loadRuleContext(userId: string) {
+  const [profile, stats] = await Promise.all([getProfile(userId), getStats(userId)]);
+  if (!profile) throw new AppError(400, ONBOARDING_REQUIRED);
+  return { profile, stats, rule: toRuleProfile(profile, stats.level) };
+}
 
 /** Perfil do banco → entrada do motor de dieta. */
 function toDietProfile(p: {
@@ -33,6 +79,8 @@ function toDietProfile(p: {
     dietRestrictions: p.dietRestrictions,
   };
 }
+
+/* ── Onboarding ─────────────────────────────────────────────────────────── */
 
 export interface OnboardingInput {
   weightKg: number; heightCm: number; birthYear: number;
@@ -58,25 +106,31 @@ export interface OnboardingInput {
 }
 
 export async function onboardCall(userId: string, username: string, data: OnboardingInput) {
-  const profile = await prisma.trainingProfile.upsert({
-    where: { userId },
-    create: { userId, ...data } as never,
-    update: { ...data } as never,
-  });
-  await prisma.playerStats.upsert({ where: { userId }, create: { userId }, update: {} });
+  const day = todayKey(); // uma única leitura: não muda de dia no meio da função
+  const sleepHours = data.sleepHours ?? 7;
+
+  // Transação: ou grava perfil, stats e avaliação inicial, ou não grava nada.
+  const [profile] = await prisma.$transaction([
+    prisma.trainingProfile.upsert({
+      where: { userId },
+      create: { userId, ...data } as never,
+      update: { ...data } as never,
+    }),
+    prisma.playerStats.upsert({ where: { userId }, create: { userId }, update: {} }),
+    prisma.bodyAssessment.upsert({
+      where: { userId_day: { userId, day } },
+      create: { userId, day, weightKg: data.weightKg, sleepHours },
+      update: { weightKg: data.weightKg, sleepHours },
+    }),
+  ]);
 
   const stats = await getStats(userId);
   const plan = generateMission(toRuleProfile(profile, stats.level), 0);
   const mission = await getOrCreateMission(userId);
-  await prisma.bodyAssessment.upsert({
-    where: { userId_day: { userId, day: todayKey() } },
-    create: { userId, day: todayKey(), weightKg: data.weightKg, sleepHours: data.sleepHours ?? 7 },
-    update: { weightKg: data.weightKg, sleepHours: data.sleepHours ?? 7 },
-  });
 
   const intro = await narrateMission({
     username,
-    goalLabel: GOAL_LABELS[profile.goal as never] ?? 'Treino',
+    goalLabel: goalLabel(profile.goal),
     plan: { title: plan.title, blocks: plan.blocks, plannedMinutes: plan.plannedMinutes },
     exclusions: plan.excluded,
   });
@@ -84,59 +138,71 @@ export async function onboardCall(userId: string, username: string, data: Onboar
   return { profile, mission, intro };
 }
 
+/* ── Métricas corporais ─────────────────────────────────────────────────── */
+
 function ageFromBirthYear(birthYear: number, now = new Date()) {
   return now.getFullYear() - birthYear;
 }
 
-function bodyMetrics(
-  profile: NonNullable<Awaited<ReturnType<typeof getProfile>>>,
-  latest: {
-    weightKg: number; bodyFatPercent: number | null; waistCm: number | null; neckCm: number | null;
-    hipCm: number | null; restingHeartRate: number | null; sleepHours: number | null;
-    fatigue: number | null; muscleSoreness: number | null; nutritionAdherence: number | null;
-  } | null,
-  loggedExercises: { exercise: string; sets: number; reps: number; loadKg: number | null; muscleGroup: string | null; createdAt: Date }[],
-  assessmentCount: number,
-  daysSinceAssessment: number,
-) {
-  const weightKg = latest?.weightKg ?? profile.weightKg;
-  const heightM = profile.heightCm / 100;
-  const age = ageFromBirthYear(profile.birthYear);
-  const bmi = weightKg / (heightM * heightM);
-  const adult = age >= 18;
+const clampBodyFat = (n: number) => Math.max(2, Math.min(70, n));
+
+/** % de gordura: valor informado → Navy (com medidas) → Deurenberg (só IMC/idade). */
+function estimateBodyFat(profile: Profile, latest: LatestAssessment | null, bmi: number, age: number) {
+  if (latest?.bodyFatPercent != null) {
+    return { percent: clampBodyFat(latest.bodyFatPercent), method: 'informado' as string | null };
+  }
+  if (age < 18) return { percent: null, method: null };
+
+  const inches = (cm: number) => cm / 2.54;
   const waist = latest?.waistCm;
   const neck = latest?.neckCm;
   const hip = latest?.hipCm;
-  const inches = (cm: number) => cm / 2.54;
-  let bodyFatPercent = latest?.bodyFatPercent ?? null;
-  let bodyFatMethod: string | null = bodyFatPercent === null ? null : 'informado';
-  if (bodyFatPercent === null && adult && profile.sex === 'M' && waist && neck && waist > neck) {
-    bodyFatPercent = 86.010 * Math.log10(inches(waist - neck)) - 70.041 * Math.log10(inches(profile.heightCm)) + 36.76;
-    bodyFatMethod = 'estimativa Navy';
-  } else if (bodyFatPercent === null && adult && profile.sex === 'F' && waist && neck && hip && waist + hip > neck) {
-    bodyFatPercent = 163.205 * Math.log10(inches(waist + hip - neck)) - 97.684 * Math.log10(inches(profile.heightCm)) - 78.387;
-    bodyFatMethod = 'estimativa Navy';
-  } else if (bodyFatPercent === null && adult && profile.sex !== 'OTHER') {
-    bodyFatPercent = 1.2 * bmi + 0.23 * age - (profile.sex === 'M' ? 10.8 : 0) - 5.4;
-    bodyFatMethod = 'estimativa Deurenberg';
+
+  if (profile.sex === 'M' && waist && neck && waist > neck) {
+    const pct = 86.010 * Math.log10(inches(waist - neck)) - 70.041 * Math.log10(inches(profile.heightCm)) + 36.76;
+    return { percent: clampBodyFat(pct), method: 'estimativa Navy' };
   }
-  if (bodyFatPercent !== null) bodyFatPercent = Math.max(2, Math.min(70, bodyFatPercent));
-  const leanMassKg = bodyFatPercent === null ? null : weightKg * (1 - bodyFatPercent / 100);
-  const bmrBase = 10 * weightKg + 6.25 * profile.heightCm - 5 * age;
-  const bmr = Math.round(bmrBase + (profile.sex === 'M' ? 5 : profile.sex === 'F' ? -161 : -78));
-  const readinessScore = latest?.sleepHours !== null && latest?.sleepHours !== undefined
-    && latest.fatigue !== null && latest.fatigue !== undefined
-    && latest.muscleSoreness !== null && latest.muscleSoreness !== undefined
-    ? Math.round(Math.min(100, latest.sleepHours / 8 * 100) * 0.4 + (10 - latest.fatigue) * 10 * 0.3 + (10 - latest.muscleSoreness) * 10 * 0.3)
-    : null;
-  const activity: Record<number, number> = { 0: 1.2, 1: 1.35, 2: 1.45, 3: 1.55, 4: 1.65, 5: 1.72, 6: 1.8 };
-  const tdee = Math.round(bmr * (activity[Math.min(6, profile.trainingDays)] ?? 1.45));
-  const epley = loggedExercises
-    .filter((entry) => entry.loadKg !== null && entry.loadKg > 0 && entry.reps > 0)
-    .map((entry) => ({ name: entry.exercise, estimated1RmKg: Math.round(entry.loadKg! * (1 + entry.reps / 30) * 10) / 10, day: entry.createdAt.toISOString().slice(0, 10) }))
-    .sort((a, b) => b.estimated1RmKg - a.estimated1RmKg)
-    .slice(0, 5);
-  const safetyWarnings = [
+  if (profile.sex === 'F' && waist && neck && hip && waist + hip > neck) {
+    const pct = 163.205 * Math.log10(inches(waist + hip - neck)) - 97.684 * Math.log10(inches(profile.heightCm)) - 78.387;
+    return { percent: clampBodyFat(pct), method: 'estimativa Navy' };
+  }
+  if (profile.sex !== 'OTHER') {
+    const pct = 1.2 * bmi + 0.23 * age - (profile.sex === 'M' ? 10.8 : 0) - 5.4;
+    return { percent: clampBodyFat(pct), method: 'estimativa Deurenberg' };
+  }
+  return { percent: null, method: null };
+}
+
+/** Prontidão 0-100: sono (40%), fadiga (30%) e dor muscular (30%). Null se faltar dado. */
+function readinessScore(latest: LatestAssessment | null): number | null {
+  if (!latest) return null;
+  const { sleepHours, fatigue, muscleSoreness } = latest;
+  if (sleepHours == null || fatigue == null || muscleSoreness == null) return null;
+  return Math.round(
+    Math.min(100, (sleepHours / 8) * 100) * 0.4
+    + (10 - fatigue) * 10 * 0.3
+    + (10 - muscleSoreness) * 10 * 0.3,
+  );
+}
+
+/** Melhor 1RM estimado (Epley) POR exercício — antes o top 5 podia repetir o mesmo exercício. */
+function bestEstimated1Rm(
+  logged: { exercise: string; reps: number; loadKg: number | null; createdAt: Date }[],
+) {
+  const best = new Map<string, { name: string; estimated1RmKg: number; day: string }>();
+  for (const entry of logged) {
+    if (entry.loadKg === null || entry.loadKg <= 0 || entry.reps <= 0) continue;
+    const estimated1RmKg = round1(entry.loadKg * (1 + entry.reps / 30));
+    const current = best.get(entry.exercise);
+    if (!current || estimated1RmKg > current.estimated1RmKg) {
+      best.set(entry.exercise, { name: entry.exercise, estimated1RmKg, day: entry.createdAt.toISOString().slice(0, 10) });
+    }
+  }
+  return [...best.values()].sort((a, b) => b.estimated1RmKg - a.estimated1RmKg).slice(0, 5);
+}
+
+function safetyWarningsFor(profile: Profile, age: number): string[] {
+  const warnings: (string | null)[] = [
     age < 18 ? 'Menor de 18 anos: procure supervisão de um responsável e de profissional qualificado antes de treinar.' : null,
     profile.pregnancy ? 'Gestação informada: procure orientação individualizada de um profissional de saúde.' : null,
     profile.heartCondition ? 'Condição cardíaca informada: obtenha liberação e orientação médica antes de iniciar exercícios.' : null,
@@ -144,40 +210,73 @@ function bodyMetrics(
     profile.parqAnswers && Object.values(profile.parqAnswers as Record<string, boolean>).some(Boolean)
       ? 'A triagem PAR-Q teve resposta positiva. Procure orientação de um profissional de saúde antes de iniciar ou intensificar os exercícios.'
       : null,
-  ].filter((warning): warning is string => Boolean(warning));
+  ];
+  return warnings.filter((w): w is string => w !== null);
+}
+
+function bodyMetrics(
+  profile: Profile,
+  latest: LatestAssessment | null,
+  loggedExercises: { exercise: string; reps: number; loadKg: number | null; createdAt: Date }[],
+  assessmentCount: number,
+  daysSinceAssessment: number,
+) {
+  const weightKg = latest?.weightKg ?? profile.weightKg;
+  const heightM = profile.heightCm / 100;
+  const age = ageFromBirthYear(profile.birthYear);
+  const bmi = weightKg / (heightM * heightM);
+
+  const { percent: bodyFatPercent, method: bodyFatMethod } = estimateBodyFat(profile, latest, bmi, age);
+  const leanMassKg = bodyFatPercent === null ? null : weightKg * (1 - bodyFatPercent / 100);
+
+  const sexOffset = profile.sex === 'M' ? 5 : profile.sex === 'F' ? -161 : -78;
+  const bmr = Math.round(10 * weightKg + 6.25 * profile.heightCm - 5 * age + sexOffset);
+  const tdee = Math.round(bmr * (ACTIVITY_FACTORS[Math.min(6, profile.trainingDays)] ?? 1.45));
+
+  // Faixas de IMC valem para adultos; para menores o correto é percentil de crescimento.
+  const bmiCategory = age < 18
+    ? 'Para menores de 18 anos, avalie o IMC por percentil (curvas de crescimento)'
+    : bmi < 18.5 ? 'Abaixo da faixa de referência'
+    : bmi < 25 ? 'Faixa de referência'
+    : bmi < 30 ? 'Acima da faixa de referência'
+    : 'Faixa elevada';
+
+  const waist = latest?.waistCm;
+  const hip = latest?.hipCm;
+
   return {
-    age, weightKg, bmi: Math.round(bmi * 10) / 10,
-    bmiCategory: bmi < 18.5 ? 'Abaixo da faixa de referência' : bmi < 25 ? 'Faixa de referência' : bmi < 30 ? 'Acima da faixa de referência' : 'Faixa elevada',
-    bodyFatPercent: bodyFatPercent === null ? null : Math.round(bodyFatPercent * 10) / 10,
+    age, weightKg, bmi: round1(bmi), bmiCategory,
+    bodyFatPercent: bodyFatPercent === null ? null : round1(bodyFatPercent),
     bodyFatMethod,
-    fatMassKg: bodyFatPercent === null ? null : Math.round(weightKg * bodyFatPercent / 100 * 10) / 10,
-    leanMassKg: leanMassKg === null ? null : Math.round(leanMassKg * 10) / 10,
-    ffmi: leanMassKg === null ? null : Math.round(leanMassKg / (heightM * heightM) * 10) / 10,
-    waistToHeight: waist ? Math.round((waist / profile.heightCm) * 100) / 100 : null,
-    waistToHip: waist && hip ? Math.round((waist / hip) * 100) / 100 : null,
-    bsaM2: Math.round(Math.sqrt(profile.heightCm * weightKg / 3600) * 100) / 100,
-    referenceWeightKg: Math.round(22 * heightM * heightM * 10) / 10,
+    fatMassKg: bodyFatPercent === null ? null : round1(weightKg * bodyFatPercent / 100),
+    leanMassKg: leanMassKg === null ? null : round1(leanMassKg),
+    ffmi: leanMassKg === null ? null : round1(leanMassKg / (heightM * heightM)),
+    waistToHeight: waist ? round2(waist / profile.heightCm) : null,
+    waistToHip: waist && hip ? round2(waist / hip) : null,
+    bsaM2: round2(Math.sqrt(profile.heightCm * weightKg / 3600)),
+    referenceWeightKg: round1(22 * heightM * heightM),
     targetWeightKg: profile.targetWeightKg,
     bmr, tdee,
-    waterLiters: Math.max(1.5, Math.round((weightKg * 0.035 + profile.trainingDays * 0.15) * 10) / 10),
+    waterLiters: Math.max(1.5, round1(weightKg * 0.035 + profile.trainingDays * 0.15)),
     restingHeartRate: latest?.restingHeartRate ?? null,
     sleepHours: latest?.sleepHours ?? null,
     fatigue: latest?.fatigue ?? null,
     muscleSoreness: latest?.muscleSoreness ?? null,
     nutritionAdherence: latest?.nutritionAdherence ?? null,
-    readinessScore,
-    estimated1Rm: epley,
+    readinessScore: readinessScore(latest),
+    estimated1Rm: bestEstimated1Rm(loggedExercises),
     assessmentCount,
     assessmentDue: assessmentCount === 0 || daysSinceAssessment >= 14,
     daysSinceAssessment,
     adherenceNote: 'Aderência e tendências ficam mais representativas após registrar treinos e avaliações ao longo do tempo.',
-    safetyWarnings,
+    safetyWarnings: safetyWarningsFor(profile, age),
   };
 }
 
-export async function weeklyPlanCall(userId: string) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+/* ── Plano semanal e painel de dados ────────────────────────────────────── */
+
+/** Gera o plano a partir de um perfil já carregado (evita nova ida ao banco). */
+function buildWeeklyPlan(profile: Profile) {
   return generateWeeklyPlan({
     goal: profile.goal, equipment: profile.equipment, injuries: profile.injuries,
     birthYear: profile.birthYear, experience: profile.experience,
@@ -187,76 +286,108 @@ export async function weeklyPlanCall(userId: string) {
   });
 }
 
+export async function weeklyPlanCall(userId: string) {
+  return buildWeeklyPlan(await requireProfile(userId));
+}
+
 export async function dataCall(userId: string) {
-  const profile = await prisma.trainingProfile.findUnique({
+  const found = await prisma.trainingProfile.findUnique({
     where: { userId },
     include: { assessments: { orderBy: { day: 'desc' }, take: 24 } },
   });
-  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  if (!found) throw new AppError(400, ONBOARDING_REQUIRED);
+  // `assessments` sai do objeto de perfil para não ir duplicado na resposta.
+  const { assessments: assessmentsDesc, ...profile } = found;
+
   const logs = await prisma.workoutLog.findMany({
-    where: { userId, day: { gte: new Date(Date.now() - 90 * 86_400_000).toISOString().slice(0, 10) } },
+    where: { userId, day: { gte: daysAgoKey(90) } },
     orderBy: { createdAt: 'asc' },
   });
-  const assessments = profile.assessments.slice().reverse();
-  const planned = new Set(profile.trainingWeekdays);
-  const today = new Date();
-  const expectedSessions = Array.from({ length: 30 }, (_, offset) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - offset);
-    return planned.has(date.getDay());
-  }).filter(Boolean).length;
-  const logDays = new Set(logs.map((log) => log.day));
-  const recentDays = new Set(Array.from(logDays).filter((day) => day >= new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10)));
-  const plan = await weeklyPlanCall(userId);
+
+  const assessments = assessmentsDesc.slice().reverse();
   const latest = assessments[assessments.length - 1] ?? null;
   const daysSinceAssessment = latest
-    ? Math.floor((Date.now() - new Date(`${latest.day}T12:00:00`).getTime()) / 86_400_000)
+    ? Math.floor((Date.now() - new Date(`${latest.day}T12:00:00`).getTime()) / DAY_MS)
     : 0;
+
+  // Aderência dos últimos 30 dias: sessões previstas x dias com treino registrado.
+  const plannedWeekdays = new Set(profile.trainingWeekdays);
+  const plannedSessions = Array.from({ length: 30 }, (_, offset) => {
+    const date = new Date();
+    date.setDate(date.getDate() - offset);
+    return plannedWeekdays.has(date.getDay());
+  }).filter(Boolean).length;
+  const cutoff = daysAgoKey(30);
+  const completedSessions = new Set(logs.map((log) => log.day).filter((day) => day >= cutoff)).size;
+
+  const plan = buildWeeklyPlan(profile as Profile);
+
   return {
     profile,
     metrics: {
-      ...bodyMetrics(profile, latest, logs, assessments.length, daysSinceAssessment),
+      ...bodyMetrics(profile as Profile, latest, logs, assessments.length, daysSinceAssessment),
       weightTrendKg: assessments.length > 1
-        ? Math.round((assessments[assessments.length - 1].weightKg - assessments[0].weightKg) * 10) / 10
+        ? round1(assessments[assessments.length - 1].weightKg - assessments[0].weightKg)
         : null,
     },
     assessments,
-    history: assessments.map((entry) => ({ day: entry.day, weightKg: entry.weightKg, bodyFatPercent: entry.bodyFatPercent, waistCm: entry.waistCm, sleepHours: entry.sleepHours, fatigue: entry.fatigue })),
-    adherence: { completedSessions: recentDays.size, plannedSessions: expectedSessions, percent: expectedSessions ? Math.min(100, Math.round(recentDays.size / expectedSessions * 100)) : 0 },
+    history: assessments.map((a) => ({
+      day: a.day, weightKg: a.weightKg, bodyFatPercent: a.bodyFatPercent,
+      waistCm: a.waistCm, sleepHours: a.sleepHours, fatigue: a.fatigue,
+    })),
+    adherence: {
+      completedSessions,
+      plannedSessions,
+      percent: plannedSessions ? Math.min(100, Math.round((completedSessions / plannedSessions) * 100)) : 0,
+    },
     weeklyVolume: plan.matrix.map(({ key, label, weeklySets, targetMin, targetMax }) => ({ key, label, weeklySets, targetMin, targetMax })),
-    strengthHistory: logs.filter((entry) => entry.loadKg !== null).map((entry) => ({ day: entry.day, exercise: entry.exercise, loadKg: entry.loadKg, sets: entry.sets, reps: entry.reps })),
+    strengthHistory: logs
+      .filter((entry) => entry.loadKg !== null)
+      .map((entry) => ({ day: entry.day, exercise: entry.exercise, loadKg: entry.loadKg, sets: entry.sets, reps: entry.reps })),
     disclaimer: plan.disclaimer,
   };
 }
 
 export async function saveAssessmentCall(userId: string, data: BodyAssessmentInput) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  await requireProfile(userId);
   const day = todayKey();
-  const assessment = await prisma.bodyAssessment.upsert({
-    where: { userId_day: { userId, day } },
-    create: { ...data, userId, day },
-    update: data,
-  });
-  await prisma.trainingProfile.update({ where: { userId }, data: { weightKg: data.weightKg } });
+  // Transação: a avaliação e o peso do perfil andam juntos.
+  const [assessment] = await prisma.$transaction([
+    prisma.bodyAssessment.upsert({
+      where: { userId_day: { userId, day } },
+      create: { ...data, userId, day },
+      update: data,
+    }),
+    prisma.trainingProfile.update({ where: { userId }, data: { weightKg: data.weightKg } }),
+  ]);
   return assessment;
 }
 
 export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o cadastro do treino primeiro.');
+  const profile = await requireProfile(userId);
   const equipment = profile.trainingLocation === 'CALISTHENICS'
     ? profile.equipment.filter((item) => !['academia', 'halteres'].includes(item))
     : profile.equipment;
-  const allowed = new Set(EXERCISES.filter((exercise) => screenOut(exercise, {
+  const ruleContext = {
     goal: profile.goal as never, equipment: equipment as never, injuries: profile.injuries as never,
     age: ageFromBirthYear(profile.birthYear), level: 1, minutesAvailable: profile.minutesPerDay,
-  }) === null).map((exercise) => exercise.key));
-  const selected = entries.map((entry) => {
-    const exercise = EXERCISES.find((item) => item.key === entry.exerciseKey);
-    if (!exercise || !allowed.has(exercise.key)) throw new AppError(400, `Exercício não permitido para o perfil: ${entry.exerciseKey}.`);
-    return { ...entry, exercise: exercise.name, muscleGroup: exercise.group };
-  });
+  };
+
+  // Só triamos os exercícios enviados (antes triava o catálogo inteiro a cada chamada).
+  const invalid: string[] = [];
+  const selected: (WorkoutLogInput[number] & { exercise: string; muscleGroup: string })[] = [];
+  for (const entry of entries) {
+    const exercise = EXERCISE_BY_KEY.get(entry.exerciseKey);
+    if (!exercise || screenOut(exercise, ruleContext) !== null) {
+      invalid.push(entry.exerciseKey);
+    } else {
+      selected.push({ ...entry, exercise: exercise.name, muscleGroup: exercise.group });
+    }
+  }
+  if (invalid.length) {
+    throw new AppError(400, `Exercício não permitido para o perfil: ${[...new Set(invalid)].join(', ')}.`);
+  }
+
   const day = todayKey();
   await prisma.workoutLog.createMany({
     data: selected.map((entry) => ({
@@ -272,6 +403,8 @@ export function meta() {
   return { goals: GOALS, equipment: EQUIPMENT_LABELS, injuries: INJURY_LABELS };
 }
 
+/* ── Missão diária, biblioteca, relatório e IA ──────────────────────────── */
+
 export async function dashboardCall(userId: string) {
   const penalty = await applyPenaltyIfMissed(userId);
   return { ...(await getDashboard(userId)), penalty, aiEnabled: aiEnabled() };
@@ -284,32 +417,33 @@ export async function completeCall(userId: string, missionId: string, blockKey: 
 }
 
 export async function libraryCall(userId: string) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o onboarding primeiro');
+  const { rule } = await loadRuleContext(userId);
 
-  const rule = toRuleProfile(profile, (await getStats(userId)).level);
-  return {
-    allowed: EXERCISES.filter((e) => screenOut(e, rule) === null)
-      .map((e) => ({ key: e.key, name: e.name, group: e.group, difficulty: e.difficulty, equipment: e.equipment })),
-    blocked: EXERCISES.map((e) => ({ name: e.name, reason: screenOut(e, rule) }))
-      .filter((x): x is { name: string; reason: string } => x.reason !== null),
-  };
+  // Uma única passada: antes screenOut rodava duas vezes por exercício.
+  const allowed: { key: string; name: string; group: string; difficulty: unknown; equipment: unknown }[] = [];
+  const blocked: { name: string; reason: string }[] = [];
+  for (const e of EXERCISES) {
+    const reason = screenOut(e, rule);
+    if (reason === null) allowed.push({ key: e.key, name: e.name, group: e.group, difficulty: e.difficulty, equipment: e.equipment });
+    else blocked.push({ name: e.name, reason });
+  }
+  return { allowed, blocked };
 }
 
 export async function reportCall(userId: string, username: string) {
   const [profile, stats, raw] = await Promise.all([getProfile(userId), getStats(userId), weeklyRawData(userId)]);
-  if (!profile) throw new AppError(400, 'Faça o onboarding primeiro');
+  if (!profile) throw new AppError(400, ONBOARDING_REQUIRED);
 
-  const totalXp = raw.missions.reduce((s, m) => s + m.xpAwarded, 0);
+  const totalXp = raw.missions.reduce((sum, m) => sum + m.xpAwarded, 0);
   const report = await weeklyReport({
     username,
-    goalLabel: GOAL_LABELS[profile.goal as never] ?? 'Treino',
+    goalLabel: goalLabel(profile.goal),
     level: stats.level,
     levelTitle: levelTitle(stats.level),
     streak: stats.streak,
     completedDays: raw.completedDays,
     totalMinutes: raw.totalMinutes,
-    statGains: [{ attr: 'Disciplina', gain: totalXp / 100 }],
+    statGains: [{ attr: 'Disciplina', gain: totalXp / XP_PER_DISCIPLINE_POINT }],
   });
 
   return {
@@ -321,16 +455,12 @@ export async function reportCall(userId: string, username: string) {
 
 /** Só recebe exercícios liberados ao perfil — a IA não pode citar o que está bloqueado. */
 export async function askCall(userId: string, question: string) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o onboarding primeiro');
-
-  const rule = toRuleProfile(profile, (await getStats(userId)).level);
+  const { profile, rule } = await loadRuleContext(userId);
   const answer = await biomechanicsAnswer(question, {
     injuries: profile.injuries,
     equipment: profile.equipment,
     exerciseList: EXERCISES.filter((e) => screenOut(e, rule) === null).map((e) => e.name).join(', '),
   });
-
   return { answer, aiEnabled: aiEnabled() };
 }
 
@@ -343,64 +473,90 @@ export async function statusForChat(userId: string) {
   const profile = await getProfile(userId);
   if (!profile) return { onboarded: false as const };
 
-  const stats = await getStats(userId);
-  const debuffUntil = await prisma.playerStats.findUnique({ where: { userId }, select: { debuffUntil: true } }).then((s) => s?.debuffUntil ?? null);
-  const mission = await getOrCreateMission(userId);
-  const goalLabel = GOAL_LABELS[profile.goal as never] ?? 'Treino';
+  // Três leituras independentes, agora em paralelo.
+  const [stats, playerRow, mission] = await Promise.all([
+    getStats(userId),
+    prisma.playerStats.findUnique({ where: { userId }, select: { debuffUntil: true } }),
+    getOrCreateMission(userId),
+  ]);
 
-  if (!mission) {
-    return {
-      onboarded: true as const, goalLabel,
-      level: stats.level, levelTitle: levelTitle(stats.level),
-      streak: stats.streak, debuffed: Boolean(debuffUntil), mission: null,
-    };
-  }
-
-  const blocks = mission.blocks as unknown as Block[];
-  const done = new Set(mission.progress.map((p) => p.blockKey));
-  const doneMinutes = blocks.filter((b) => done.has(b.key)).reduce((s, b) => s + b.minutes, 0);
-
-  return {
+  const base = {
     onboarded: true as const,
-    goalLabel,
+    goalLabel: goalLabel(profile.goal),
     level: stats.level,
     levelTitle: levelTitle(stats.level),
     streak: stats.streak,
-    debuffed: Boolean(debuffUntil),
+    debuffed: Boolean(playerRow?.debuffUntil),
+  };
+  if (!mission) return { ...base, mission: null };
+
+  const blocks = mission.blocks as unknown as Block[];
+  const done = new Set(mission.progress.map((p) => p.blockKey));
+  return {
+    ...base,
     mission: {
       title: mission.title,
       plannedMinutes: mission.plannedMinutes,
       done: done.size,
       total: blocks.length,
-      doneMinutes,
+      doneMinutes: blocks.filter((b) => done.has(b.key)).reduce((sum, b) => sum + b.minutes, 0),
     },
   };
 }
 
+/** Palavras de comando que não identificam exercício ("completei flexão"). */
+const COMMAND_WORDS = new Set([
+  'completei', 'conclui', 'concluido', 'terminei', 'finalizei', 'acabei', 'fiz', 'feito',
+  'marcar', 'marca', 'treino', 'exercicio', 'exercicios', 'hoje',
+]);
+
+/** Plural simples → singular ("flexões" → "flexao", "agachamentos" → "agachamento"). */
+const stem = (word: string) => word.replace(/(oes|aes)$/, 'ao').replace(/s$/, '');
+
+const keywords = (text: string) =>
+  normalize(text)
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 2 && !COMMAND_WORDS.has(w))
+    .map(stem);
+
 /**
  * Marca um bloco pelo NOME do exercício ("completei flexão").
- * Casa por semelhança para tolerar "flexão", "flexao" e "flexões".
+ * Normaliza acento, plural e palavras de comando; pede esclarecimento se o
+ * nome casar com mais de um exercício, em vez de escolher o primeiro.
  */
 export async function completeByName(userId: string, nameWanted: string) {
-  const wanted = normalize(nameWanted).trim();
-  if (!wanted) return { ok: false, message: 'Diga qual exercício você concluiu.' };
+  const wanted = keywords(nameWanted);
+  if (!wanted.length) return { ok: false, message: 'Diga qual exercício você concluiu.' };
 
   const mission = await getOrCreateMission(userId);
   if (!mission) return { ok: false, message: 'Crie seu personagem no módulo Treino antes de concluir exercícios.' };
   if (mission.completedAt) return { ok: false, message: 'O treino de hoje já foi concluído.' };
 
   const blocks = mission.blocks as unknown as Block[];
-  const key = wanted
-    .split(/[\s,]+/)
-    .filter((w) => w.length > 2)
-    .find((w) => blocks.some((b) => normalize(b.name).includes(w)));
+  const scored = blocks
+    .map((block) => {
+      const blockWords = keywords(block.name);
+      const score = wanted.filter((w) => blockWords.some((t) => t.includes(w))).length;
+      return { block, score };
+    })
+    .filter((x) => x.score > 0);
 
-  if (!key) {
+  if (!scored.length) {
     const disponiveis = blocks.map((b) => b.name).join(', ');
     return { ok: false, message: `Não achei "${nameWanted}" no treino de hoje.\nExercícios do dia: ${disponiveis}` };
   }
 
-  const block = blocks.find((b) => normalize(b.name).includes(key))!;
+  const top = Math.max(...scored.map((x) => x.score));
+  const best = scored.filter((x) => x.score === top);
+  if (best.length > 1) {
+    return { ok: false, message: `"${nameWanted}" combina com mais de um exercício: ${best.map((x) => x.block.name).join(', ')}. Diga o nome completo.` };
+  }
+
+  const { block } = best[0];
+  if (mission.progress.some((p) => p.blockKey === block.key)) {
+    return { ok: false, message: `${block.name} já estava anotado.` };
+  }
+
   const result = await completeBlock(userId, mission.id, block.key);
   if (!result.ok) return { ok: false, message: result.error };
 
@@ -413,24 +569,29 @@ export async function completeByName(userId: string, nameWanted: string) {
   };
 }
 
+/* ── Dieta ──────────────────────────────────────────────────────────────── */
+
 /** Números + refeições do dia. Calculado pelo código; a IA só escreve os pratos. */
 export async function dietCall(userId: string, username: string) {
-  const profile = await getProfile(userId);
-  if (!profile) throw new AppError(400, 'Faça o onboarding primeiro');
-
+  const profile = await requireProfile(userId);
   const day = todayKey();
   const n = computeDiet(toDietProfile(profile));
 
-  const saved = await prisma.dietPlan.upsert({
-    where: { userId_day: { userId, day } },
-    create: { userId, day, kcal: n.kcal, proteinG: n.proteinG, carbG: n.carbG, fatG: n.fatG, rationale: { why: n.rationale } },
-    update: { kcal: n.kcal, proteinG: n.proteinG, carbG: n.carbG, fatG: n.fatG, rationale: { why: n.rationale } },
-  });
+  // O cache só vale se as entradas do cardápio não mudaram desde que ele foi gerado.
+  // Sem isso, trocar peso, refeições/dia ou restrições mostrava números novos
+  // com pratos antigos.
+  const inputHash = createHash('sha1')
+    .update(JSON.stringify([n.kcal, n.proteinG, n.carbG, n.fatG, profile.mealsPerDay, profile.dietRestrictions, profile.dietNotes ?? '']))
+    .digest('hex')
+    .slice(0, 16);
 
-  // Cache: o cardápio do dia não muda. Regerar a cada abertura da aba custava
-  // uma chamada de IA (2-5 s) sem nenhum ganho para o usuário.
-  if (saved.meals) {
-    return { numbers: n, meals: saved.meals, aiEnabled: aiEnabled(), cached: true };
+  const existing = await prisma.dietPlan.findUnique({
+    where: { userId_day: { userId, day } },
+    select: { meals: true, rationale: true },
+  });
+  const existingHash = (existing?.rationale as { inputHash?: string } | null)?.inputHash;
+  if (existing?.meals && existingHash === inputHash) {
+    return { numbers: n, meals: existing.meals, aiEnabled: aiEnabled(), cached: true };
   }
 
   const meals = await mealPlan({
@@ -441,13 +602,24 @@ export async function dietCall(userId: string, username: string) {
     dietNotes: profile.dietNotes ?? undefined,
   });
 
-  await prisma.dietPlan.update({ where: { id: saved.id }, data: { meals } });
-  return { numbers: n, meals, aiEnabled: aiEnabled() };
+  // Um único upsert com números + cardápio (antes eram upsert + update).
+  const fields = {
+    kcal: n.kcal, proteinG: n.proteinG, carbG: n.carbG, fatG: n.fatG,
+    rationale: { why: n.rationale, inputHash },
+    meals,
+  };
+  await prisma.dietPlan.upsert({
+    where: { userId_day: { userId, day } },
+    create: { userId, day, ...fields },
+    update: fields,
+  });
+
+  return { numbers: n, meals, aiEnabled: aiEnabled(), cached: false };
 }
 
 /** Detalhe de um exercício: como fazer, músculo, erro comum e tempos do cronômetro. */
 export function exerciseDetailCall(key: string) {
-  const ex = EXERCISES.find((e) => e.key === key);
+  const ex = EXERCISE_BY_KEY.get(key);
   if (!ex) throw new AppError(404, 'Exercício não encontrado');
   return { key: ex.key, name: ex.name, group: ex.group, ...fullDetail(ex) };
 }
@@ -459,17 +631,15 @@ export function exerciseDetailCall(key: string) {
  * bloqueados explicitamente para não sugerir nada proibido.
  */
 export async function reviewCall(userId: string) {
-  const [profile, mission] = await Promise.all([getProfile(userId), getOrCreateMission(userId)]);
-  if (!profile) throw new AppError(400, 'Faça o onboarding primeiro');
+  const [{ profile, rule }, mission] = await Promise.all([loadRuleContext(userId), getOrCreateMission(userId)]);
 
   const blocks = (mission?.blocks ?? []) as unknown as Block[];
-  const rule = toRuleProfile(profile, (await getStats(userId)).level);
-  const blocked = EXERCISES.map((e) => screenOut(e, rule)).filter(Boolean).length;
+  const blockedCount = EXERCISES.filter((e) => screenOut(e, rule) !== null).length;
 
   const review = await reviewTraining({
-    profile: `objetivo ${profile.goal}, ${profile.experience}, ${profile.trainingDays}x/semana, lesões: ${profile.injuries.join(', ') || 'nenhuma'}`,
+    profile: `objetivo ${goalLabel(profile.goal)}, ${profile.experience}, ${profile.trainingDays}x/semana, lesões: ${profile.injuries.join(', ') || 'nenhuma'}`,
     blocks: blocks.map((b) => ({ name: b.name, target: b.target, minutes: b.minutes })),
-    blocked: [`${blocked} exercícios bloqueados por segurança/equipamento`],
+    blocked: [`${blockedCount} exercícios bloqueados por segurança/equipamento`],
   });
 
   return { review, aiEnabled: aiEnabled() };

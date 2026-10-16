@@ -1,11 +1,10 @@
 import type { Exercise } from './exercises';
 
 /**
- * Detalhes de execução, separados do catálogo.
+ * Detalhes adicionais para os exercícios legados.
  *
- * Ficam aqui (e não no array principal) para o catálogo continuar legível: o que
- * define o que — prescrito são `equipment`/`contraindicated`/`minutes`; o texto
- * educativo — detalhe de apresentação.
+ * Os registros do catálogo importado já incluem instruções e tempos; este mapa
+ * completa os exercícios locais que ainda não existem na lista fornecida.
  *
  * `workSeconds`/`restSeconds` alimentam o cronômetro da sequência.
  */
@@ -328,11 +327,17 @@ export const DETAILS: Record<string, Detail> = {
 export function fullDetail(e: Exercise) {
   const d = DETAILS[e.key];
   return {
-    muscles: d?.muscles ?? 'Não mapeado.',
-    howTo: d?.howTo ?? 'Execute com controle e amplitude completa.',
-    commonMistake: d?.commonMistake ?? 'Sem erro comum mapeado para este exercício.',
-    benefits: d?.benefits ?? '',
-    workSeconds: d?.workSeconds ?? 40,
-    restSeconds: d?.restSeconds ?? 45,
+    muscles: e.muscles ?? d?.muscles ?? 'Não mapeado.',
+    howTo: e.howTo ?? d?.howTo ?? 'Execute com controle e amplitude completa.',
+    commonMistake: e.commonMistake ?? d?.commonMistake ?? 'Sem erro comum mapeado para este exercício.',
+    benefits: e.benefits ?? d?.benefits ?? '',
+    workSeconds: e.workSeconds ?? d?.workSeconds ?? 40,
+    restSeconds: e.restSeconds ?? d?.restSeconds ?? 45,
+    progression: e.progression,
+    regression: e.regression,
+    suggestedSets: e.suggestedSets,
+    repsMin: e.repsMin,
+    repsMax: e.repsMax,
+    unit: e.unit,
   };
 }
