@@ -16,6 +16,15 @@ export interface MusicPlaylist {
   trackIds: string[];
 }
 
+export interface NewMusicMetadata {
+  artist: string;
+  album: string;
+  genre: string;
+  mood: string;
+  title?: string;
+  playlistId?: string;
+}
+
 /** Extensões aceitas pelo upload; a decodificação final depende do navegador. */
 export const SUPPORTED_AUDIO_EXTENSIONS = [
   'mp3', 'wav', 'wave', 'ogg', 'oga', 'opus', 'weba', 'webm',

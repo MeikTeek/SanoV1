@@ -13,21 +13,34 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, current, playing, play, addFiles, remove, search } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, remove, search, createPlaylist, deletePlaylist, playPlaylist } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  const [moodFilter, setMoodFilter] = useState<string | null>(null);
+  const [artistFilter, setArtistFilter] = useState('');
+  const [genreFilter, setGenreFilter] = useState('');
+  const [moodFilter, setMoodFilter] = useState('');
+  const [playlistFilter, setPlaylistFilter] = useState('');
   const [artist, setArtist] = useState('');
   const [genre, setGenre] = useState('');
-  const [mood, setMood] = useState('calma');
+  const [mood, setMood] = useState('');
+  const [title, setTitle] = useState('');
+  const [playlistId, setPlaylistId] = useState('');
+  const [newPlaylistName, setNewPlaylistName] = useState('');
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
 
   const found = search(query);
-  const visible = moodFilter ? found.filter((t) => t.mood === moodFilter) : found;
-  const moods = Array.from(new Set(tracks.map((t) => t.mood).filter(Boolean)));
+  const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
+  const genres = Array.from(new Set(tracks.map((t) => t.genre).filter(Boolean))).sort();
+  const moods = Array.from(new Set(tracks.map((t) => t.mood).filter(Boolean))).sort();
+  const visible = found.filter((track) =>
+    (!artistFilter || track.artist === artistFilter) &&
+    (!genreFilter || track.genre === genreFilter) &&
+    (!moodFilter || track.mood === moodFilter) &&
+    (!playlistFilter || playlists.find((playlist) => playlist.id === playlistFilter)?.trackIds.includes(track.id)),
+  );
 
   // Fecha o modal com Esc
   useEffect(() => {
@@ -39,12 +52,16 @@ export default function MusicPage() {
 
   // Se o filtro de clima deixar de existir (ex.: removeu a última música), limpa
   useEffect(() => {
-    if (moodFilter && !moods.includes(moodFilter)) setMoodFilter(null);
+    if (moodFilter && !moods.includes(moodFilter)) setMoodFilter('');
   }, [moodFilter, moods]);
 
   // Único ponto de upload (seletor de arquivos e arrastar e soltar)
   const uploadFiles = async (files: File[]) => {
     if (!files.length || uploading) return;
+    if (!artist.trim() || !genre.trim() || !mood.trim()) {
+      setMessage({ text: 'Preencha autor, gênero e clima antes de adicionar as músicas.', error: true });
+      return;
+    }
     const audio = files.filter(isAudioFile);
     if (!audio.length) {
       setMessage({ text: `Nenhum arquivo de áudio encontrado. Use ${SUPPORTED_AUDIO_EXTENSIONS.map((extension) => extension.toUpperCase()).join(', ')}.`, error: true });
@@ -60,6 +77,8 @@ export default function MusicPage() {
         album: 'Uploads do Sano',
         genre: genre.trim() || 'Geral',
         mood,
+        title,
+        playlistId: playlistId || undefined,
       });
       const added = `${audio.length} ${audio.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
       setMessage({
@@ -68,6 +87,7 @@ export default function MusicPage() {
           : added,
       });
       setUploadOpen(false);
+      setTitle('');
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'Não foi possível adicionar as músicas.', error: true });
     } finally {
@@ -85,6 +105,16 @@ export default function MusicPage() {
   };
   const onDragOver = (event: DragEvent) => { event.preventDefault(); setDragging(true); };
   const onDragLeave = () => setDragging(false);
+  const handleCreatePlaylist = () => {
+    const playlist = createPlaylist(newPlaylistName);
+    if (!playlist) {
+      setMessage({ text: 'Informe um nome de playlist novo.', error: true });
+      return;
+    }
+    setPlaylistId(playlist.id);
+    setNewPlaylistName('');
+    setMessage({ text: `Playlist "${playlist.name}" criada.`, });
+  };
 
   const emptyTitle = tracks.length ? 'Nada encontrado' : 'Sua biblioteca começa aqui';
   const emptyText = tracks.length
@@ -105,7 +135,17 @@ export default function MusicPage() {
           </div>
           <button className="music-library-item active" aria-current="page">♫ Músicas</button>
           <button className="music-library-item" disabled title="Em breve">♡ Músicas curtidas</button>
-          <button className="music-library-item" disabled title="Em breve">▦ Playlists</button>
+          <button className={`music-library-item${playlistFilter === '' ? '' : ' active'}`} onClick={() => setPlaylistFilter('')}>▦ Playlists</button>
+          {playlists.map((playlist) => (
+            <div className="music-playlist-item" key={playlist.id}>
+              <button className={`music-library-item${playlistFilter === playlist.id ? ' active' : ''}`} onClick={() => setPlaylistFilter(playlist.id)} title={`Tocar playlist ${playlist.name}`}>
+                {playlist.name}
+              </button>
+              <button className="music-playlist-play" onClick={() => playPlaylist(playlist)} aria-label={`Tocar playlist ${playlist.name}`}>▶</button>
+              <button className="music-playlist-delete" onClick={() => { deletePlaylist(playlist.id); if (playlistFilter === playlist.id) setPlaylistFilter(''); }} aria-label={`Excluir playlist ${playlist.name}`}>×</button>
+            </div>
+          ))}
+          <button className="music-library-item music-create-playlist" onClick={() => setUploadOpen(true)}>＋ Nova playlist</button>
         </aside>
 
         <main className="music-main-column">
@@ -138,15 +178,28 @@ export default function MusicPage() {
             />
           </div>
 
+          <div className="music-filters" aria-label="Filtros da biblioteca">
+            <select aria-label="Filtrar por autor" value={artistFilter} onChange={(e) => setArtistFilter(e.target.value)}>
+              <option value="">Todos os autores</option>{artists.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <select aria-label="Filtrar por gênero" value={genreFilter} onChange={(e) => setGenreFilter(e.target.value)}>
+              <option value="">Todos os gêneros</option>{genres.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            <select aria-label="Filtrar por clima" value={moodFilter} onChange={(e) => setMoodFilter(e.target.value)}>
+              <option value="">Todos os climas</option>{moods.map((item) => <option key={item}>{item}</option>)}
+            </select>
+            {(artistFilter || genreFilter || moodFilter || playlistFilter) && <button className="ghost" onClick={() => { setArtistFilter(''); setGenreFilter(''); setMoodFilter(''); setPlaylistFilter(''); }}>Limpar filtros</button>}
+          </div>
+
           {moods.length > 1 && (
             <div className="music-chips" role="group" aria-label="Filtrar por clima">
-              <button className={`music-chip${moodFilter === null ? ' active' : ''}`} onClick={() => setMoodFilter(null)}>Todas</button>
+              <button className={`music-chip${moodFilter === '' ? ' active' : ''}`} onClick={() => setMoodFilter('')}>Todas</button>
               {moods.map((m) => (
                 <button
                   key={m}
                   className={`music-chip${moodFilter === m ? ' active' : ''}`}
                   aria-pressed={moodFilter === m}
-                  onClick={() => setMoodFilter(moodFilter === m ? null : m)}
+                  onClick={() => setMoodFilter(moodFilter === m ? '' : m)}
                 >
                   {m}
                 </button>
@@ -182,7 +235,7 @@ export default function MusicPage() {
             })}
             {!visible.length && (
               <div className="music-empty">
-                <h3>{emptyTitle}</h3>
+                <h3>{playlistFilter ? playlists.find((p) => p.id === playlistFilter)?.name || emptyTitle : emptyTitle}</h3>
                 <p>{emptyText}</p>
               </div>
             )}
@@ -211,13 +264,17 @@ export default function MusicPage() {
             </div>
             <p className="muted">Escolha um ou mais arquivos e complete os detalhes para encontrá-los depois.</p>
             <div className="music-upload-fields">
-              <label>Artista <input autoFocus value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ex.: Liniker" /></label>
-              <label>Gênero <input value={genre} onChange={(e) => setGenre(e.target.value)} placeholder="Ex.: Indie pop" /></label>
-              <label>Clima
+              <label>Autor * <input list="music-artists" autoFocus required value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ex.: Liniker" /></label>
+              <datalist id="music-artists">{artists.map((item) => <option key={item} value={item} />)}</datalist>
+              <label>Gênero * <input required value={genre} onChange={(e) => setGenre(e.target.value)} placeholder="Ex.: Indie pop" /></label>
+              <label>Clima *
                 <select value={mood} onChange={(e) => setMood(e.target.value)}>
-                  <option>calma</option><option>agressiva</option><option>foco</option><option>feliz</option><option>melancólica</option>
+                  <option value="">Selecione</option><option>calma</option><option>agressiva</option><option>foco</option><option>feliz</option><option>melancólica</option>
                 </select>
               </label>
+              <label>Nome da música <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Usar nome do arquivo" /></label>
+              <label>Playlist <select value={playlistId} onChange={(e) => setPlaylistId(e.target.value)}><option value="">Sem playlist</option>{playlists.map((playlist) => <option key={playlist.id} value={playlist.id}>{playlist.name}</option>)}</select></label>
+              <label>Nova playlist <div className="music-inline-field"><input value={newPlaylistName} onChange={(e) => setNewPlaylistName(e.target.value)} placeholder="Opcional" /><button type="button" className="ghost" onClick={handleCreatePlaylist}>Criar</button></div></label>
             </div>
             <div
               className={`music-dropzone${dragging ? ' dragover' : ''}`}
