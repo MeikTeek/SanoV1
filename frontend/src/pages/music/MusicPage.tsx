@@ -45,6 +45,7 @@ export default function MusicPage() {
   const [selectedTrackIds, setSelectedTrackIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareMode, setShareMode] = useState<'choose' | 'send' | 'receive'>('choose');
   const [shareCode, setShareCode] = useState('');
   const [claimCode, setClaimCode] = useState('');
   const [sharing, setSharing] = useState(false);
@@ -216,8 +217,10 @@ export default function MusicPage() {
   };
 
   const openShare = () => {
-    setSelectionMode(true);
     setShareOpen(true);
+    setShareMode('choose');
+    setSelectionMode(false);
+    setSelectedTrackIds([]);
     setShareCode('');
     setMessage(null);
   };
@@ -225,9 +228,15 @@ export default function MusicPage() {
   const closeShare = () => {
     if (sharing) return;
     setShareOpen(false);
+    setShareMode('choose');
     setSelectionMode(false);
     setSelectedTrackIds([]);
     setShareCode('');
+  };
+
+  const openSendShare = () => {
+    setShareMode('send');
+    setShareOpen(true);
   };
 
   const claimMusicShare = async () => {
@@ -349,7 +358,7 @@ export default function MusicPage() {
             <h3>Suas músicas</h3>
             <div className="music-share-actions">
               <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
-              <button className="ghost" onClick={selectionMode ? closeShare : openShare}>{selectionMode ? 'Cancelar seleção' : 'Compartilhar lista'}</button>
+              <button className="ghost" onClick={selectionMode ? openSendShare : openShare}>{selectionMode ? `Gerar código (${selectedTrackIds.length})` : 'Compartilhar lista'}</button>
             </div>
           </div>
 
@@ -455,28 +464,47 @@ export default function MusicPage() {
               </div>
             )}
 
-            {shareOpen && (
-              <div className="music-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeShare(); }}>
-                <section className="music-modal music-share-modal" role="dialog" aria-modal="true" aria-labelledby="music-share-title">
-                  <div className="music-modal-head">
-                    <h2 id="music-share-title">Compartilhar músicas</h2>
-                    <button className="track-remove" style={{ opacity: 1 }} onClick={closeShare} aria-label="Fechar">×</button>
-                  </div>
-                  <p className="muted">Selecione músicas na biblioteca, gere um código e envie-o para outro usuário. O código expira em 24 horas e só pode ser usado uma vez.</p>
-                  <button className="music-confirm-upload" onClick={() => void createMusicShare()} disabled={!selectedTrackIds.length || sharing}>
-                    {sharing ? 'Preparando pacote…' : `Gerar código (${selectedTrackIds.length} selecionada(s))`}
-                  </button>
-                  {message && <p className={`music-message share-message${message.error ? ' error' : ''}`} role="status">{message.text}</p>}
-                  {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong></div>}
-                  <div className="music-share-divider"><span>ou resgatar um código</span></div>
-                  <label>Código recebido
-                    <input value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="Ex.: A1B2C3D4E5" maxLength={10} />
-                  </label>
-                  <button className="primary" onClick={() => void claimMusicShare()} disabled={!claimCode.trim() || sharing}>Baixar e importar pacote</button>
-                </section>
-              </div>
-            )}
             {editingTrack && <button type="button" className="music-confirm-upload" onClick={saveEdit}>Salvar alterações</button>}
+          </section>
+        </div>
+      )}
+
+      {shareOpen && (
+        <div className="music-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) closeShare(); }}>
+          <section className="music-modal music-share-modal" role="dialog" aria-modal="true" aria-labelledby="music-share-title">
+            <div className="music-modal-head">
+              <h2 id="music-share-title">Compartilhar músicas</h2>
+              <button className="track-remove" style={{ opacity: 1 }} onClick={closeShare} aria-label="Fechar">×</button>
+            </div>
+            {shareMode === 'choose' && (
+              <>
+                <p className="muted">Escolha o que deseja fazer com as músicas.</p>
+                <div className="music-share-options">
+                  <button className="primary" onClick={() => { setShareMode('send'); setSelectionMode(true); setShareOpen(false); }}>Enviar músicas</button>
+                  <button className="ghost" onClick={() => { setShareMode('receive'); setSelectionMode(false); }}>Receber músicas</button>
+                </div>
+              </>
+            )}
+            {shareMode === 'send' && (
+              <>
+                <p className="muted">Marque as músicas na lista e volte aqui para gerar um código. O código expira em 24 horas e só pode ser usado uma vez.</p>
+                <button className="music-confirm-upload" onClick={() => void createMusicShare()} disabled={!selectedTrackIds.length || sharing}>
+                  {sharing ? 'Preparando pacote…' : `Gerar código (${selectedTrackIds.length} selecionada(s))`}
+                </button>
+                {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong></div>}
+                <button className="ghost share-back-button" onClick={() => { setShareMode('choose'); setSelectionMode(false); setSelectedTrackIds([]); }}>Voltar</button>
+              </>
+            )}
+            {shareMode === 'receive' && (
+              <>
+                <p className="muted">Digite o código recebido. O pacote será baixado e as músicas serão importadas para sua biblioteca.</p>
+                <label>Código recebido
+                  <input autoFocus value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="Ex.: A1B2C3D4E5" maxLength={10} />
+                </label>
+                <button className="primary" onClick={() => void claimMusicShare()} disabled={!claimCode.trim() || sharing}>{sharing ? 'Baixando pacote…' : 'Baixar e importar pacote'}</button>
+                <button className="ghost share-back-button" onClick={() => setShareMode('choose')}>Voltar</button>
+              </>
+            )}
           </section>
         </div>
       )}
