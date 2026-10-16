@@ -16,7 +16,7 @@ export default function MusicPlayer() {
           <button className="player-main" onClick={toggle} aria-label={playing ? 'Pausar' : 'Tocar'}>{playing ? <IconPause /> : <IconPlay />}</button>
           <button className="player-btn" onClick={next} aria-label="Próxima"><IconBack size={20} /></button>
         </div>
-        <input aria-label="Progresso da música" type="range" min="0" max={duration || 1} value={Math.min(progress, duration || 1)} onChange={(e) => setProgress(Number(e.target.value))} />
+        <input aria-label="Progresso da música" type="range" min="0" max={duration > 0 ? duration : 1} step="0.1" value={Math.min(progress, duration > 0 ? duration : 1)} disabled={!duration} onChange={(e) => setProgress(Number(e.target.value))} />
       </div>
       <label className="music-volume">Volume <input aria-label="Volume" type="range" min="0" max="1" step="0.01" value={volume} onChange={(e) => setVolume(Number(e.target.value))} /></label>
     </div>

@@ -74,6 +74,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<MusicTrack[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
+  const queueRef = useRef<MusicTrack[]>([]);
+  const requestRef = useRef(0);
+
+  useEffect(() => { queueRef.current = queue; }, [queue]);
 
   useEffect(() => () => {
     audioRef.current?.pause();
@@ -81,28 +85,54 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const loadTrack = useCallback(async (track: MusicTrack) => {
+    const requestId = ++requestRef.current;
     const blob = await readAudio(track.id);
     if (!blob) throw new Error('O arquivo desta música não está disponível neste dispositivo.');
+    if (requestId !== requestRef.current) return;
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     urlRef.current = URL.createObjectURL(blob);
     const audio = audioRef.current || new Audio();
     audioRef.current = audio;
+    audio.pause();
     audio.src = urlRef.current;
     audio.volume = volume;
-    audio.onended = () => setQueue((items) => {
-      const [next, ...rest] = items;
-      if (next) void loadTrack(next).then(() => { setCurrent(next); setPlaying(true); }).catch(() => setPlaying(false));
-      else setPlaying(false);
-      return rest;
-    });
+    audio.load();
+    audio.onended = () => {
+      const [nextTrack, ...rest] = queueRef.current;
+      queueRef.current = rest;
+      setQueue(rest);
+      if (!nextTrack) { setPlaying(false); return; }
+      setCurrent(nextTrack);
+      void loadTrack(nextTrack).catch(() => setPlaying(false));
+    };
     audio.ontimeupdate = () => setProgressState(audio.currentTime);
-    audio.onloadedmetadata = () => { setProgressState(0); setDuration(audio.duration || 0); };
+    audio.onloadedmetadata = () => {
+      setProgressState(0);
+      setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+    audio.onerror = () => setPlaying(false);
+    await new Promise<void>((resolve, reject) => {
+      if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) { resolve(); return; }
+      const onReady = () => { cleanup(); resolve(); };
+      const onError = () => { cleanup(); reject(new Error('O navegador não conseguiu decodificar este arquivo de áudio.')); };
+      const cleanup = () => {
+        audio.removeEventListener('canplay', onReady);
+        audio.removeEventListener('error', onError);
+      };
+      audio.addEventListener('canplay', onReady, { once: true });
+      audio.addEventListener('error', onError, { once: true });
+    });
+    if (requestId !== requestRef.current) return;
     await audio.play();
   }, [volume]);
 
   const play = useCallback((track: MusicTrack, nextQueue: MusicTrack[] = []) => {
     setCurrent(track);
-    setQueue(nextQueue.filter((item) => item.id !== track.id));
+    const cleanQueue = nextQueue.filter((item) => item.id !== track.id);
+    queueRef.current = cleanQueue;
+    setQueue(cleanQueue);
+    setProgressState(0);
+    setDuration(0);
     setPlaying(true);
     void loadTrack(track).catch(() => setPlaying(false));
   }, [loadTrack]);
@@ -110,16 +140,20 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const toggle = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
-    if (playing) { audio.pause(); setPlaying(false); } else { void audio.play(); setPlaying(true); }
+    if (playing) { audio.pause(); setPlaying(false); }
+    else { void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
   }, [current, playing]);
 
   const next = useCallback(() => {
-    const [track, ...rest] = queue;
+    const [track, ...rest] = queueRef.current;
     if (!track) { setPlaying(false); return; }
+    queueRef.current = rest;
     setQueue(rest);
     setCurrent(track);
+    setProgressState(0);
+    setDuration(0);
     void loadTrack(track).catch(() => setPlaying(false));
-  }, [loadTrack, queue]);
+  }, [loadTrack]);
 
   const previous = useCallback(() => {
     if (audioRef.current && audioRef.current.currentTime > 3) {
@@ -140,7 +174,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const addFiles = useCallback(async (files: File[], metadata: Omit<MusicTrack, 'id' | 'title' | 'duration' | 'fileName' | 'createdAt'>) => {
     const added: MusicTrack[] = [];
     for (const file of files) {
-      if (!file.type.startsWith('audio/')) throw new Error(`${file.name} não é um arquivo de áudio válido.`);
+      const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|oga|m4a|aac|flac|webm)$/i.test(file.name);
+      if (!isAudio) throw new Error(`${file.name} não é um arquivo de áudio válido.`);
       const id = crypto.randomUUID();
       const track: MusicTrack = {
         ...metadata,
@@ -161,8 +196,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const setProgress = useCallback((value: number) => {
-    setProgressState(value);
-    if (audioRef.current) audioRef.current.currentTime = value;
+    const audio = audioRef.current;
+    if (!audio || !Number.isFinite(value)) return;
+    audio.currentTime = Math.max(0, Math.min(value, Number.isFinite(audio.duration) ? audio.duration : value));
+    setProgressState(audio.currentTime);
   }, []);
   const setVolume = useCallback((value: number) => {
     setVolumeState(value);
