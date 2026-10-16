@@ -29,7 +29,7 @@ function IconVolume({ level }: { level: 'mute' | 'low' | 'high' }) {
 }
 
 export default function MusicPlayer() {
-  const { current, playing, progress, duration, volume, toggle, next, previous, setProgress, setVolume } = useMusic();
+  const { current, playing, progress, duration, volume, error, toggle, next, previous, setProgress, setVolume } = useMusic();
   const lastVolume = useRef(0.7);
 
   if (!current) return null;
@@ -60,6 +60,7 @@ export default function MusicPlayer() {
           <span>{current.artist || 'Artista desconhecido'}</span>
         </div>
       </div>
+      {error && <button type="button" className="music-player-error" onClick={toggle} title="Tentar novamente">{error}</button>}
 
       <div className="music-controls">
         <div className="music-buttons">

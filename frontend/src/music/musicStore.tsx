@@ -9,6 +9,7 @@ interface MusicState {
   duration: number;
   volume: number;
   queue: MusicTrack[];
+  error: string | null;
   play: (track: MusicTrack, nextQueue?: MusicTrack[]) => void;
   toggle: () => void;
   next: () => void;
@@ -24,6 +25,18 @@ const Ctx = createContext<MusicState>(null!);
 const META_KEY = 'sano:music:tracks:v1';
 const DB_NAME = 'sano-music';
 const STORE_NAME = 'audio';
+
+const MIME_BY_EXT: Record<string, string> = {
+  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg',
+  m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', opus: 'audio/ogg', weba: 'audio/webm',
+};
+
+// Alguns navegadores devolvem o arquivo do IndexedDB sem o tipo; refazemos pela extensão.
+const withMime = (blob: Blob, fileName: string) => {
+  if (blob.type) return blob;
+  const type = MIME_BY_EXT[fileName.split('.').pop()?.toLowerCase() || ''];
+  return type ? new Blob([blob], { type }) : blob;
+};
 
 const openDb = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open(DB_NAME, 1);
@@ -72,59 +85,97 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(0.8);
   const [queue, setQueue] = useState<MusicTrack[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const urlRef = useRef<string | null>(null);
   const queueRef = useRef<MusicTrack[]>([]);
   const requestRef = useRef(0);
+  const volumeRef = useRef(0.8);
+  const loadedIdRef = useRef<string | null>(null); // id da música cujo arquivo está no <audio>
+  const nextRef = useRef<() => void>(() => {});
+  const audioCacheRef = useRef(new Map<string, Blob>());
 
   useEffect(() => { queueRef.current = queue; }, [queue]);
+
+  useEffect(() => {
+    let cancelled = false;
+    tracks.forEach((track) => {
+      if (audioCacheRef.current.has(track.id)) return;
+      void readAudio(track.id).then((blob) => {
+        if (!cancelled && blob) audioCacheRef.current.set(track.id, blob);
+      }).catch((err) => console.warn('[música] não foi possível pré-carregar o arquivo:', err));
+    });
+    return () => { cancelled = true; };
+  }, [tracks]);
 
   useEffect(() => () => {
     audioRef.current?.pause();
     if (urlRef.current) URL.revokeObjectURL(urlRef.current);
   }, []);
 
-  const loadTrack = useCallback(async (track: MusicTrack) => {
-    const requestId = ++requestRef.current;
-    const blob = await readAudio(track.id);
-    if (!blob) throw new Error('O arquivo desta música não está disponível neste dispositivo.');
-    if (requestId !== requestRef.current) return;
-    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-    urlRef.current = URL.createObjectURL(blob);
-    const audio = audioRef.current || new Audio();
-    audioRef.current = audio;
-    audio.pause();
-    audio.src = urlRef.current;
-    audio.volume = volume;
-    audio.load();
-    audio.onended = () => {
-      const [nextTrack, ...rest] = queueRef.current;
-      queueRef.current = rest;
-      setQueue(rest);
-      if (!nextTrack) { setPlaying(false); return; }
-      setCurrent(nextTrack);
-      void loadTrack(nextTrack).catch(() => setPlaying(false));
-    };
-    audio.ontimeupdate = () => setProgressState(audio.currentTime);
-    audio.onloadedmetadata = () => {
+  // Cria o <audio> uma única vez e liga o estado do React aos eventos reais dele.
+  const getAudio = useCallback(() => {
+    if (audioRef.current) return audioRef.current;
+    const audio = new Audio();
+    audio.preload = 'auto';
+    audio.addEventListener('play', () => setPlaying(true));
+    audio.addEventListener('pause', () => setPlaying(false));
+    audio.addEventListener('timeupdate', () => setProgressState(audio.currentTime));
+    audio.addEventListener('loadedmetadata', () => {
       setProgressState(0);
       setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
-    };
-    audio.onerror = () => setPlaying(false);
-    await new Promise<void>((resolve, reject) => {
-      if (audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) { resolve(); return; }
-      const onReady = () => { cleanup(); resolve(); };
-      const onError = () => { cleanup(); reject(new Error('O navegador não conseguiu decodificar este arquivo de áudio.')); };
-      const cleanup = () => {
-        audio.removeEventListener('canplay', onReady);
-        audio.removeEventListener('error', onError);
-      };
-      audio.addEventListener('canplay', onReady, { once: true });
-      audio.addEventListener('error', onError, { once: true });
     });
-    if (requestId !== requestRef.current) return;
-    await audio.play();
-  }, [volume]);
+    audio.addEventListener('ended', () => nextRef.current());
+    audio.addEventListener('error', () => {
+      console.error('[música] erro no elemento de áudio:', audio.error);
+      setPlaying(false);
+      setError('O navegador não conseguiu tocar este arquivo de áudio.');
+    });
+    audioRef.current = audio;
+    return audio;
+  }, []);
+
+  const reportError = useCallback((err: unknown) => {
+    console.error('[música]', err);
+    setPlaying(false);
+    const name = err instanceof DOMException ? err.name : '';
+    if (name === 'NotAllowedError') setError('O navegador bloqueou o início automático. Clique em play para tocar.');
+    else if (name === 'NotSupportedError') setError('O navegador não consegue tocar o formato deste arquivo.');
+    else setError(err instanceof Error ? err.message : 'Não foi possível tocar esta música.');
+  }, []);
+
+  const loadTrack = useCallback(async (track: MusicTrack) => {
+    const requestId = ++requestRef.current;
+    setError(null);
+    try {
+      // Quando o blob já está em memória, não há uma tarefa IndexedDB entre o
+      // clique e play(); isso preserva a autorização de reprodução do navegador.
+      let stored = audioCacheRef.current.get(track.id);
+      if (!stored) {
+        stored = await readAudio(track.id);
+        if (stored) audioCacheRef.current.set(track.id, stored);
+      }
+      if (requestId !== requestRef.current) return;
+      const audio = getAudio();
+      if (!stored) {
+        audio.pause();
+        loadedIdRef.current = null;
+        throw new Error('O arquivo desta música não está disponível neste navegador. Remova e adicione de novo.');
+      }
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      urlRef.current = URL.createObjectURL(withMime(stored, track.fileName));
+      loadedIdRef.current = track.id;
+      audio.src = urlRef.current;
+      audio.volume = volumeRef.current;
+      audio.load();
+      await audio.play();
+    } catch (err) {
+      if (requestId !== requestRef.current) return; // foi substituída por outra música
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      reportError(err);
+    }
+  }, [getAudio, reportError]);
 
   const play = useCallback((track: MusicTrack, nextQueue: MusicTrack[] = []) => {
     setCurrent(track);
@@ -134,26 +185,38 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setProgressState(0);
     setDuration(0);
     setPlaying(true);
-    void loadTrack(track).catch(() => setPlaying(false));
+    void loadTrack(track);
   }, [loadTrack]);
 
   const toggle = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
-    if (playing) { audio.pause(); setPlaying(false); }
-    else { void audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false)); }
-  }, [current, playing]);
+    if (!audio.paused) { audio.pause(); return; }
+    // Arquivo desta música ainda não está carregado (falha anterior): carrega de novo
+    if (loadedIdRef.current !== current.id) { setPlaying(true); void loadTrack(current); return; }
+    // Chamado direto do clique, então o navegador libera o play
+    audio.play().catch(reportError);
+  }, [current, loadTrack, reportError]);
 
   const next = useCallback(() => {
     const [track, ...rest] = queueRef.current;
-    if (!track) { setPlaying(false); return; }
+    if (!track) {
+      const audio = audioRef.current;
+      if (audio) { audio.pause(); audio.currentTime = 0; }
+      setPlaying(false);
+      setProgressState(0);
+      return;
+    }
     queueRef.current = rest;
     setQueue(rest);
     setCurrent(track);
     setProgressState(0);
     setDuration(0);
-    void loadTrack(track).catch(() => setPlaying(false));
+    setPlaying(true);
+    void loadTrack(track);
   }, [loadTrack]);
+
+  useEffect(() => { nextRef.current = next; }, [next]);
 
   const previous = useCallback(() => {
     if (audioRef.current && audioRef.current.currentTime > 3) {
@@ -185,6 +248,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       await saveAudio(id, file);
+      audioCacheRef.current.set(id, file);
       added.push(track);
     }
     setTracks((items) => {
@@ -200,16 +264,22 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     audio.currentTime = Math.max(0, Math.min(value, Number.isFinite(audio.duration) ? audio.duration : value));
     setProgressState(audio.currentTime);
   }, []);
+
   const setVolume = useCallback((value: number) => {
+    volumeRef.current = value;
     setVolumeState(value);
     if (audioRef.current) audioRef.current.volume = value;
   }, []);
+
   const search = useCallback((term: string) => {
     const query = term.trim().toLocaleLowerCase();
     return query ? tracks.filter((track) => `${track.title} ${track.artist} ${track.album}`.toLocaleLowerCase().includes(query)) : tracks;
   }, [tracks]);
 
-  const value = useMemo(() => ({ tracks, current, playing, progress, duration, volume, queue, play, toggle, next, previous, remove, addFiles, setProgress, setVolume, search }), [tracks, current, playing, progress, duration, volume, queue, play, toggle, next, previous, remove, addFiles, setProgress, setVolume, search]);
+  const value = useMemo(
+    () => ({ tracks, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, addFiles, setProgress, setVolume, search }),
+    [tracks, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, addFiles, setProgress, setVolume, search],
+  );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

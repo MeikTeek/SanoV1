@@ -434,6 +434,8 @@ td.actions { display: flex; gap: 6px; }
 }
 .music-now, .music-controls, .music-buttons, .music-section-head, .music-search, .track-row { display: flex; align-items: center; }
 .music-now { gap: 14px; min-width: 0; }
+.music-player-error { max-width: 240px; padding: 4px 8px; background: transparent; color: var(--bad); font-size: .72rem; font-weight: 500; text-align: left; }
+.music-player-error:hover { color: var(--sp-text); filter: none; }
 .music-now strong, .music-now span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .music-now strong { font-size: .875rem; font-weight: 500; color: var(--sp-text); }
 .music-now span, .track-info span { color: var(--sp-sub); font-size: .75rem; }
