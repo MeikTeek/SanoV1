@@ -1,0 +1,1638 @@
+[
+ {
+  "id": 1,
+  "nome": "Flexão de braço",
+  "categoria": "calistenia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros",
+   "triceps"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.64,
+  "instrucao": "Mãos na largura dos ombros, corpo alinhado, desça o peito até perto do chão e empurre.",
+  "progressao": "Flexão com pés elevados",
+  "regressao": "Flexão inclinada"
+ },
+ {
+  "id": 2,
+  "nome": "Flexão inclinada (mãos elevadas)",
+  "categoria": "calistenia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros",
+   "triceps"
+  ],
+  "equipamento": [
+   "banco_ou_cadeira"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.5,
+  "fator_peso_corporal": 0.41,
+  "instrucao": "Mãos apoiadas em banco ou mesa firme, corpo reto, desça o peito até o apoio.",
+  "progressao": "Flexão de braço",
+  "regressao": "Flexão na parede"
+ },
+ {
+  "id": 3,
+  "nome": "Flexão com pés elevados",
+  "categoria": "calistenia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros",
+   "triceps"
+  ],
+  "equipamento": [
+   "banco_ou_cadeira"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.7,
+  "instrucao": "Pés em um banco, mãos no chão, desça controlando e foque na parte superior do peito.",
+  "progressao": "Flexão com pausa de 2 s embaixo",
+  "regressao": "Flexão de braço"
+ },
+ {
+  "id": 4,
+  "nome": "Supino reto com barra",
+  "categoria": "academia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros",
+   "triceps"
+  ],
+  "equipamento": [
+   "barra",
+   "banco_supino"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 6,
+  "reps_max": 10,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Escápulas fixas no banco, desça a barra até o peito e empurre sem tirar o quadril.",
+  "progressao": "Aumentar carga 2,5 a 5%",
+  "regressao": "Supino com halteres"
+ },
+ {
+  "id": 5,
+  "nome": "Supino inclinado com halteres",
+  "categoria": "academia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros",
+   "triceps"
+  ],
+  "equipamento": [
+   "halteres",
+   "banco_supino"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Banco a 30-45 graus, desça os halteres até a altura do peito e suba juntando sem bater.",
+  "progressao": "Aumentar carga",
+  "regressao": "Flexão inclinada"
+ },
+ {
+  "id": 6,
+  "nome": "Crucifixo na máquina (peck deck)",
+  "categoria": "academia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros"
+  ],
+  "equipamento": [
+   "maquina"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Cotovelos levemente flexionados, junte os braços à frente do peito e volte devagar.",
+  "progressao": "Crossover na polia",
+  "regressao": "Flexão de braço"
+ },
+ {
+  "id": 7,
+  "nome": "Crossover na polia",
+  "categoria": "academia",
+  "grupo_principal": "peito",
+  "grupos_secundarios": [
+   "ombros"
+  ],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Em pé com leve inclinação, traga as mãos da altura do ombro até cruzar na frente do peito.",
+  "progressao": "Aumentar carga",
+  "regressao": "Crucifixo na máquina (peck deck)"
+ },
+ {
+  "id": 8,
+  "nome": "Barra fixa pronada",
+  "categoria": "calistenia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps",
+   "ombros"
+  ],
+  "equipamento": [
+   "barra_fixa"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 4,
+  "reps_max": 10,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 1.0,
+  "instrucao": "Pegada pronada um pouco além dos ombros, puxe o peito em direção à barra e desça controlando.",
+  "progressao": "Barra fixa com peso extra",
+  "regressao": "Remada invertida"
+ },
+ {
+  "id": 9,
+  "nome": "Remada invertida",
+  "categoria": "calistenia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps",
+   "ombros"
+  ],
+  "equipamento": [
+   "barra_baixa_ou_mesa"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.6,
+  "instrucao": "Deitado sob barra baixa ou mesa firme, corpo reto, puxe o peito até o apoio.",
+  "progressao": "Barra fixa pronada",
+  "regressao": "Remada invertida com joelhos flexionados"
+ },
+ {
+  "id": 10,
+  "nome": "Superman",
+  "categoria": "calistenia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "posterior",
+   "lombar"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isometrico",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 20,
+  "reps_max": 40,
+  "unidade": "segundos",
+  "descanso_s": 45,
+  "met": 3.0,
+  "fator_peso_corporal": 0.3,
+  "instrucao": "De bruços, eleve braços e pernas juntos, segure 2 s e desça devagar.",
+  "progressao": "Superman com pausa de 5 s",
+  "regressao": "Elevar só os braços"
+ },
+ {
+  "id": 11,
+  "nome": "Remada com elástico",
+  "categoria": "calistenia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps",
+   "ombros"
+  ],
+  "equipamento": [
+   "elastico"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Sentado, elástico nos pés, puxe os cotovelos para trás juntando as escápulas.",
+  "progressao": "Elástico mais forte",
+  "regressao": "Menos tensão no elástico"
+ },
+ {
+  "id": 12,
+  "nome": "Elevação Y em prono",
+  "categoria": "calistenia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "costas",
+   "trapezio"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": 0.1,
+  "instrucao": "De bruços, braços em Y, eleve os braços com polegares para cima sem tirar o tronco do chão.",
+  "progressao": "Segurar garrafas pequenas",
+  "regressao": "Elevar com braços na altura do ombro"
+ },
+ {
+  "id": 13,
+  "nome": "Puxada frontal",
+  "categoria": "academia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps"
+  ],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Puxe a barra até a altura do queixo com tronco levemente inclinado, sem balançar.",
+  "progressao": "Barra fixa pronada",
+  "regressao": "Remada com elástico"
+ },
+ {
+  "id": 14,
+  "nome": "Remada curvada com barra",
+  "categoria": "academia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps",
+   "posterior"
+  ],
+  "equipamento": [
+   "barra"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 6,
+  "reps_max": 10,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Tronco inclinado, coluna neutra, puxe a barra em direção ao abdômen.",
+  "progressao": "Aumentar carga",
+  "regressao": "Remada unilateral com haltere"
+ },
+ {
+  "id": 15,
+  "nome": "Remada baixa na polia",
+  "categoria": "academia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps"
+  ],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Sentado, tronco firme, puxe o triângulo ao abdômen juntando as escápulas.",
+  "progressao": "Aumentar carga",
+  "regressao": "Remada com elástico"
+ },
+ {
+  "id": 16,
+  "nome": "Remada unilateral com haltere",
+  "categoria": "academia",
+  "grupo_principal": "costas",
+  "grupos_secundarios": [
+   "biceps"
+  ],
+  "equipamento": [
+   "halteres",
+   "banco_supino"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Apoie uma mão e joelho no banco, puxe o haltere ao quadril e desça alongando.",
+  "progressao": "Aumentar carga",
+  "regressao": "Remada com elástico"
+ },
+ {
+  "id": 17,
+  "nome": "Flexão pike",
+  "categoria": "calistenia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "triceps",
+   "peito"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 6,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.7,
+  "instrucao": "Quadril alto formando um V, desça a cabeça entre as mãos e empurre.",
+  "progressao": "Pike com pés elevados",
+  "regressao": "Pike com joelhos apoiados"
+ },
+ {
+  "id": 18,
+  "nome": "Parada de mão na parede (isometria)",
+  "categoria": "calistenia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "triceps",
+   "abdomen"
+  ],
+  "equipamento": [
+   "parede"
+  ],
+  "local": "casa",
+  "nivel": "avancado",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isometrico",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 15,
+  "reps_max": 45,
+  "unidade": "segundos",
+  "descanso_s": 45,
+  "met": 4.0,
+  "fator_peso_corporal": 1.0,
+  "instrucao": "De costas ou de frente para a parede, sustente a posição invertida com corpo alinhado.",
+  "progressao": "Flexão de parada de mão",
+  "regressao": "Flexão pike"
+ },
+ {
+  "id": 19,
+  "nome": "Desenvolvimento com halteres",
+  "categoria": "academia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "triceps"
+  ],
+  "equipamento": [
+   "halteres"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Sentado ou em pé, empurre os halteres acima da cabeça sem arquear a lombar.",
+  "progressao": "Aumentar carga",
+  "regressao": "Flexão pike"
+ },
+ {
+  "id": 20,
+  "nome": "Elevação lateral com halteres",
+  "categoria": "academia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "trapezio"
+  ],
+  "equipamento": [
+   "halteres"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Eleve os braços até a altura dos ombros com cotovelos levemente flexionados.",
+  "progressao": "Aumentar carga",
+  "regressao": "Elevação lateral com garrafas"
+ },
+ {
+  "id": 21,
+  "nome": "Face pull na polia",
+  "categoria": "academia",
+  "grupo_principal": "ombros",
+  "grupos_secundarios": [
+   "costas",
+   "trapezio"
+  ],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Puxe a corda em direção ao rosto abrindo os cotovelos para fora.",
+  "progressao": "Aumentar carga",
+  "regressao": "Elevação Y em prono"
+ },
+ {
+  "id": 22,
+  "nome": "Rosca direta com barra",
+  "categoria": "academia",
+  "grupo_principal": "biceps",
+  "grupos_secundarios": [
+   "antebraco"
+  ],
+  "equipamento": [
+   "barra"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Cotovelos junto ao corpo, suba a barra sem balançar o tronco.",
+  "progressao": "Aumentar carga",
+  "regressao": "Rosca martelo com halteres"
+ },
+ {
+  "id": 23,
+  "nome": "Rosca martelo com halteres",
+  "categoria": "academia",
+  "grupo_principal": "biceps",
+  "grupos_secundarios": [
+   "antebraco"
+  ],
+  "equipamento": [
+   "halteres"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Pegada neutra, suba alternando os braços com cotovelos fixos.",
+  "progressao": "Aumentar carga",
+  "regressao": "Rosca com elástico"
+ },
+ {
+  "id": 24,
+  "nome": "Barra supinada (chin-up)",
+  "categoria": "calistenia",
+  "grupo_principal": "biceps",
+  "grupos_secundarios": [
+   "costas"
+  ],
+  "equipamento": [
+   "barra_fixa"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "puxar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 4,
+  "reps_max": 10,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 1.0,
+  "instrucao": "Pegada supinada na largura dos ombros, puxe o queixo acima da barra.",
+  "progressao": "Chin-up com peso extra",
+  "regressao": "Remada invertida supinada"
+ },
+ {
+  "id": 25,
+  "nome": "Rosca com elástico",
+  "categoria": "calistenia",
+  "grupo_principal": "biceps",
+  "grupos_secundarios": [
+   "antebraco"
+  ],
+  "equipamento": [
+   "elastico"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "puxar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Pise no elástico e flexione os cotovelos mantendo-os junto ao corpo.",
+  "progressao": "Elástico mais forte",
+  "regressao": "Menos tensão no elástico"
+ },
+ {
+  "id": 26,
+  "nome": "Mergulho no banco",
+  "categoria": "calistenia",
+  "grupo_principal": "triceps",
+  "grupos_secundarios": [
+   "ombros",
+   "peito"
+  ],
+  "equipamento": [
+   "banco_ou_cadeira"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.5,
+  "instrucao": "Mãos no banco atrás do corpo, desça flexionando os cotovelos até 90 graus.",
+  "progressao": "Mergulho com pés elevados",
+  "regressao": "Mergulho com joelhos flexionados"
+ },
+ {
+  "id": 27,
+  "nome": "Flexão diamante",
+  "categoria": "calistenia",
+  "grupo_principal": "triceps",
+  "grupos_secundarios": [
+   "peito",
+   "ombros"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 6,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.65,
+  "instrucao": "Mãos juntas formando um diamante sob o peito, cotovelos próximos ao corpo.",
+  "progressao": "Flexão diamante com pés elevados",
+  "regressao": "Flexão diamante com joelhos apoiados"
+ },
+ {
+  "id": 28,
+  "nome": "Tríceps na corda",
+  "categoria": "academia",
+  "grupo_principal": "triceps",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Cotovelos fixos ao lado do corpo, estenda abrindo a corda no final.",
+  "progressao": "Aumentar carga",
+  "regressao": "Mergulho no banco"
+ },
+ {
+  "id": 29,
+  "nome": "Tríceps testa com barra W",
+  "categoria": "academia",
+  "grupo_principal": "triceps",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "barra",
+   "banco_supino"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Deitado, flexione só os cotovelos levando a barra à testa e estenda.",
+  "progressao": "Aumentar carga",
+  "regressao": "Tríceps na corda"
+ },
+ {
+  "id": 30,
+  "nome": "Tríceps francês com haltere",
+  "categoria": "academia",
+  "grupo_principal": "triceps",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "halteres"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "empurrar",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Haltere atrás da cabeça com as duas mãos, estenda os cotovelos para cima.",
+  "progressao": "Aumentar carga",
+  "regressao": "Tríceps na corda"
+ },
+ {
+  "id": 31,
+  "nome": "Agachamento livre",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "posterior",
+   "gluteo",
+   "abdomen"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.75,
+  "instrucao": "Pés na largura dos ombros, desça com coluna neutra até as coxas ficarem paralelas ao chão.",
+  "progressao": "Agachamento búlgaro",
+  "regressao": "Agachamento com apoio de cadeira"
+ },
+ {
+  "id": 32,
+  "nome": "Agachamento sumô",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "adutores"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.75,
+  "instrucao": "Pés bem abertos, pontas para fora, desça mantendo joelhos alinhados aos pés.",
+  "progressao": "Sumô com pausa embaixo",
+  "regressao": "Agachamento livre"
+ },
+ {
+  "id": 33,
+  "nome": "Agachamento búlgaro",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "posterior"
+  ],
+  "equipamento": [
+   "banco_ou_cadeira"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.6,
+  "instrucao": "Pé de trás apoiado no banco, desça com o tronco levemente inclinado.",
+  "progressao": "Búlgaro com peso extra",
+  "regressao": "Afundo"
+ },
+ {
+  "id": 34,
+  "nome": "Afundo",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "posterior"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.55,
+  "instrucao": "Dê um passo à frente e desça até o joelho de trás quase tocar o chão.",
+  "progressao": "Agachamento búlgaro",
+  "regressao": "Agachamento livre"
+ },
+ {
+  "id": 35,
+  "nome": "Agachamento com salto",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "panturrilha"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 8.0,
+  "fator_peso_corporal": 0.75,
+  "instrucao": "Agache e salte explosivamente, aterrissando suave com joelhos flexionados.",
+  "progressao": "Salto com pausa embaixo",
+  "regressao": "Agachamento livre"
+ },
+ {
+  "id": 36,
+  "nome": "Agachamento isométrico na parede",
+  "categoria": "calistenia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo"
+  ],
+  "equipamento": [
+   "parede"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isometrico",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 30,
+  "reps_max": 60,
+  "unidade": "segundos",
+  "descanso_s": 45,
+  "met": 3.5,
+  "fator_peso_corporal": 0.75,
+  "instrucao": "Costas na parede, joelhos a 90 graus, sustente a posição.",
+  "progressao": "Aumentar o tempo",
+  "regressao": "Reduzir o ângulo do joelho"
+ },
+ {
+  "id": 37,
+  "nome": "Leg press 45",
+  "categoria": "academia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "posterior"
+  ],
+  "equipamento": [
+   "maquina"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Pés na plataforma na largura dos ombros, desça até 90 graus sem tirar o quadril do banco.",
+  "progressao": "Aumentar carga",
+  "regressao": "Agachamento livre"
+ },
+ {
+  "id": 38,
+  "nome": "Cadeira extensora",
+  "categoria": "academia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "maquina"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Estenda os joelhos até quase travar e desça controlando.",
+  "progressao": "Aumentar carga",
+  "regressao": "Agachamento isométrico na parede"
+ },
+ {
+  "id": 39,
+  "nome": "Agachamento goblet",
+  "categoria": "academia",
+  "grupo_principal": "quadriceps",
+  "grupos_secundarios": [
+   "gluteo",
+   "abdomen"
+  ],
+  "equipamento": [
+   "halteres"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Haltere junto ao peito, desça mantendo o tronco ereto.",
+  "progressao": "Agachamento com barra",
+  "regressao": "Agachamento livre"
+ },
+ {
+  "id": 40,
+  "nome": "Ponte de glúteo",
+  "categoria": "calistenia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.5,
+  "fator_peso_corporal": 0.5,
+  "instrucao": "Deitado, pés no chão, eleve o quadril contraindo os glúteos e segure 1 s.",
+  "progressao": "Ponte unilateral",
+  "regressao": "Reduzir a amplitude"
+ },
+ {
+  "id": 41,
+  "nome": "Ponte de glúteo unilateral",
+  "categoria": "calistenia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.8,
+  "fator_peso_corporal": 0.5,
+  "instrucao": "Uma perna estendida, eleve o quadril com a outra mantendo a pelve nivelada.",
+  "progressao": "Com pés elevados",
+  "regressao": "Ponte de glúteo"
+ },
+ {
+  "id": 42,
+  "nome": "Good morning",
+  "categoria": "calistenia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo",
+   "lombar"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 3.5,
+  "fator_peso_corporal": 0.4,
+  "instrucao": "Mãos na nuca, incline o tronco com quadril para trás e coluna reta.",
+  "progressao": "Good morning com mochila",
+  "regressao": "Reduzir a amplitude"
+ },
+ {
+  "id": 43,
+  "nome": "Coice de glúteo com elástico",
+  "categoria": "calistenia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo"
+  ],
+  "equipamento": [
+   "elastico"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Em quatro apoios, estenda a perna para trás contra a resistência do elástico.",
+  "progressao": "Elástico mais forte",
+  "regressao": "Sem elástico"
+ },
+ {
+  "id": 44,
+  "nome": "Stiff com barra",
+  "categoria": "academia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo",
+   "lombar"
+  ],
+  "equipamento": [
+   "barra"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Joelhos levemente flexionados, leve a barra rente às pernas empurrando o quadril para trás.",
+  "progressao": "Aumentar carga",
+  "regressao": "Good morning"
+ },
+ {
+  "id": 45,
+  "nome": "Mesa flexora",
+  "categoria": "academia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "maquina"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Flexione os joelhos levando os calcanhares aos glúteos e retorne devagar.",
+  "progressao": "Aumentar carga",
+  "regressao": "Ponte de glúteo"
+ },
+ {
+  "id": 46,
+  "nome": "Hip thrust com barra",
+  "categoria": "academia",
+  "grupo_principal": "posterior",
+  "grupos_secundarios": [
+   "gluteo"
+  ],
+  "equipamento": [
+   "barra",
+   "banco_supino"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 12,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 6.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Costas apoiadas no banco, eleve o quadril até o tronco ficar alinhado.",
+  "progressao": "Aumentar carga",
+  "regressao": "Ponte de glúteo unilateral"
+ },
+ {
+  "id": 47,
+  "nome": "Panturrilha em pé no degrau",
+  "categoria": "calistenia",
+  "grupo_principal": "panturrilha",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "degrau"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 15,
+  "reps_max": 25,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": 0.9,
+  "instrucao": "Com a ponta dos pés no degrau, suba o máximo possível e desça alongando.",
+  "progressao": "Panturrilha unilateral",
+  "regressao": "Panturrilha no chão"
+ },
+ {
+  "id": 48,
+  "nome": "Panturrilha unilateral no degrau",
+  "categoria": "calistenia",
+  "grupo_principal": "panturrilha",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "degrau"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": 0.9,
+  "instrucao": "Mesmo movimento em apenas um pé, com apoio leve na parede se precisar.",
+  "progressao": "Com peso extra",
+  "regressao": "Panturrilha em pé no degrau"
+ },
+ {
+  "id": 49,
+  "nome": "Panturrilha sentado na máquina",
+  "categoria": "academia",
+  "grupo_principal": "panturrilha",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "maquina"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "pernas",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 12,
+  "reps_max": 20,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Joelhos a 90 graus, suba na ponta dos pés e desça com alongamento total.",
+  "progressao": "Aumentar carga",
+  "regressao": "Panturrilha em pé no degrau"
+ },
+ {
+  "id": 50,
+  "nome": "Prancha",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [
+   "ombros",
+   "gluteo"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "isometrico",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 30,
+  "reps_max": 60,
+  "unidade": "segundos",
+  "descanso_s": 45,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Apoio nos antebraços, corpo reto da cabeça aos calcanhares, abdômen contraído.",
+  "progressao": "Prancha com elevação de braço",
+  "regressao": "Prancha com joelhos apoiados"
+ },
+ {
+  "id": 51,
+  "nome": "Prancha lateral",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [
+   "obliquos",
+   "ombros"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "isometrico",
+  "unilateral": true,
+  "series_sugeridas": 3,
+  "reps_min": 20,
+  "reps_max": 45,
+  "unidade": "segundos",
+  "descanso_s": 45,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "De lado, apoio no antebraço, quadril elevado e alinhado ao tronco.",
+  "progressao": "Com elevação de perna",
+  "regressao": "Prancha lateral com joelho apoiado"
+ },
+ {
+  "id": 52,
+  "nome": "Abdominal crunch",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 15,
+  "reps_max": 25,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Deitado, eleve só os ombros do chão contraindo o abdômen, sem puxar o pescoço.",
+  "progressao": "Crunch com pausa",
+  "regressao": "Crunch parcial"
+ },
+ {
+  "id": 53,
+  "nome": "Elevação de pernas deitado",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [
+   "flexores_quadril"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "core",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Lombar colada no chão, eleve as pernas retas até 90 graus e desça devagar.",
+  "progressao": "Elevação na barra fixa",
+  "regressao": "Elevação com joelhos flexionados"
+ },
+ {
+  "id": 54,
+  "nome": "Mountain climber",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [
+   "ombros",
+   "quadriceps"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 20,
+  "reps_max": 40,
+  "unidade": "segundos",
+  "descanso_s": 90,
+  "met": 8.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Em posição de prancha alta, alterne os joelhos em direção ao peito rapidamente.",
+  "progressao": "Aumentar o ritmo",
+  "regressao": "Ritmo lento"
+ },
+ {
+  "id": 55,
+  "nome": "Bicicleta no ar",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [
+   "obliquos"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 20,
+  "reps_max": 30,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Deitado, leve o cotovelo ao joelho oposto alternando em pedalada.",
+  "progressao": "Mais lento e com pausa",
+  "regressao": "Crunch simples"
+ },
+ {
+  "id": 56,
+  "nome": "Dead bug",
+  "categoria": "calistenia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "core",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 16,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Deitado, braços e pernas para cima, estenda braço e perna opostos mantendo a lombar no chão.",
+  "progressao": "Com peso leve",
+  "regressao": "Mover só as pernas"
+ },
+ {
+  "id": 57,
+  "nome": "Abdominal na polia (crunch)",
+  "categoria": "academia",
+  "grupo_principal": "abdomen",
+  "grupos_secundarios": [],
+  "equipamento": [
+   "polia"
+  ],
+  "local": "academia",
+  "nivel": "intermediario",
+  "tipo_movimento": "core",
+  "mecanica": "isolado",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 10,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 60,
+  "met": 3.5,
+  "fator_peso_corporal": null,
+  "instrucao": "Ajoelhado, flexione o tronco levando a corda em direção ao chão.",
+  "progressao": "Aumentar carga",
+  "regressao": "Abdominal crunch"
+ },
+ {
+  "id": 58,
+  "nome": "Burpee",
+  "categoria": "calistenia",
+  "grupo_principal": "corpo_inteiro",
+  "grupos_secundarios": [
+   "peito",
+   "quadriceps",
+   "abdomen"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "intermediario",
+  "tipo_movimento": "cardio",
+  "mecanica": "composto",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 8,
+  "reps_max": 15,
+  "unidade": "reps",
+  "descanso_s": 90,
+  "met": 8.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Agache, apoie as mãos, estenda as pernas, faça uma flexão e salte.",
+  "progressao": "Burpee com salto alto",
+  "regressao": "Burpee sem flexão e sem salto"
+ },
+ {
+  "id": 59,
+  "nome": "Polichinelo",
+  "categoria": "calistenia",
+  "grupo_principal": "corpo_inteiro",
+  "grupos_secundarios": [
+   "panturrilha",
+   "ombros"
+  ],
+  "equipamento": [
+   "nenhum"
+  ],
+  "local": "casa",
+  "nivel": "iniciante",
+  "tipo_movimento": "cardio",
+  "mecanica": "cardio",
+  "unilateral": false,
+  "series_sugeridas": 3,
+  "reps_min": 30,
+  "reps_max": 60,
+  "unidade": "segundos",
+  "descanso_s": 30,
+  "met": 8.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Salte abrindo pernas e braços ao mesmo tempo e feche.",
+  "progressao": "Polichinelo agachado",
+  "regressao": "Passo lateral com braços"
+ },
+ {
+  "id": 60,
+  "nome": "Caminhada inclinada na esteira",
+  "categoria": "academia",
+  "grupo_principal": "corpo_inteiro",
+  "grupos_secundarios": [
+   "gluteo",
+   "panturrilha"
+  ],
+  "equipamento": [
+   "esteira"
+  ],
+  "local": "academia",
+  "nivel": "iniciante",
+  "tipo_movimento": "cardio",
+  "mecanica": "cardio",
+  "unilateral": false,
+  "series_sugeridas": 1,
+  "reps_min": 10,
+  "reps_max": 30,
+  "unidade": "minutos",
+  "descanso_s": 30,
+  "met": 5.0,
+  "fator_peso_corporal": null,
+  "instrucao": "Inclinação de 6 a 12% e velocidade confortável, sem segurar nas barras.",
+  "progressao": "Aumentar inclinação",
+  "regressao": "Reduzir inclinação"
+ }
+]

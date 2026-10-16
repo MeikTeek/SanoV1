@@ -11,6 +11,12 @@ export interface ExerciseDetail {
   benefits: string;
   workSeconds: number;
   restSeconds: number;
+  progression?: string;
+  regression?: string;
+  suggestedSets?: number;
+  repsMin?: number;
+  repsMax?: number;
+  unit?: 'reps' | 'segundos' | 'minutos';
 }
 
 export interface DietNumbers {

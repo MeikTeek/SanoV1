@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic } from '../ui/icons';
+import MusicPlayer from '../music/MusicPlayer';
 import { updatePresence } from '../../services/chat.service';
 
 interface Props {
@@ -50,6 +51,8 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         ? 'Usando a agenda'
         : pathname.startsWith('/treino')
           ? 'Visualizando treino'
+          : pathname.startsWith('/musica')
+            ? 'Ouvindo música'
           : pathname.startsWith('/mensagens')
             ? 'No chat'
             : pathname.startsWith('/config')
@@ -77,6 +80,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         <Link to="/" className={`rail-link ${is('/') ? 'active' : ''}`} title="Chat"><IconChat /></Link>
         <Link to="/agenda" className={`rail-link ${is('/agenda') ? 'active' : ''}`} title="Agenda"><IconCalendar /></Link>
         <Link to="/treino" className={`rail-link ${is('/treino') ? 'active' : ''}`} title="Treino"><IconDumbbell /></Link>
+        <Link to="/musica" className={`rail-link ${is('/musica') ? 'active' : ''}`} title="Música"><IconMusic /></Link>
         <Link
           to="/mensagens"
           className={`rail-link ${pathname.startsWith('/mensagens') ? 'active' : ''}`}
@@ -165,6 +169,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         <div className="app-content">
           {flush ? <div className="page flush">{children}</div> : <div className="page">{children}</div>}
         </div>
+        <MusicPlayer />
       </div>
     </div>
   );

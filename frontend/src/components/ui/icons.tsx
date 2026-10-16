@@ -22,6 +22,9 @@ const svg = (size: number, children: ReactNode) => (
 export const IconChat = ({ size = 22 }: P) =>
   svg(size, <><path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z" /></>);
 
+export const IconMusic = ({ size = 22 }: P) =>
+  svg(size, <><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></>);
+
 export const IconCalendar = ({ size = 22 }: P) =>
   svg(size, <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M8 3v4M16 3v4M3 10h18" /></>);
 

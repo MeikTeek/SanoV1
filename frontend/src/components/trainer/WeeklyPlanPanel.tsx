@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getWeeklyPlan, logWorkout } from '../../services/trainer.service';
-import type { PlannedExercise, WeeklyPlan } from '../../types/trainer';
+import { getExerciseDetail, getWeeklyPlan, logWorkout } from '../../services/trainer.service';
+import type { ExerciseDetail, PlannedExercise, WeeklyPlan } from '../../types/trainer';
 
 const weekdayOrder = [1, 2, 3, 4, 5, 6, 0];
 const repsValue = (range: string) => {
@@ -17,6 +17,10 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState('');
+  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [exerciseDetails, setExerciseDetails] = useState<Record<string, ExerciseDetail>>({});
+  const [loadingDetails, setLoadingDetails] = useState<Record<string, boolean>>({});
+  const [detailErrors, setDetailErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     getWeeklyPlan().then(setPlan).catch((e) => setError((e as Error).message));
@@ -44,6 +48,27 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
       setError((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const toggleExerciseDetails = async (key: string) => {
+    if (expandedExercise === key) {
+      setExpandedExercise(null);
+      return;
+    }
+
+    setExpandedExercise(key);
+    if (exerciseDetails[key] || loadingDetails[key]) return;
+
+    setLoadingDetails((current) => ({ ...current, [key]: true }));
+    setDetailErrors((current) => ({ ...current, [key]: '' }));
+    try {
+      const detail = await getExerciseDetail(key);
+      setExerciseDetails((current) => ({ ...current, [key]: detail }));
+    } catch (e) {
+      setDetailErrors((current) => ({ ...current, [key]: (e as Error).message }));
+    } finally {
+      setLoadingDetails((current) => ({ ...current, [key]: false }));
     }
   };
 
@@ -89,8 +114,34 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
               <div className="planned-exercises">
                 {selected.exercises.map((exercise: PlannedExercise) => (
                   <div className="planned-exercise" key={`${exercise.muscle}-${exercise.key}`}>
-                    <div>
-                      <b>{exercise.name}</b><span className="muted">{exercise.muscleLabel} · {exercise.sets} × {exercise.reps} · descanso {exercise.restSeconds}s · RIR {exercise.rir}</span>
+                    <div className="planned-exercise-main">
+                      <div className="planned-exercise-heading">
+                        <b>{exercise.name}</b>
+                        <button type="button" className="exercise-info-toggle" aria-expanded={expandedExercise === exercise.key}
+                          aria-label={`${expandedExercise === exercise.key ? 'Ocultar' : 'Ver'} informações de ${exercise.name}`}
+                          onClick={() => void toggleExerciseDetails(exercise.key)}>
+                          <span aria-hidden="true">{expandedExercise === exercise.key ? '⌃' : '⌄'}</span>
+                        </button>
+                      </div>
+                      <span className="muted">{exercise.muscleLabel} · {exercise.sets} × {exercise.reps} · descanso {exercise.restSeconds}s · RIR {exercise.rir}</span>
+                      {expandedExercise === exercise.key && (
+                        <div className="planned-exercise-details">
+                          {loadingDetails[exercise.key] && <p className="muted">Carregando informações…</p>}
+                          {detailErrors[exercise.key] && <p className="error">{detailErrors[exercise.key]}</p>}
+                          {exerciseDetails[exercise.key] && (() => {
+                            const detail = exerciseDetails[exercise.key];
+                            return <>
+                              <p><b>Músculos:</b> {detail.muscles}</p>
+                              <p><b>Como fazer:</b> {detail.howTo}</p>
+                              <p><b>Erro comum:</b> {detail.commonMistake}</p>
+                              {detail.benefits && <p><b>Benefícios:</b> {detail.benefits}</p>}
+                              <p><b>Cronômetro:</b> {detail.workSeconds}s de trabalho · {detail.restSeconds}s de descanso</p>
+                              {detail.progression && <p><b>Progressão:</b> {detail.progression}</p>}
+                              {detail.regression && <p><b>Regressão:</b> {detail.regression}</p>}
+                            </>;
+                          })()}
+                        </div>
+                      )}
                     </div>
                     <label className="load-field">Carga (kg)
                       <input type="number" min="0" step="0.5" value={loads[exercise.key] ?? ''}
