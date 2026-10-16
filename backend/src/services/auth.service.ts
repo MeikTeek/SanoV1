@@ -8,13 +8,8 @@ import { logAudit } from './audit.service';
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 15;
 
-export type AuthStep = 'CHANGE_PASSWORD' | 'SETUP_2FA' | 'VERIFY_2FA';
-
 let dummyHash: string | null = null;
 const getDummyHash = async () => (dummyHash ??= await hashPassword('dummy-password-for-timing'));
-
-export const nextStep = (u: User): AuthStep =>
-  u.mustChangePassword ? 'CHANGE_PASSWORD' : !u.twoFactorEnabled ? 'SETUP_2FA' : 'VERIFY_2FA';
 
 /** Conta falha e bloqueia temporariamente após MAX_ATTEMPTS. */
 export async function registerFailure(user: User, req: Request, reason: string) {

@@ -23,16 +23,15 @@ async function loadUser(req: Request, cookie: string, purpose: TokenPurpose) {
   return user;
 }
 
-/** Etapa intermediária: senha correta, falta trocar senha / configurar ou validar 2FA. */
+/** Sessão intermediária permitida apenas para trocar a senha temporária. */
 export async function requirePreAuth(req: Request, _res: Response, next: NextFunction) {
   req.user = await loadUser(req, COOKIE_PRE_AUTH, 'pre_auth');
   next();
 }
 
-/** Sessão completa (senha + 2FA). */
+/** Sessão autenticada após validar usuário e senha. */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   const user = await loadUser(req, COOKIE_SESSION, 'session');
-  if (user.mustChangePassword || !user.twoFactorEnabled) throw new AppError(403, 'Cadastro incompleto');
   req.user = user;
   next();
 }
