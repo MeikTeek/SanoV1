@@ -27,15 +27,19 @@ const DB_NAME = 'sano-music';
 const STORE_NAME = 'audio';
 
 const MIME_BY_EXT: Record<string, string> = {
-  mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', oga: 'audio/ogg',
-  m4a: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac', opus: 'audio/ogg', weba: 'audio/webm',
+  mp3: 'audio/mpeg', wav: 'audio/wav', wave: 'audio/wav',
+  ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg',
+  m4a: 'audio/mp4', mp4: 'audio/mp4', aac: 'audio/aac', flac: 'audio/flac',
+  weba: 'audio/webm', webm: 'audio/webm', aif: 'audio/aiff', aiff: 'audio/aiff',
+  au: 'audio/basic', caf: 'audio/x-caf',
 };
 
 // Alguns navegadores devolvem o arquivo do IndexedDB sem o tipo; refazemos pela extensão.
 const withMime = (blob: Blob, fileName: string) => {
-  if (blob.type) return blob;
   const type = MIME_BY_EXT[fileName.split('.').pop()?.toLowerCase() || ''];
-  return type ? new Blob([blob], { type }) : blob;
+  // O tipo salvo no IndexedDB pode ser vazio ou application/octet-stream.
+  // Para áudio, a extensão do arquivo é uma fonte mais confiável.
+  return type && blob.type !== type ? new Blob([blob], { type }) : blob;
 };
 
 const openDb = () => new Promise<IDBDatabase>((resolve, reject) => {
@@ -128,9 +132,20 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     });
     audio.addEventListener('ended', () => nextRef.current());
     audio.addEventListener('error', () => {
-      console.error('[música] erro no elemento de áudio:', audio.error);
+      const mediaError = audio.error;
+      console.error('[música] erro no elemento de áudio:', {
+        code: mediaError?.code,
+        message: mediaError?.message,
+        sourceType: audio.src ? 'blob' : 'empty',
+      });
       setPlaying(false);
-      setError('O navegador não conseguiu tocar este arquivo de áudio.');
+      if (mediaError?.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+        setError('O arquivo MP3 não pôde ser decodificado. Ele pode estar corrompido ou usar um codec incomum.');
+      } else if (mediaError?.code === MediaError.MEDIA_ERR_DECODE) {
+        setError('O arquivo foi encontrado, mas o navegador não conseguiu decodificar o áudio.');
+      } else {
+        setError('Não foi possível carregar o arquivo de áudio local.');
+      }
     });
     audioRef.current = audio;
     return audio;
@@ -162,6 +177,10 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         audio.pause();
         loadedIdRef.current = null;
         throw new Error('O arquivo desta música não está disponível neste navegador. Remova e adicione de novo.');
+      }
+      if (stored.size === 0) {
+        loadedIdRef.current = null;
+        throw new Error('O arquivo desta música está vazio ou foi salvo de forma incompleta.');
       }
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
       urlRef.current = URL.createObjectURL(withMime(stored, track.fileName));
