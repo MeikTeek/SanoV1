@@ -659,6 +659,11 @@ td.actions { display: flex; gap: 6px; }
 .music-pending-files { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding: 12px; border: 1px solid var(--sp-border); border-radius: 8px; background: #ffffff08; }
 .music-pending-file { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--sp-sub); font-size: .8rem; }
 .music-pending-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-pending-file span { display: flex; flex-direction: column; gap: 2px; }
+.music-pending-file small { color: var(--sp-muted); overflow: hidden; text-overflow: ellipsis; }
+.track-edit { border: 0; background: transparent; color: var(--sp-sub); cursor: pointer; font-size: .75rem; opacity: 0; }
+.track-row:hover .track-edit, .track-edit:focus-visible { opacity: 1; }
+.track-edit:hover { color: var(--sp-text); }
 .music-confirm-upload { width: 100%; margin-top: 6px; }
 
 .music-section-head { justify-content: space-between; margin: 32px 32px 8px; }
@@ -772,7 +777,7 @@ td.actions { display: flex; gap: 6px; }
   .music-upload-fields { grid-template-columns: 1fr; padding: 16px 20px; }
   .music-search, .music-section-head, .music-message { margin-left: 20px; margin-right: 20px; }
   .track-list { margin: 0 8px; }
-  .track-play, .track-remove { opacity: 1; }
+  .track-play, .track-edit, .track-remove { opacity: 1; }
 }
 
 /* ── Player: ajustes do componente React ─────────────────── */

@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
+import { parseBlob } from 'music-metadata';
 import AppShell from '../../components/layout/AppShell';
 import { IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import { useMusic } from '../../music/musicStore';
-import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS } from '../../music/musicTypes';
+import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
+
+interface PendingMusicFile {
+  file: File;
+  title: string;
+  artist: string;
+  album: string;
+}
 
 function Equalizer() {
   return (
@@ -13,7 +21,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, remove, search, createPlaylist, deletePlaylist, playPlaylist } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -21,6 +29,7 @@ export default function MusicPage() {
   const [moodFilter, setMoodFilter] = useState('');
   const [playlistFilter, setPlaylistFilter] = useState('');
   const [artist, setArtist] = useState('');
+  const [album, setAlbum] = useState('');
   const [genre, setGenre] = useState('');
   const [mood, setMood] = useState('');
   const [title, setTitle] = useState('');
@@ -30,7 +39,8 @@ export default function MusicPage() {
   const [dragging, setDragging] = useState(false);
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [pendingFiles, setPendingFiles] = useState<PendingMusicFile[]>([]);
+  const [editingTrack, setEditingTrack] = useState<MusicTrack | null>(null);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -59,6 +69,7 @@ export default function MusicPage() {
   const closeUpload = () => {
     if (uploading) return;
     setUploadOpen(false);
+    setEditingTrack(null);
     setPendingFiles([]);
     setDragging(false);
     if (inputRef.current) inputRef.current.value = '';
@@ -66,7 +77,7 @@ export default function MusicPage() {
 
   // Selecionar/soltar apenas prepara a prévia. O IndexedDB só é alterado em
   // confirmUpload, depois que o usuário revisar os dados.
-  const stageFiles = (files: File[]) => {
+  const stageFiles = async (files: File[]) => {
     if (!files.length || uploading) return;
     const audio = files.filter(isAudioFile);
     const rejectedNames = files.filter((file) => !isAudioFile(file)).map((file) => file.name);
@@ -75,7 +86,30 @@ export default function MusicPage() {
     } else {
       setMessage(null);
     }
-    if (audio.length) setPendingFiles((currentFiles) => [...currentFiles, ...audio]);
+    if (audio.length) {
+      const prepared = await Promise.all(audio.map(async (file): Promise<PendingMusicFile> => {
+        const fallbackTitle = file.name.replace(/\.[^.]+$/, '');
+        try {
+          const metadata = await parseBlob(file);
+          const artistsFromTags = metadata.common.artists?.join(', ');
+          return {
+            file,
+            title: metadata.common.title?.trim() || fallbackTitle,
+            artist: artistsFromTags || metadata.common.artist?.trim() || '',
+            album: metadata.common.album?.trim() || 'Uploads do Sano',
+          };
+        } catch (error) {
+          console.warn('[música] não foi possível ler as tags:', file.name, error);
+          return { file, title: fallbackTitle, artist: '', album: 'Uploads do Sano' };
+        }
+      }));
+      setPendingFiles((currentFiles) => [...currentFiles, ...prepared]);
+      const first = prepared[0];
+      if (first) {
+        setTitle((value) => value || first.title);
+        setArtist((value) => value || first.artist);
+      }
+    }
   };
 
   const confirmUpload = async () => {
@@ -87,14 +121,16 @@ export default function MusicPage() {
     setUploading(true);
     setMessage(null);
     try {
-      await addFiles(pendingFiles, {
-        artist: artist.trim() || 'Artista independente',
-        album: 'Uploads do Sano',
-        genre: genre.trim() || 'Geral',
-        mood,
-        title,
-        playlistId: playlistId || undefined,
-      });
+      for (const pending of pendingFiles) {
+        await addFiles([pending.file], {
+          artist: pending.artist.trim() || artist.trim(),
+          album: pending.album.trim() || 'Uploads do Sano',
+          genre: genre.trim(),
+          mood,
+          title: pending.title.trim() || title,
+          playlistId: playlistId || undefined,
+        });
+      }
       const added = `${pendingFiles.length} ${pendingFiles.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
       setMessage({ text: added });
       setPendingFiles([]);
@@ -109,14 +145,14 @@ export default function MusicPage() {
   };
 
   const onPick = (event: ChangeEvent<HTMLInputElement>) => {
-    stageFiles(Array.from(event.target.files || []));
+    void stageFiles(Array.from(event.target.files || []));
     event.target.value = '';
   };
 
   const onDrop = (event: DragEvent) => {
     event.preventDefault();
     setDragging(false);
-    stageFiles(Array.from(event.dataTransfer.files));
+    void stageFiles(Array.from(event.dataTransfer.files));
   };
   const onDragOver = (event: DragEvent) => { event.preventDefault(); setDragging(true); };
   const onDragLeave = () => setDragging(false);
@@ -129,6 +165,29 @@ export default function MusicPage() {
     setPlaylistId(playlist.id);
     setNewPlaylistName('');
     setMessage({ text: `Playlist "${playlist.name}" criada.`, });
+  };
+
+  const openEdit = (track: MusicTrack) => {
+    setEditingTrack(track);
+    setArtist(track.artist);
+    setAlbum(track.album);
+    setGenre(track.genre);
+    setMood(track.mood);
+    setTitle(track.title);
+    setPlaylistId(playlists.find((playlist) => playlist.trackIds.includes(track.id))?.id || '');
+    setUploadOpen(true);
+  };
+
+  const saveEdit = () => {
+    if (!editingTrack || !artist.trim() || !genre.trim() || !mood.trim()) {
+      setMessage({ text: 'Autor, gênero e clima são obrigatórios.', error: true });
+      return;
+    }
+    const metadata: EditableMusicMetadata = { title, artist, album, genre, mood, playlistId: playlistId || undefined };
+    updateTrack(editingTrack.id, metadata);
+    setEditingTrack(null);
+    setUploadOpen(false);
+    setMessage({ text: 'Informações da música atualizadas.' });
   };
 
   const emptyTitle = tracks.length ? 'Nada encontrado' : 'Sua biblioteca começa aqui';
@@ -244,6 +303,7 @@ export default function MusicPage() {
                     <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
                   </div>
                   <button className="icon-btn track-play" onClick={() => play(track, visible.slice(index + 1))} aria-label={`Tocar ${track.title}`}><IconPlay /></button>
+                  <button className="track-edit" onClick={() => openEdit(track)}>Editar</button>
                   <button className="track-remove" onClick={() => remove(track.id)} aria-label={`Remover ${track.title}`}>×</button>
                 </div>
               );
@@ -274,13 +334,14 @@ export default function MusicPage() {
         >
           <section className="music-modal" role="dialog" aria-modal="true" aria-labelledby="music-modal-title">
             <div className="music-modal-head">
-              <h2 id="music-modal-title">Adicione à sua biblioteca</h2>
+              <h2 id="music-modal-title">{editingTrack ? 'Editar informações da música' : 'Adicione à sua biblioteca'}</h2>
               <button className="track-remove" style={{ opacity: 1 }} onClick={closeUpload} aria-label="Fechar">×</button>
             </div>
             <p className="muted">Escolha um ou mais arquivos e complete os detalhes para encontrá-los depois.</p>
             <div className="music-upload-fields">
               <label>Autor * <input list="music-artists" autoFocus required value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ex.: Liniker" /></label>
               <datalist id="music-artists">{artists.map((item) => <option key={item} value={item} />)}</datalist>
+              <label>Álbum <input value={album} onChange={(e) => setAlbum(e.target.value)} placeholder="Opcional" /></label>
               <label>Gênero * <input required value={genre} onChange={(e) => setGenre(e.target.value)} placeholder="Ex.: Indie pop" /></label>
               <label>Clima *
                 <select value={mood} onChange={(e) => setMood(e.target.value)}>
@@ -291,7 +352,7 @@ export default function MusicPage() {
               <label>Playlist <select value={playlistId} onChange={(e) => setPlaylistId(e.target.value)}><option value="">Sem playlist</option>{playlists.map((playlist) => <option key={playlist.id} value={playlist.id}>{playlist.name}</option>)}</select></label>
               <label>Nova playlist <div className="music-inline-field"><input value={newPlaylistName} onChange={(e) => setNewPlaylistName(e.target.value)} placeholder="Opcional" /><button type="button" className="ghost" onClick={handleCreatePlaylist}>Criar</button></div></label>
             </div>
-            <div
+            {!editingTrack && <div
               className={`music-dropzone${dragging ? ' dragover' : ''}`}
               onDragOver={onDragOver}
               onDragLeave={onDragLeave}
@@ -303,14 +364,14 @@ export default function MusicPage() {
                 Escolher arquivos
               </button>
               <small>{SUPPORTED_AUDIO_EXTENSIONS.map((extension) => extension.toUpperCase()).join(', ')} · vários arquivos · nada é salvo ainda</small>
-            </div>
-            {pendingFiles.length > 0 && (
+            </div>}
+            {!editingTrack && pendingFiles.length > 0 && (
               <div className="music-pending-files">
                 <strong>{pendingFiles.length} arquivo(s) selecionado(s)</strong>
                 {pendingFiles.map((file, index) => (
-                  <div className="music-pending-file" key={`${file.name}-${file.lastModified}-${index}`}>
-                    <span>{file.name}</span>
-                    <button type="button" className="track-remove" onClick={() => setPendingFiles((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remover ${file.name}`}>×</button>
+                  <div className="music-pending-file" key={`${file.file.name}-${file.file.lastModified}-${index}`}>
+                    <span><strong>{file.title}</strong> · {file.artist || 'Autor não encontrado'}<small>{file.file.name} · {file.album}</small></span>
+                    <button type="button" className="track-remove" onClick={() => setPendingFiles((items) => items.filter((_, itemIndex) => itemIndex !== index))} aria-label={`Remover ${file.file.name}`}>×</button>
                   </div>
                 ))}
                 <button type="button" className="music-confirm-upload" onClick={() => void confirmUpload()} disabled={uploading}>
@@ -318,6 +379,7 @@ export default function MusicPage() {
                 </button>
               </div>
             )}
+            {editingTrack && <button type="button" className="music-confirm-upload" onClick={saveEdit}>Salvar alterações</button>}
           </section>
         </div>
       )}

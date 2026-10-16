@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { isAudioFile, type MusicPlaylist, type MusicTrack, type NewMusicMetadata } from './musicTypes';
+import { isAudioFile, type EditableMusicMetadata, type MusicPlaylist, type MusicTrack, type NewMusicMetadata } from './musicTypes';
 
 interface MusicState {
   tracks: MusicTrack[];
@@ -16,6 +16,7 @@ interface MusicState {
   next: () => void;
   previous: () => void;
   remove: (id: string) => void;
+  updateTrack: (id: string, metadata: EditableMusicMetadata) => void;
   addFiles: (files: File[], metadata: NewMusicMetadata) => Promise<void>;
   createPlaylist: (name: string) => MusicPlaylist | null;
   deletePlaylist: (id: string) => void;
@@ -266,6 +267,27 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const updateTrack = useCallback((id: string, metadata: EditableMusicMetadata) => {
+    setTracks((items) => {
+      const nextTracks = items.map((track) => track.id === id
+        ? { ...track, title: metadata.title.trim() || track.title, artist: metadata.artist.trim(), album: metadata.album.trim(), genre: metadata.genre.trim(), mood: metadata.mood.trim() }
+        : track);
+      writeMeta(nextTracks);
+      return nextTracks;
+    });
+    setCurrent((currentTrack) => currentTrack?.id === id
+      ? { ...currentTrack, title: metadata.title.trim() || currentTrack.title, artist: metadata.artist.trim(), album: metadata.album.trim(), genre: metadata.genre.trim(), mood: metadata.mood.trim() }
+      : currentTrack);
+    setPlaylists((items) => {
+      const withoutTrack = items.map((playlist) => ({ ...playlist, trackIds: playlist.trackIds.filter((trackId) => trackId !== id) }));
+      const nextPlaylists = metadata.playlistId
+        ? withoutTrack.map((playlist) => playlist.id === metadata.playlistId ? { ...playlist, trackIds: [...playlist.trackIds, id] } : playlist)
+        : withoutTrack;
+      writePlaylists(nextPlaylists);
+      return nextPlaylists;
+    });
+  }, []);
+
   const addFiles = useCallback(async (files: File[], metadata: NewMusicMetadata) => {
     const added: MusicTrack[] = [];
     for (const file of files) {
@@ -343,8 +365,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, [tracks]);
 
   const value = useMemo(
-    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search }),
-    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search],
+    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search }),
+    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
