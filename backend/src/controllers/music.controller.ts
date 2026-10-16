@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { claimShare, createShare, finalizeShare, getMusicStorageStatus } from '../services/music-share.service';
+import { claimShare, createShare, finalizeShare, getMusicStorageStatus, uploadShare } from '../services/music-share.service';
+import { AppError } from '../utils/errors';
 
 const createSchema = z.object({ size: z.number().int().positive() });
 const idSchema = z.object({ id: z.string().uuid() });
@@ -14,6 +15,13 @@ export async function create(req: Request, res: Response) {
 export async function finalize(req: Request, res: Response) {
   const { id } = idSchema.parse(req.params);
   await finalizeShare(req.user!.id, id);
+  res.status(204).send();
+}
+
+export async function upload(req: Request, res: Response) {
+  const { id } = idSchema.parse(req.params);
+  if (!Buffer.isBuffer(req.body)) throw new AppError(400, 'Envie um pacote ZIP.');
+  await uploadShare(req.user!.id, id, req.body);
   res.status(204).send();
 }
 

@@ -51,7 +51,7 @@ function hashCode(code: string) {
 }
 
 export async function createShare(userId: string, size: number) {
-  const { client, bucket: targetBucket } = requireStorage();
+  requireStorage();
   if (!Number.isInteger(size) || size <= 0 || size > 500 * 1024 * 1024) {
     throw new AppError(400, 'O pacote deve ter entre 1 byte e 500 MB.');
   }
@@ -59,8 +59,7 @@ export async function createShare(userId: string, size: number) {
   const objectKey = `music-shares/${randomBytes(20).toString('hex')}.zip`;
   const expiresAt = new Date(Date.now() + EXPIRATION_MS);
   const share = await prisma.musicShare.create({ data: { ownerId: userId, codeHash: hashCode(code), objectKey, expiresAt } });
-  const uploadUrl = await getSignedUrl(client, new PutObjectCommand({ Bucket: targetBucket, Key: objectKey, ContentType: 'application/zip' }), { expiresIn: 900 });
-  return { id: share.id, code, uploadUrl, expiresAt };
+  return { id: share.id, code, expiresAt };
 }
 
 export async function finalizeShare(userId: string, id: string) {
@@ -69,6 +68,22 @@ export async function finalizeShare(userId: string, id: string) {
   if (!share || share.expiresAt <= new Date()) throw new AppError(404, 'Compartilhamento expirado ou inexistente.');
   await client.send(new HeadObjectCommand({ Bucket: targetBucket, Key: share.objectKey }));
   await prisma.musicShare.update({ where: { id }, data: { status: 'READY' } });
+}
+
+export async function uploadShare(userId: string, id: string, body: Buffer) {
+  const { client, bucket: targetBucket } = requireStorage();
+  if (!body.length || body.length > 500 * 1024 * 1024) {
+    throw new AppError(400, 'O pacote deve ter entre 1 byte e 500 MB.');
+  }
+  const share = await prisma.musicShare.findFirst({ where: { id, ownerId: userId, status: 'PENDING' } });
+  if (!share || share.expiresAt <= new Date()) throw new AppError(404, 'Compartilhamento expirado ou inexistente.');
+  await client.send(new PutObjectCommand({
+    Bucket: targetBucket,
+    Key: share.objectKey,
+    Body: body,
+    ContentType: 'application/zip',
+    ContentLength: body.length,
+  }));
 }
 
 export async function claimShare(code: string) {

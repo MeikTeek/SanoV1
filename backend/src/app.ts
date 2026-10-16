@@ -32,6 +32,7 @@ app.use('/api/profile/avatar', express.json({ limit: '1mb' }));
 // Mensagens do bate-papo carregam imagem/áudio já cifrados (base64). 4 MB
 // cobrem o envelope de mídia + a cópia por participante de um grupo pequeno.
 app.use('/api/chat/conversations', express.json({ limit: '4mb' }));
+app.use('/api/music/shares', express.raw({ type: 'application/zip', limit: '500mb' }));
 app.use(express.json({ limit: '10kb' }));
 app.use(cookieParser());
 app.use(originCheck);

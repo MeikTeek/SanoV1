@@ -203,21 +203,16 @@ export default function MusicPage() {
     setSharing(true);
     try {
       const pack = await exportPackage(selectedTrackIds);
-      let share: { id: string; code: string; uploadUrl: string };
+      let share: { id: string; code: string };
       try {
-        share = await api.post<{ id: string; code: string; uploadUrl: string }>('/music/shares', { size: pack.size });
+        share = await api.post<{ id: string; code: string }>('/music/shares', { size: pack.size });
       } catch (error) {
         throw new Error(`Não foi possível preparar o compartilhamento: ${error instanceof Error ? error.message : 'erro na API'}`);
       }
-      let upload: Response;
       try {
-        upload = await fetch(share.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: pack });
-      } catch {
-        throw new Error('O R2 bloqueou o upload no navegador. Configure o CORS do bucket para permitir a origem do site, PUT e o header Content-Type.');
-      }
-      if (!upload.ok) {
-        const responseText = await upload.text().catch(() => '');
-        throw new Error(`O R2 recusou o upload (${upload.status}${responseText ? `: ${responseText.slice(0, 160)}` : ''}). Verifique as permissões do token e o CORS do bucket.`);
+        await api.post(`/music/shares/${share.id}/upload`, pack);
+      } catch (error) {
+        throw new Error(`Não foi possível enviar o pacote ao storage: ${error instanceof Error ? error.message : 'erro na API'}`);
       }
       try {
         await api.post(`/music/shares/${share.id}/finalize`);
