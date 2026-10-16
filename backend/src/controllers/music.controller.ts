@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { claimShare, createShare, finalizeShare } from '../services/music-share.service';
+import { claimShare, createShare, finalizeShare, getMusicStorageStatus } from '../services/music-share.service';
 
 const createSchema = z.object({ size: z.number().int().positive() });
 const idSchema = z.object({ id: z.string().uuid() });
@@ -20,4 +20,8 @@ export async function finalize(req: Request, res: Response) {
 export async function claim(req: Request, res: Response) {
   const { code } = codeSchema.parse(req.body);
   res.json(await claimShare(code));
+}
+
+export function storageStatus(_req: Request, res: Response) {
+  res.json(getMusicStorageStatus());
 }

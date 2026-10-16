@@ -6,19 +6,44 @@ import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 
 const EXPIRATION_MS = 24 * 60 * 60 * 1000;
-const bucket = env.MUSIC_STORAGE_BUCKET;
-const storage = env.MUSIC_STORAGE_ENDPOINT && bucket && env.MUSIC_STORAGE_ACCESS_KEY && env.MUSIC_STORAGE_SECRET_KEY
+const endpoint = env.MUSIC_STORAGE_ENDPOINT?.trim();
+const bucket = env.MUSIC_STORAGE_BUCKET?.trim();
+const accessKey = env.MUSIC_STORAGE_ACCESS_KEY?.trim();
+const secretKey = env.MUSIC_STORAGE_SECRET_KEY?.trim();
+const missingConfiguration = [
+  !endpoint && 'MUSIC_STORAGE_ENDPOINT',
+  !bucket && 'MUSIC_STORAGE_BUCKET',
+  !accessKey && 'MUSIC_STORAGE_ACCESS_KEY',
+  !secretKey && 'MUSIC_STORAGE_SECRET_KEY',
+].filter((item): item is string => Boolean(item));
+const storage = missingConfiguration.length === 0 && endpoint && accessKey && secretKey
   ? new S3Client({
     region: env.MUSIC_STORAGE_REGION,
-    endpoint: env.MUSIC_STORAGE_ENDPOINT,
+    endpoint,
     forcePathStyle: true,
-    credentials: { accessKeyId: env.MUSIC_STORAGE_ACCESS_KEY, secretAccessKey: env.MUSIC_STORAGE_SECRET_KEY },
+    credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
   })
   : null;
 
 function requireStorage() {
-  if (!storage || !bucket) throw new AppError(503, 'Compartilhamento de músicas não está configurado.');
+  if (!storage || !bucket) {
+    const details = missingConfiguration.length ? ` Variáveis ausentes: ${missingConfiguration.join(', ')}.` : '';
+    throw new AppError(503, `Compartilhamento de músicas não está configurado.${details}`);
+  }
   return { client: storage, bucket };
+}
+
+export function getMusicStorageStatus() {
+  let endpointHost: string | null = null;
+  if (endpoint) {
+    try { endpointHost = new URL(endpoint).host; } catch { endpointHost = null; }
+  }
+  return {
+    configured: missingConfiguration.length === 0,
+    missing: missingConfiguration,
+    endpointHost,
+    bucketConfigured: Boolean(bucket),
+  };
 }
 
 function hashCode(code: string) {
