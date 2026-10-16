@@ -338,7 +338,7 @@
   .hud-col:last-child { display: none; }
 }
 
-/* Celular: painéis viram faixa horizontal acima do console. */
+/* Tablet: painéis viram faixa horizontal acima do console. */
 @media (max-width: 860px) {
   .hud { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); padding: 12px; gap: 12px; }
   .hud-col {
@@ -353,9 +353,15 @@
 }
 
 @media (max-width: 720px) {
-  .hud { padding: 10px 8px; gap: 10px; }
+  .hud {
+    display: block;
+    padding: 0;
+    height: 100%;
+  }
+  .hud-col { display: none; }
+  .hud-center { height: 100%; }
   .wave { height: 38px; padding: 0 12px; }
   .chat-log { padding: 14px 12px 6px; }
   .msg { max-width: 96%; }
-  .chat-input { padding: 10px 12px; }
+  .chat-input { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
 }

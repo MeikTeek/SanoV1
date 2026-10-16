@@ -33,7 +33,9 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
     setNotify(Notification.permission === 'granted');
   }, []);
 
-  useEffect(() => setMenuOpen(false), [pathname]);
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const askPermission = async () => {
     const p = await Notification.requestPermission();

@@ -380,7 +380,7 @@ td.ok { color: var(--ok); } td.bad { color: var(--bad); }
 td.actions { display: flex; gap: 6px; }
 .pager { display: flex; gap: 12px; justify-content: center; align-items: center; margin-top: 14px; }
 
-/* ── Responsivo: a rail vira barra inferior (estilo Instagram) ── */
+/* ── Responsivo: rail vira barra inferior ─────────────────────── */
 @media (max-width: 720px) {
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
   .rail {
