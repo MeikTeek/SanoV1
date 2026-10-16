@@ -66,6 +66,22 @@ model User {
   receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
   chatMembers   ChatMember[]
   chatMessages  ChatMessage[]
+  musicSharesCreated MusicShare[] @relation("MusicShareOwner")
+}
+
+model MusicShare {
+  id        String   @id @default(uuid())
+  ownerId   String
+  codeHash  String   @unique
+  objectKey String   @unique
+  status    String   @default("PENDING") // PENDING | READY | CLAIMED
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  claimedAt DateTime?
+
+  owner User @relation("MusicShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt, status])
 }
 
 model FriendRequest {

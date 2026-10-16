@@ -28,6 +28,11 @@ const schema = z.object({
   AI_API_KEY: z.string().optional(),
   AI_BASE_URL: z.string().url().optional(),
   AI_MODEL: z.string().default('gpt-4o-mini'),
+  MUSIC_STORAGE_ENDPOINT: z.string().url().optional(),
+  MUSIC_STORAGE_REGION: z.string().default('auto'),
+  MUSIC_STORAGE_BUCKET: z.string().optional(),
+  MUSIC_STORAGE_ACCESS_KEY: z.string().optional(),
+  MUSIC_STORAGE_SECRET_KEY: z.string().optional(),
 });
 
 const parsed = schema.safeParse(testEnv);

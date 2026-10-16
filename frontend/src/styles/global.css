@@ -661,6 +661,16 @@ td.actions { display: flex; gap: 6px; }
 .music-pending-file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .music-pending-file span { display: flex; flex-direction: column; gap: 2px; }
 .music-pending-file small { color: var(--sp-muted); overflow: hidden; text-overflow: ellipsis; }
+.music-share-actions { display: flex; align-items: center; gap: 12px; }
+.track-select { display: flex; align-items: center; }
+.track-select input { accent-color: var(--sp-accent); }
+.music-share-modal { max-width: 520px; }
+.music-share-modal > label { display: flex; flex-direction: column; gap: 6px; margin: 16px 0; font-size: .8rem; font-weight: 700; }
+.music-share-modal > label input { border: 1px solid var(--sp-border); border-radius: 6px; padding: 10px; background: #3e3e3e; color: var(--sp-text); }
+.music-share-code { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 16px 0; padding: 16px; border: 1px dashed var(--sp-accent); border-radius: 8px; }
+.music-share-code strong { font-size: 1.8rem; letter-spacing: .18em; color: var(--sp-accent); }
+.music-share-divider { display: flex; align-items: center; gap: 8px; margin: 20px 0 8px; color: var(--sp-muted); font-size: .75rem; }
+.music-share-divider::before, .music-share-divider::after { content: ''; flex: 1; height: 1px; background: var(--sp-border); }
 .track-edit { border: 0; background: transparent; color: var(--sp-sub); cursor: pointer; font-size: .75rem; opacity: 0; }
 .track-row:hover .track-edit, .track-edit:focus-visible { opacity: 1; }
 .track-edit:hover { color: var(--sp-text); }

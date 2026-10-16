@@ -4,6 +4,7 @@ import AppShell from '../../components/layout/AppShell';
 import { IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import { useMusic } from '../../music/musicStore';
 import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
+import { api } from '../../services/api';
 
 interface PendingMusicFile {
   file: File;
@@ -21,7 +22,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -41,6 +42,11 @@ export default function MusicPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<PendingMusicFile[]>([]);
   const [editingTrack, setEditingTrack] = useState<MusicTrack | null>(null);
+  const [selectedTrackIds, setSelectedTrackIds] = useState<string[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCode, setShareCode] = useState('');
+  const [claimCode, setClaimCode] = useState('');
+  const [sharing, setSharing] = useState(false);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -190,6 +196,48 @@ export default function MusicPage() {
     setMessage({ text: 'Informações da música atualizadas.' });
   };
 
+  const createMusicShare = async () => {
+    if (!selectedTrackIds.length || sharing) return;
+    setSharing(true);
+    try {
+      const pack = await exportPackage(selectedTrackIds);
+      const share = await api.post<{ id: string; code: string; uploadUrl: string }>('/music/shares', { size: pack.size });
+      const upload = await fetch(share.uploadUrl, { method: 'PUT', headers: { 'Content-Type': 'application/zip' }, body: pack });
+      if (!upload.ok) throw new Error('Não foi possível enviar o pacote ao armazenamento.');
+      await api.post(`/music/shares/${share.id}/finalize`);
+      setShareCode(share.code);
+      setMessage({ text: 'Pacote criado. Envie este código para a outra pessoa.' });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'Não foi possível compartilhar as músicas.', error: true });
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const claimMusicShare = async () => {
+    if (!claimCode.trim() || sharing) return;
+    setSharing(true);
+    try {
+      const result = await api.post<{ downloadUrl: string }>('/music/shares/claim', { code: claimCode });
+      const response = await fetch(result.downloadUrl);
+      if (!response.ok) throw new Error('Não foi possível baixar o pacote.');
+      const blob = await response.blob();
+      const file = new File([blob], `sano-musicas-${claimCode.trim().toUpperCase()}.zip`, { type: 'application/zip' });
+      const count = await importPackage(file);
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = file.name;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      setClaimCode('');
+      setMessage({ text: `${count} ${count === 1 ? 'música importada' : 'músicas importadas'} e pacote baixado.` });
+    } catch (error) {
+      setMessage({ text: error instanceof Error ? error.message : 'Não foi possível resgatar o pacote.', error: true });
+    } finally {
+      setSharing(false);
+    }
+  };
+
   const emptyTitle = tracks.length ? 'Nada encontrado' : 'Sua biblioteca começa aqui';
   const emptyText = tracks.length
     ? 'Tente outro termo de busca ou limpe o filtro de clima.'
@@ -283,7 +331,10 @@ export default function MusicPage() {
 
           <div className="music-section-head">
             <h3>Suas músicas</h3>
-            <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
+            <div className="music-share-actions">
+              <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
+              <button className="ghost" onClick={() => setShareOpen(true)}>Compartilhar lista</button>
+            </div>
           </div>
 
           <div className="track-list">
@@ -295,6 +346,14 @@ export default function MusicPage() {
                   key={track.id}
                   onDoubleClick={() => play(track, visible.slice(index + 1))}
                 >
+                  <label className="track-select" onClick={(event) => event.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={selectedTrackIds.includes(track.id)}
+                      onChange={() => setSelectedTrackIds((ids) => ids.includes(track.id) ? ids.filter((id) => id !== track.id) : [...ids, track.id])}
+                      aria-label={`Selecionar ${track.title} para compartilhar`}
+                    />
+                  </label>
                   <span className="track-index">{isCurrent && playing ? <Equalizer /> : index + 1}</span>
                   <div className="track-art" aria-hidden="true">{track.title.slice(0, 1).toUpperCase()}</div>
                   <div className="track-info">
@@ -377,6 +436,27 @@ export default function MusicPage() {
                 <button type="button" className="music-confirm-upload" onClick={() => void confirmUpload()} disabled={uploading}>
                   {uploading ? 'Adicionando…' : 'Confirmar e adicionar músicas'}
                 </button>
+              </div>
+            )}
+
+            {shareOpen && (
+              <div className="music-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
+                <section className="music-modal music-share-modal" role="dialog" aria-modal="true" aria-labelledby="music-share-title">
+                  <div className="music-modal-head">
+                    <h2 id="music-share-title">Compartilhar músicas</h2>
+                    <button className="track-remove" style={{ opacity: 1 }} onClick={() => setShareOpen(false)} aria-label="Fechar">×</button>
+                  </div>
+                  <p className="muted">Selecione músicas na biblioteca, gere um código e envie-o para outro usuário. O código expira em 24 horas e só pode ser usado uma vez.</p>
+                  <button className="music-confirm-upload" onClick={() => void createMusicShare()} disabled={!selectedTrackIds.length || sharing}>
+                    {sharing ? 'Preparando pacote…' : `Gerar código (${selectedTrackIds.length} selecionada(s))`}
+                  </button>
+                  {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong></div>}
+                  <div className="music-share-divider"><span>ou resgatar um código</span></div>
+                  <label>Código recebido
+                    <input value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="Ex.: A1B2C3D4E5" maxLength={10} />
+                  </label>
+                  <button className="primary" onClick={() => void claimMusicShare()} disabled={!claimCode.trim() || sharing}>Baixar e importar pacote</button>
+                </section>
               </div>
             )}
             {editingTrack && <button type="button" className="music-confirm-upload" onClick={saveEdit}>Salvar alterações</button>}

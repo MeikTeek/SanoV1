@@ -24,6 +24,8 @@ interface MusicState {
   setProgress: (value: number) => void;
   setVolume: (value: number) => void;
   search: (term: string) => MusicTrack[];
+  importPackage: (file: File) => Promise<number>;
+  exportPackage: (trackIds: string[]) => Promise<Blob>;
 }
 
 const Ctx = createContext<MusicState>(null!);
@@ -364,9 +366,54 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     return query ? tracks.filter((track) => `${track.title} ${track.artist} ${track.album}`.toLocaleLowerCase().includes(query)) : tracks;
   }, [tracks]);
 
+  const importPackage = useCallback(async (file: File) => {
+    const { default: JSZip } = await import('jszip');
+    const zip = await JSZip.loadAsync(file);
+    const manifestFile = zip.file('manifest.json');
+    if (!manifestFile) throw new Error('O pacote não contém manifest.json.');
+    const manifest = JSON.parse(await manifestFile.async('text')) as { tracks?: Array<MusicTrack & { path: string }> };
+    if (!Array.isArray(manifest.tracks)) throw new Error('Manifesto de música inválido.');
+    const imported: MusicTrack[] = [];
+    for (const item of manifest.tracks) {
+      if (!item.path || !isAudioFile({ name: item.fileName } as File)) continue;
+      const audio = zip.file(item.path);
+      if (!audio) continue;
+      const blob = await audio.async('blob');
+      const id = crypto.randomUUID();
+      const track: MusicTrack = { ...item, id, duration: 0, createdAt: new Date().toISOString() };
+      await saveAudio(id, new File([blob], item.fileName, { type: blob.type }));
+      audioCacheRef.current.set(id, blob);
+      imported.push(track);
+    }
+    if (!imported.length) throw new Error('O pacote não contém músicas compatíveis.');
+    setTracks((items) => {
+      const nextTracks = [...imported, ...items];
+      writeMeta(nextTracks);
+      return nextTracks;
+    });
+    return imported.length;
+  }, []);
+
+  const exportPackage = useCallback(async (trackIds: string[]) => {
+    const { default: JSZip } = await import('jszip');
+    const selected = tracks.filter((track) => trackIds.includes(track.id));
+    if (!selected.length) throw new Error('Selecione ao menos uma música.');
+    const zip = new JSZip();
+    const manifest: { version: 1; tracks: Array<MusicTrack & { path: string }> } = { version: 1, tracks: [] };
+    for (const track of selected) {
+      const audio = audioCacheRef.current.get(track.id) || await readAudio(track.id);
+      if (!audio) throw new Error(`O arquivo de "${track.title}" não está disponível.`);
+      const path = `audio/${track.id}-${track.fileName.replace(/[^\w.-]+/g, '_')}`;
+      zip.file(path, audio);
+      manifest.tracks.push({ ...track, path });
+    }
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+    return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  }, [tracks]);
+
   const value = useMemo(
-    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search }),
-    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search],
+    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage }),
+    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
