@@ -62,6 +62,7 @@ export default function MusicPage() {
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [openTrackMenu, setOpenTrackMenu] = useState<string | null>(null);
+  const [openPlaylistMenu, setOpenPlaylistMenu] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -494,11 +495,21 @@ export default function MusicPage() {
                     {openTrackMenu === track.id && (
                       <div className="track-menu" role="menu">
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void toggleFavorite(track.id); }}>{track.favorite ? 'Desfavoritar' : 'Favoritar'}</button>
-                        {playlists.length > 0 && (
-                          <div className="track-menu-playlists">
-                            <span>Adicionar à playlist</span>
+                        <button role="menuitem" onClick={() => {
+                          if (!playlists.length) {
+                            setOpenTrackMenu(null);
+                            setMessage({ text: 'Nenhuma playlist criada. Crie uma playlist antes de adicionar músicas.', error: true });
+                            return;
+                          }
+                          setOpenPlaylistMenu((id) => id === track.id ? null : track.id);
+                        }}>
+                          {openPlaylistMenu === track.id ? 'Voltar' : 'Adicionar à playlist'}
+                        </button>
+                        {openPlaylistMenu === track.id && (
+                          <div className="track-menu-playlists" role="menu" aria-label="Escolher playlist">
+                            <span>Escolha uma playlist</span>
                             {playlists.map((playlist) => (
-                              <button key={playlist.id} role="menuitem" onClick={() => { addToPlaylist(track.id, playlist.id); setOpenTrackMenu(null); setMessage({ text: `"${track.title}" adicionada à playlist "${playlist.name}".` }); }}>
+                              <button key={playlist.id} role="menuitem" onClick={() => { addToPlaylist(track.id, playlist.id); setOpenTrackMenu(null); setOpenPlaylistMenu(null); setMessage({ text: `"${track.title}" adicionada à playlist "${playlist.name}".` }); }}>
                                 {playlist.name}
                               </button>
                             ))}
