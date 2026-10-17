@@ -1,7 +1,8 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { claimShare, createShare, finalizeShare, getMusicStorageStatus, uploadShare } from '../services/music-share.service';
-import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
+import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, streamMusicTrack, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
+import { Readable } from 'node:stream';
 import { AppError } from '../utils/errors';
 
 const createSchema = z.object({ size: z.number().int().positive() });
@@ -63,6 +64,16 @@ export async function uploadTrack(req: Request, res: Response) {
 export async function downloadTrack(req: Request, res: Response) {
   const { id } = idSchema.parse(req.params);
   res.json(await getMusicDownload(req.user!.id, id));
+}
+
+export async function streamTrack(req: Request, res: Response) {
+  const { id } = idSchema.parse(req.params);
+  const { track, object } = await streamMusicTrack(req.user!.id, id);
+  if (!object.Body) throw new AppError(404, 'Arquivo da música não está disponível.');
+  res.setHeader('Content-Type', track.mimeType || 'application/octet-stream');
+  res.setHeader('Content-Length', String(track.size));
+  res.setHeader('Content-Disposition', `inline; filename="${track.fileName.replace(/["\\\r\n]/g, '_')}"`);
+  Readable.from(object.Body as AsyncIterable<Uint8Array>).pipe(res);
 }
 
 export async function updateTrack(req: Request, res: Response) {

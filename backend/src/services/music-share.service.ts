@@ -59,6 +59,11 @@ export async function signMusicObject(objectKey: string, fileName: string, conte
   );
 }
 
+export async function getMusicObject(objectKey: string) {
+  const { client, bucket: targetBucket } = requireStorage();
+  return client.send(new GetObjectCommand({ Bucket: targetBucket, Key: objectKey }));
+}
+
 export async function deleteMusicObject(objectKey: string) {
   const { client, bucket: targetBucket } = requireStorage();
   await client.send(new DeleteObjectCommand({ Bucket: targetBucket, Key: objectKey }));

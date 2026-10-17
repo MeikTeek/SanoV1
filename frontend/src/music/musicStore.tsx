@@ -109,6 +109,17 @@ const readPlaylists = (userId: string): MusicPlaylist[] => {
   } catch { return []; }
 };
 const writePlaylists = (playlists: MusicPlaylist[], userId: string) => localStorage.setItem(scopedKey(PLAYLIST_KEY, userId), JSON.stringify(playlists));
+const trackKey = (track: MusicTrack) => [track.title, track.artist, track.album, track.fileName]
+  .map((value) => String(value).trim().toLocaleLowerCase()).join('|');
+const uniqueTracks = (items: MusicTrack[]) => {
+  const seen = new Set<string>();
+  return items.filter((track) => {
+    const key = trackKey(track);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+};
 
 export function MusicProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
@@ -173,7 +184,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         }
       }
       if (cancelled) return;
-      const merged = [...migrated, ...remoteTracks, ...localTracks.filter((track) => !remoteIds.has(track.id) && !migratedLocalIds.has(track.id))];
+      const merged = uniqueTracks([...migrated, ...remoteTracks, ...localTracks.filter((track) => !remoteIds.has(track.id) && !migratedLocalIds.has(track.id))]);
       setTracks(merged);
       writeMeta(merged, userId);
       if (legacyTracks.length > 0 && legacyTracks.every((track) => migratedLocalIds.has(track.id))) {
@@ -257,11 +268,16 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       if (!stored) {
         stored = await readAudio(track.id);
         if (!stored) {
-          const remote = await api.get<{ downloadUrl: string }>('/music/tracks/' + track.id + '/download');
-          const response = await fetch(remote.downloadUrl);
-          if (!response.ok) throw new Error('Não foi possível baixar a música para reprodução.');
-          stored = await response.blob();
-          await saveAudio(track.id, new File([stored], track.fileName, { type: track.mimeType || stored.type }));
+          const audio = getAudio();
+          if (requestId !== requestRef.current) return;
+          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+          urlRef.current = `/api/music/tracks/${encodeURIComponent(track.id)}/stream`;
+          loadedIdRef.current = track.id;
+          audio.src = urlRef.current;
+          audio.volume = volumeRef.current;
+          audio.load();
+          await audio.play();
+          return;
         }
         if (stored) audioCacheRef.current.set(track.id, stored);
       }

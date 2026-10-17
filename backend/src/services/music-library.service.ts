@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { prisma } from '../config/prisma';
 import { AppError } from '../utils/errors';
-import { deleteMusicObject, putMusicObject, signMusicObject } from './music-share.service';
+import { deleteMusicObject, getMusicObject, putMusicObject, signMusicObject } from './music-share.service';
 
 const MAX_AUDIO_SIZE = 500 * 1024 * 1024;
 
@@ -26,10 +26,17 @@ function validateSize(size: number) {
 }
 
 export async function listMusicTracks(ownerId: string) {
-  return prisma.musicTrack.findMany({
+  const tracks = await prisma.musicTrack.findMany({
     where: { ownerId, status: 'READY' },
     orderBy: { createdAt: 'desc' },
     select: selectTrack,
+  });
+  const seen = new Set<string>();
+  return tracks.filter((track) => {
+    const key = [track.title, track.artist, track.album, track.fileName].map((value) => String(value).trim().toLocaleLowerCase()).join('|');
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
 }
 
@@ -83,6 +90,12 @@ export async function getMusicDownload(ownerId: string, id: string) {
   const track = await prisma.musicTrack.findFirst({ where: { id, ownerId, status: 'READY' } });
   if (!track) throw new AppError(404, 'Música não encontrada.');
   return { downloadUrl: await signMusicObject(track.objectKey, track.fileName, track.mimeType), fileName: track.fileName };
+}
+
+export async function streamMusicTrack(ownerId: string, id: string) {
+  const track = await prisma.musicTrack.findFirst({ where: { id, ownerId, status: 'READY' } });
+  if (!track) throw new AppError(404, 'Música não encontrada.');
+  return { track, object: await getMusicObject(track.objectKey) };
 }
 
 export async function updateMusicTrack(ownerId: string, id: string, input: {
