@@ -86,6 +86,10 @@ function hashCode(code: string) {
   return createHash('sha256').update(code).digest('hex');
 }
 
+export function normalizeShareCode(code: string) {
+  return code.replace(/[\s-]/g, '').toUpperCase();
+}
+
 export async function createShare(userId: string, size: number) {
   requireStorage();
   if (!Number.isInteger(size) || size <= 0 || size > 500 * 1024 * 1024) {
@@ -124,10 +128,15 @@ export async function uploadShare(userId: string, id: string, body: Buffer) {
 
 export async function claimShare(code: string) {
   const { client, bucket: targetBucket } = requireStorage();
-  const share = await prisma.musicShare.findFirst({ where: { codeHash: hashCode(code.trim().toUpperCase()), status: 'READY' } });
+  const normalizedCode = normalizeShareCode(code);
+  const share = await prisma.musicShare.findFirst({ where: { codeHash: hashCode(normalizedCode), status: 'READY' } });
   if (!share || share.expiresAt <= new Date()) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
-  await prisma.musicShare.update({ where: { id: share.id }, data: { status: 'CLAIMED', claimedAt: new Date() } });
   const downloadUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: targetBucket, Key: share.objectKey, ResponseContentType: 'application/zip' }), { expiresIn: 900 });
+  const claimed = await prisma.musicShare.updateMany({
+    where: { id: share.id, status: 'READY' },
+    data: { status: 'CLAIMED', claimedAt: new Date() },
+  });
+  if (claimed.count !== 1) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
   return { downloadUrl, expiresAt: share.expiresAt };
 }
 

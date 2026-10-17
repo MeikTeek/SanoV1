@@ -1,13 +1,15 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import { claimShare, createShare, finalizeShare, getMusicStorageStatus, uploadShare } from '../services/music-share.service';
+import { claimShare, createShare, finalizeShare, getMusicStorageStatus, normalizeShareCode, uploadShare } from '../services/music-share.service';
 import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, streamMusicTrack, toggleMusicFavorite, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
 import { Readable } from 'node:stream';
 import { AppError } from '../utils/errors';
 
 const createSchema = z.object({ size: z.number().int().positive() });
 const idSchema = z.object({ id: z.string().uuid() });
-const codeSchema = z.object({ code: z.string().trim().min(8).max(20) });
+const codeSchema = z.object({
+  code: z.string().transform(normalizeShareCode).pipe(z.string().regex(/^[0-9A-F]{10}$/, 'Informe um código de 10 caracteres hexadecimais.')),
+});
 const trackSchema = z.object({
   title: z.string().trim().min(1).max(200),
   artist: z.string().trim().max(200),

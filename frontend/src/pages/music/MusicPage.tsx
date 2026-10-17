@@ -604,7 +604,15 @@ export default function MusicPage() {
               <>
                 <p className="muted">Digite o código recebido. O pacote será baixado e as músicas serão importadas para sua biblioteca.</p>
                 <label>Código recebido
-                  <input autoFocus value={claimCode} onChange={(event) => setClaimCode(event.target.value.toUpperCase())} placeholder="Ex.: A1B2C3D4E5" maxLength={10} />
+                  <input
+                    autoFocus
+                    value={claimCode}
+                    onChange={(event) => setClaimCode(event.target.value.replace(/[\s-]/g, '').toUpperCase())}
+                    placeholder="Ex.: A1B2C3D4E5"
+                    maxLength={10}
+                    inputMode="text"
+                    autoComplete="one-time-code"
+                  />
                 </label>
                 <button className="primary" onClick={() => void claimMusicShare()} disabled={!claimCode.trim() || sharing}>{sharing ? 'Baixando pacote…' : 'Baixar e importar pacote'}</button>
                 <button className="ghost share-back-button" onClick={() => setShareMode('choose')}>Voltar</button>
