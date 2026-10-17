@@ -6,6 +6,7 @@ import { env } from '../config/env';
 import { AppError } from '../utils/errors';
 
 const EXPIRATION_MS = 24 * 60 * 60 * 1000;
+const CLAIM_RETRY_MS = 15 * 60 * 1000;
 const endpoint = env.MUSIC_STORAGE_ENDPOINT?.trim();
 const bucket = env.MUSIC_STORAGE_BUCKET?.trim();
 const accessKey = env.MUSIC_STORAGE_ACCESS_KEY?.trim();
@@ -129,18 +130,30 @@ export async function uploadShare(userId: string, id: string, body: Buffer) {
 export async function claimShare(code: string) {
   const { client, bucket: targetBucket } = requireStorage();
   const normalizedCode = normalizeShareCode(code);
-  const share = await prisma.musicShare.findFirst({ where: { codeHash: hashCode(normalizedCode), status: 'READY' } });
-  if (!share || share.expiresAt <= new Date()) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
+  const now = new Date();
+  const retryCutoff = new Date(now.getTime() - CLAIM_RETRY_MS);
+  const share = await prisma.musicShare.findFirst({
+    where: {
+      codeHash: hashCode(normalizedCode),
+      OR: [
+        { status: 'READY' },
+        { status: 'CLAIMED', claimedAt: { gte: retryCutoff } },
+      ],
+    },
+  });
+  if (!share || share.expiresAt <= now) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
   const object = await client.send(new GetObjectCommand({
     Bucket: targetBucket,
     Key: share.objectKey,
     ResponseContentType: 'application/zip',
   }));
-  const claimed = await prisma.musicShare.updateMany({
-    where: { id: share.id, status: 'READY' },
-    data: { status: 'CLAIMED', claimedAt: new Date() },
-  });
-  if (claimed.count !== 1) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
+  if (share.status === 'READY') {
+    const claimed = await prisma.musicShare.updateMany({
+      where: { id: share.id, status: 'READY' },
+      data: { status: 'CLAIMED', claimedAt: now },
+    });
+    if (claimed.count !== 1) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
+  }
   return { object, expiresAt: share.expiresAt };
 }
 
