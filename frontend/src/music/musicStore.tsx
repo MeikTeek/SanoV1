@@ -92,6 +92,15 @@ const readMeta = (userId: string): MusicTrack[] => {
   }
 };
 
+const readLegacyMeta = (): MusicTrack[] => {
+  try {
+    const value = JSON.parse(localStorage.getItem(META_KEY) || '[]') as MusicTrack[];
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+};
+
 const writeMeta = (tracks: MusicTrack[], userId: string) => localStorage.setItem(scopedKey(META_KEY, userId), JSON.stringify(tracks));
 const readPlaylists = (userId: string): MusicPlaylist[] => {
   try {
@@ -133,11 +142,15 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     void api.get<MusicTrack[]>('/music/tracks').then(async (remoteTracks) => {
-      const localTracks = readMeta(userId);
+      const scopedTracks = readMeta(userId);
+      const legacyTracks = readLegacyMeta();
+      const knownIds = new Set(scopedTracks.map((track) => track.id));
+      const localTracks = [...scopedTracks, ...legacyTracks.filter((track) => !knownIds.has(track.id))];
       const remoteIds = new Set(remoteTracks.map((track) => track.id));
       const migrated: MusicTrack[] = [];
       const migratedLocalIds = new Set<string>();
-      for (const localTrack of localTracks.filter((track) => !remoteIds.has(track.id))) {
+      const legacyIds = new Set(legacyTracks.map((track) => track.id));
+      for (const localTrack of localTracks.filter((track) => legacyIds.has(track.id) && !remoteIds.has(track.id))) {
         const localFile = await readAudio(localTrack.id).catch(() => undefined);
         if (!localFile) continue;
         try {
@@ -164,6 +177,9 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const merged = [...migrated, ...remoteTracks, ...localTracks.filter((track) => !remoteIds.has(track.id) && !migratedLocalIds.has(track.id))];
       setTracks(merged);
       writeMeta(merged, userId);
+      if (legacyTracks.every((track) => migratedLocalIds.has(track.id))) {
+        localStorage.removeItem(META_KEY);
+      }
     }).catch((err) => {
       if (!(err instanceof ApiError && err.status === 401)) {
         console.warn('[música] não foi possível sincronizar a biblioteca:', err);
