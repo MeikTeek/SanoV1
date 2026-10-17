@@ -43,7 +43,12 @@ export async function upload(req: Request, res: Response) {
 
 export async function claim(req: Request, res: Response) {
   const { code } = codeSchema.parse(req.body);
-  res.json(await claimShare(code));
+  const { object } = await claimShare(code);
+  if (!object.Body) throw new AppError(404, 'O pacote compartilhado não está disponível.');
+  res.setHeader('Content-Type', object.ContentType || 'application/zip');
+  if (object.ContentLength !== undefined) res.setHeader('Content-Length', String(object.ContentLength));
+  res.setHeader('Content-Disposition', 'attachment; filename="sano-musicas.zip"');
+  Readable.from(object.Body as AsyncIterable<Uint8Array>).pipe(res);
 }
 
 export function storageStatus(_req: Request, res: Response) {

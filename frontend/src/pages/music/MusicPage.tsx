@@ -329,10 +329,7 @@ export default function MusicPage() {
     if (!claimCode.trim() || sharing) return;
     setSharing(true);
     try {
-      const result = await api.post<{ downloadUrl: string }>('/music/shares/claim', { code: claimCode });
-      const response = await fetch(result.downloadUrl);
-      if (!response.ok) throw new Error('Não foi possível baixar o pacote.');
-      const blob = await response.blob();
+      const blob = await api.postBlob('/music/shares/claim', { code: claimCode });
       const file = new File([blob], `sano-musicas-${claimCode.trim().toUpperCase()}.zip`, { type: 'application/zip' });
       const count = await importPackage(file);
       const link = document.createElement('a');

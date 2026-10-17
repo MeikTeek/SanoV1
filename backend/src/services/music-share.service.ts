@@ -131,13 +131,17 @@ export async function claimShare(code: string) {
   const normalizedCode = normalizeShareCode(code);
   const share = await prisma.musicShare.findFirst({ where: { codeHash: hashCode(normalizedCode), status: 'READY' } });
   if (!share || share.expiresAt <= new Date()) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
-  const downloadUrl = await getSignedUrl(client, new GetObjectCommand({ Bucket: targetBucket, Key: share.objectKey, ResponseContentType: 'application/zip' }), { expiresIn: 900 });
+  const object = await client.send(new GetObjectCommand({
+    Bucket: targetBucket,
+    Key: share.objectKey,
+    ResponseContentType: 'application/zip',
+  }));
   const claimed = await prisma.musicShare.updateMany({
     where: { id: share.id, status: 'READY' },
     data: { status: 'CLAIMED', claimedAt: new Date() },
   });
   if (claimed.count !== 1) throw new AppError(404, 'Código inválido, expirado ou já utilizado.');
-  return { downloadUrl, expiresAt: share.expiresAt };
+  return { object, expiresAt: share.expiresAt };
 }
 
 export async function removeExpiredShares() {
