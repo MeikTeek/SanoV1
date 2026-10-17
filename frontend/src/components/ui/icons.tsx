@@ -78,6 +78,9 @@ export const IconPlay = ({ size = 16 }: P) =>
 export const IconDownload = ({ size = 18 }: P) =>
   svg(size, <><path d="M12 3v12M7 11l5 5 5-5M4 20h16" /></>);
 
+export const IconMoreVertical = ({ size = 20 }: P) =>
+  svg(size, <><circle cx="12" cy="5" r="1" fill="currentColor" /><circle cx="12" cy="12" r="1" fill="currentColor" /><circle cx="12" cy="19" r="1" fill="currentColor" /></>);
+
 export const IconPause = ({ size = 16 }: P) =>
   svg(size, <><path d="M8 4v16M16 4v16" strokeWidth="2.4" /></>);
 

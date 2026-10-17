@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { parseBlob } from 'music-metadata';
 import AppShell from '../../components/layout/AppShell';
-import { IconDownload, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
+import { IconDownload, IconMoreVertical, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import { useMusic } from '../../music/musicStore';
 import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
 import { api } from '../../services/api';
@@ -50,6 +50,7 @@ export default function MusicPage() {
   const [claimCode, setClaimCode] = useState('');
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [openTrackMenu, setOpenTrackMenu] = useState<string | null>(null);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -266,7 +267,12 @@ export default function MusicPage() {
     setDownloading(true);
     try {
       const result = await downloadTrack(track);
-      saveDownload(result.blob, result.fileName);
+      const link = document.createElement('a');
+      link.href = result.downloadUrl;
+      link.download = result.fileName;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.click();
       setMessage({ text: `"${track.title}" pronta para ouvir offline.` });
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'Não foi possível baixar a música.', error: true });
@@ -279,15 +285,22 @@ export default function MusicPage() {
     if (downloading || !tracks.length) return;
     setDownloading(true);
     try {
-      const { default: JSZip } = await import('jszip');
-      const zip = new JSZip();
+      const downloads = [];
       for (const track of tracks) {
         const result = await downloadTrack(track);
-        zip.file(`${track.artist || 'Sano'}/${result.fileName}`, result.blob);
+        downloads.push(result);
       }
-      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
-      saveDownload(blob, 'sano-musicas.zip');
-      setMessage({ text: `${tracks.length} músicas reunidas em um pacote para download.` });
+      downloads.forEach((result, index) => {
+        window.setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = result.downloadUrl;
+          link.download = result.fileName;
+          link.target = '_blank';
+          link.rel = 'noopener';
+          link.click();
+        }, index * 250);
+      });
+      setMessage({ text: `${tracks.length} downloads foram iniciados.` });
     } catch (error) {
       setMessage({ text: error instanceof Error ? error.message : 'Não foi possível baixar a biblioteca.', error: true });
     } finally {
@@ -446,9 +459,23 @@ export default function MusicPage() {
                     <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
                   </div>
                   <button className="icon-btn track-play" onClick={() => play(track, visible.slice(index + 1))} aria-label={`Tocar ${track.title}`}><IconPlay /></button>
-                  <button className="icon-btn track-download" onClick={() => void downloadOne(track)} disabled={downloading} aria-label={`Baixar ${track.title}`} title="Baixar para este dispositivo"><IconDownload size={16} /></button>
-                  <button className="track-edit" onClick={() => openEdit(track)}>Editar</button>
-                  <button className="track-remove" onClick={() => remove(track.id)} aria-label={`Remover ${track.title}`}>×</button>
+                  <div className="track-menu-wrap">
+                    <button
+                      className="icon-btn track-menu-trigger"
+                      onClick={(event) => { event.stopPropagation(); setOpenTrackMenu((id) => id === track.id ? null : track.id); }}
+                      aria-label={`Ações para ${track.title}`}
+                      aria-expanded={openTrackMenu === track.id}
+                    >
+                      <IconMoreVertical />
+                    </button>
+                    {openTrackMenu === track.id && (
+                      <div className="track-menu" role="menu">
+                        <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void downloadOne(track); }} disabled={downloading}><IconDownload size={16} /> Baixar</button>
+                        <button role="menuitem" onClick={() => { setOpenTrackMenu(null); openEdit(track); }}>Editar</button>
+                        <button role="menuitem" className="danger" onClick={() => { setOpenTrackMenu(null); remove(track.id); }}>Excluir</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               );
             })}

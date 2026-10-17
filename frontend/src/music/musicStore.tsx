@@ -28,7 +28,7 @@ interface MusicState {
   search: (term: string) => MusicTrack[];
   importPackage: (file: File) => Promise<number>;
   exportPackage: (trackIds: string[]) => Promise<Blob>;
-  downloadTrack: (track: MusicTrack) => Promise<{ blob: Blob; fileName: string }>;
+  downloadTrack: (track: MusicTrack) => Promise<{ downloadUrl: string; fileName: string }>;
 }
 
 const Ctx = createContext<MusicState>(null!);
@@ -149,8 +149,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const remoteIds = new Set(remoteTracks.map((track) => track.id));
       const migrated: MusicTrack[] = [];
       const migratedLocalIds = new Set<string>();
-      const legacyIds = new Set(legacyTracks.map((track) => track.id));
-      for (const localTrack of localTracks.filter((track) => legacyIds.has(track.id) && !remoteIds.has(track.id))) {
+      for (const localTrack of localTracks.filter((track) => !remoteIds.has(track.id))) {
         const localFile = await readAudio(localTrack.id).catch(() => undefined);
         if (!localFile) continue;
         try {
@@ -177,7 +176,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
       const merged = [...migrated, ...remoteTracks, ...localTracks.filter((track) => !remoteIds.has(track.id) && !migratedLocalIds.has(track.id))];
       setTracks(merged);
       writeMeta(merged, userId);
-      if (legacyTracks.every((track) => migratedLocalIds.has(track.id))) {
+      if (legacyTracks.length > 0 && legacyTracks.every((track) => migratedLocalIds.has(track.id))) {
         localStorage.removeItem(META_KEY);
       }
     }).catch((err) => {
@@ -508,9 +507,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
 
   const downloadTrack = useCallback(async (track: MusicTrack) => {
     const remote = await api.get<{ downloadUrl: string; fileName: string }>(`/music/tracks/${track.id}/download`);
-    const response = await fetch(remote.downloadUrl);
-    if (!response.ok) throw new Error(`Não foi possível baixar "${track.title}".`);
-    return { blob: await response.blob(), fileName: remote.fileName };
+    return { downloadUrl: remote.downloadUrl, fileName: remote.fileName };
   }, []);
 
   const value = useMemo(
