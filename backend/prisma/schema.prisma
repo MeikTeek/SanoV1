@@ -78,6 +78,8 @@ model MusicTrack {
   album     String
   genre     String
   mood      String
+  coverDataUrl String? @db.Text
+  favorite  Boolean  @default(false)
   duration  Float    @default(0)
   fileName  String
   mimeType  String

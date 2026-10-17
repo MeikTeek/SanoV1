@@ -12,6 +12,7 @@ r.post('/tracks/:id/upload', requireAuth, c.uploadTrack);
 r.get('/tracks/:id/download', requireAuth, c.downloadTrack);
 r.get('/tracks/:id/stream', requireAuth, c.streamTrack);
 r.patch('/tracks/:id', requireAuth, c.updateTrack);
+r.post('/tracks/:id/favorite', requireAuth, c.favoriteTrack);
 r.delete('/tracks/:id', requireAuth, c.deleteTrack);
 r.post('/shares/:id/upload', requireAuth, c.upload);
 r.post('/shares/:id/finalize', requireAuth, c.finalize);

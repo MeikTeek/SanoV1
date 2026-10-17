@@ -29,6 +29,7 @@ interface MusicState {
   importPackage: (file: File) => Promise<number>;
   exportPackage: (trackIds: string[]) => Promise<Blob>;
   downloadTrack: (track: MusicTrack) => Promise<{ downloadUrl: string; fileName: string }>;
+  toggleFavorite: (id: string) => Promise<void>;
 }
 
 const Ctx = createContext<MusicState>(null!);
@@ -170,6 +171,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
             album: localTrack.album,
             genre: localTrack.genre,
             mood: localTrack.mood,
+            coverDataUrl: localTrack.coverDataUrl || undefined,
             duration: localTrack.duration,
             fileName: localTrack.fileName,
             mimeType: localTrack.mimeType || localFile.type || 'application/octet-stream',
@@ -390,6 +392,15 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const toggleFavorite = useCallback(async (id: string) => {
+    const updated = await api.post<MusicTrack>(`/music/tracks/${id}/favorite`);
+    setTracks((items) => {
+      const nextTracks = items.map((track) => track.id === id ? { ...track, favorite: updated.favorite } : track);
+      writeMeta(nextTracks, storageUserRef.current);
+      return nextTracks;
+    });
+  }, []);
+
   const addFiles = useCallback(async (files: File[], metadata: NewMusicMetadata) => {
     const added: MusicTrack[] = [];
     for (const file of files) {
@@ -401,6 +412,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         fileName: file.name,
         mimeType: file.type || 'application/octet-stream',
         size: file.size,
+        coverDataUrl: metadata.coverDataUrl,
       });
       await api.post(`/music/tracks/${remote.id}/upload`, file);
       const track: MusicTrack = {
@@ -412,6 +424,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
         size: file.size,
         mimeType: file.type || 'application/octet-stream',
+        coverDataUrl: metadata.coverDataUrl,
       };
       await saveAudio(remote.id, file);
       audioCacheRef.current.set(remote.id, file);
@@ -527,8 +540,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack }),
-    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack],
+    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite }),
+    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

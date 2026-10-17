@@ -11,7 +11,17 @@ interface PendingMusicFile {
   title: string;
   artist: string;
   album: string;
+  coverDataUrl?: string;
 }
+
+const uint8ToBase64 = (data: Uint8Array) => {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let index = 0; index < data.length; index += chunkSize) {
+    binary += String.fromCharCode(...data.subarray(index, index + chunkSize));
+  }
+  return btoa(binary);
+};
 
 function Equalizer() {
   return (
@@ -22,7 +32,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage, downloadTrack } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage, downloadTrack, toggleFavorite } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -51,6 +61,8 @@ export default function MusicPage() {
   const [sharing, setSharing] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [openTrackMenu, setOpenTrackMenu] = useState<string | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -60,6 +72,7 @@ export default function MusicPage() {
     (!artistFilter || track.artist === artistFilter) &&
     (!genreFilter || track.genre === genreFilter) &&
     (!moodFilter || track.mood === moodFilter) &&
+    (!favoritesOnly || track.favorite) &&
     (!playlistFilter || playlists.find((playlist) => playlist.id === playlistFilter)?.trackIds.includes(track.id)),
   );
 
@@ -107,6 +120,9 @@ export default function MusicPage() {
             title: metadata.common.title?.trim() || fallbackTitle,
             artist: artistsFromTags || metadata.common.artist?.trim() || '',
             album: metadata.common.album?.trim() || 'Uploads do Sano',
+            coverDataUrl: metadata.common.picture?.[0]
+              ? `data:${metadata.common.picture[0].format};base64,${uint8ToBase64(metadata.common.picture[0].data)}`
+              : undefined,
           };
         } catch (error) {
           console.warn('[música] não foi possível ler as tags:', file.name, error);
@@ -139,6 +155,7 @@ export default function MusicPage() {
           mood,
           title: pending.title.trim() || title,
           playlistId: playlistId || undefined,
+          coverDataUrl: pending.coverDataUrl,
         });
       }
       const added = `${pendingFiles.length} ${pendingFiles.length === 1 ? 'música adicionada' : 'músicas adicionadas'} à sua biblioteca.`;
@@ -341,16 +358,14 @@ export default function MusicPage() {
     <AppShell
       title="Música"
       status={`${tracks.length} na sua biblioteca`}
-      actions={<button className="ghost music-add-button" onClick={() => setUploadOpen(true)}><IconPlus size={16} /> Criar</button>}
     >
       <div className="music-page">
         <aside className="music-library-nav" aria-label="Sua biblioteca">
           <div className="music-library-title">
             <strong>Sua biblioteca</strong>
-            <button className="icon-btn" onClick={() => setUploadOpen(true)} aria-label="Adicionar música"><IconPlus size={17} /></button>
           </div>
           <button className="music-library-item active" aria-current="page">♫ Músicas</button>
-          <button className="music-library-item" disabled title="Em breve">♡ Músicas curtidas</button>
+          <button className={`music-library-item${favoritesOnly ? ' active' : ''}`} onClick={() => setFavoritesOnly((value) => !value)}>☆ Favoritas</button>
           <button className={`music-library-item${playlistFilter === '' ? '' : ' active'}`} onClick={() => setPlaylistFilter('')}>▦ Playlists</button>
           {playlists.map((playlist) => (
             <div className="music-playlist-item" key={playlist.id}>
@@ -391,10 +406,11 @@ export default function MusicPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Buscar por título, artista ou álbum"
+              onFocus={() => setFiltersOpen(true)}
             />
           </div>
 
-          <div className="music-filters" aria-label="Filtros da biblioteca">
+          {filtersOpen && <div className="music-filters" aria-label="Filtros da biblioteca">
             <select aria-label="Filtrar por autor" value={artistFilter} onChange={(e) => setArtistFilter(e.target.value)}>
               <option value="">Todos os autores</option>{artists.map((item) => <option key={item}>{item}</option>)}
             </select>
@@ -404,10 +420,10 @@ export default function MusicPage() {
             <select aria-label="Filtrar por clima" value={moodFilter} onChange={(e) => setMoodFilter(e.target.value)}>
               <option value="">Todos os climas</option>{moods.map((item) => <option key={item}>{item}</option>)}
             </select>
-            {(artistFilter || genreFilter || moodFilter || playlistFilter) && <button className="ghost" onClick={() => { setArtistFilter(''); setGenreFilter(''); setMoodFilter(''); setPlaylistFilter(''); }}>Limpar filtros</button>}
-          </div>
+            {(artistFilter || genreFilter || moodFilter || playlistFilter || favoritesOnly) && <button className="ghost" onClick={() => { setArtistFilter(''); setGenreFilter(''); setMoodFilter(''); setPlaylistFilter(''); setFavoritesOnly(false); }}>Limpar filtros</button>}
+          </div>}
 
-          {moods.length > 1 && (
+          {filtersOpen && moods.length > 1 && (
             <div className="music-chips" role="group" aria-label="Filtrar por clima">
               <button className={`music-chip${moodFilter === '' ? ' active' : ''}`} onClick={() => setMoodFilter('')}>Todas</button>
               {moods.map((m) => (
@@ -452,7 +468,9 @@ export default function MusicPage() {
                       />
                     </label>}
                   <span className="track-index">{isCurrent && playing ? <Equalizer /> : index + 1}</span>
-                  <div className="track-art" aria-hidden="true">{track.title.slice(0, 1).toUpperCase()}</div>
+                  <div className="track-art" aria-hidden="true">
+                    {track.coverDataUrl ? <img src={track.coverDataUrl} alt="" /> : track.title.slice(0, 1).toUpperCase()}
+                  </div>
                   <div className="track-info">
                     <strong title={track.title}>{track.title}</strong>
                     <span>{track.artist} · {track.genre} · {track.mood}</span>
@@ -470,6 +488,7 @@ export default function MusicPage() {
                     </button>
                     {openTrackMenu === track.id && (
                       <div className="track-menu" role="menu">
+                        <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void toggleFavorite(track.id); }}>{track.favorite ? 'Desfavoritar' : 'Favoritar'}</button>
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void downloadOne(track); }} disabled={downloading}><IconDownload size={16} /> Baixar</button>
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); openEdit(track); }}>Editar</button>
                         <button role="menuitem" className="danger" onClick={() => { setOpenTrackMenu(null); remove(track.id); }}>Excluir</button>
@@ -493,7 +512,6 @@ export default function MusicPage() {
           <div className="music-side-art" aria-hidden="true">{current?.title.slice(0, 1).toUpperCase() || '♪'}</div>
           <h3>{current?.title || 'Sua biblioteca'}</h3>
           <p>{current?.artist || 'Adicione uma música para começar'}</p>
-          <button className="ghost" onClick={() => setUploadOpen(true)}><IconPlus size={15} /> Adicionar música</button>
         </aside>
       </div>
 

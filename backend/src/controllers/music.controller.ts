@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { claimShare, createShare, finalizeShare, getMusicStorageStatus, uploadShare } from '../services/music-share.service';
-import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, streamMusicTrack, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
+import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, streamMusicTrack, toggleMusicFavorite, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
 import { Readable } from 'node:stream';
 import { AppError } from '../utils/errors';
 
@@ -14,6 +14,7 @@ const trackSchema = z.object({
   album: z.string().trim().max(200),
   genre: z.string().trim().max(100),
   mood: z.string().trim().max(100),
+  coverDataUrl: z.string().max(2_000_000).optional(),
   duration: z.number().finite().nonnegative().optional(),
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().max(100).default('application/octet-stream'),
@@ -78,8 +79,13 @@ export async function streamTrack(req: Request, res: Response) {
 
 export async function updateTrack(req: Request, res: Response) {
   const { id } = idSchema.parse(req.params);
-  const input = trackSchema.pick({ title: true, artist: true, album: true, genre: true, mood: true }).parse(req.body);
+  const input = trackSchema.pick({ title: true, artist: true, album: true, genre: true, mood: true }).extend({ favorite: z.boolean().optional() }).parse(req.body);
   res.json(await updateMusicTrack(req.user!.id, id, input));
+}
+
+export async function favoriteTrack(req: Request, res: Response) {
+  const { id } = idSchema.parse(req.params);
+  res.json(await toggleMusicFavorite(req.user!.id, id));
 }
 
 export async function deleteTrack(req: Request, res: Response) {

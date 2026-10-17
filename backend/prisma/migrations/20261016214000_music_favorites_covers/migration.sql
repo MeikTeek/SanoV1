@@ -1,0 +1,2 @@
+ALTER TABLE "MusicTrack" ADD COLUMN "coverDataUrl" TEXT;
+ALTER TABLE "MusicTrack" ADD COLUMN "favorite" BOOLEAN NOT NULL DEFAULT false;

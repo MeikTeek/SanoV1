@@ -10,6 +10,8 @@ export interface MusicTrack {
   createdAt: string;
   size?: number;
   mimeType?: string;
+  coverDataUrl?: string | null;
+  favorite?: boolean;
 }
 
 export interface MusicPlaylist {
@@ -25,11 +27,13 @@ export interface NewMusicMetadata {
   mood: string;
   title?: string;
   playlistId?: string;
+  coverDataUrl?: string | null;
 }
 
 export type EditableMusicMetadata = Pick<MusicTrack, 'title' | 'artist' | 'album' | 'genre' | 'mood'> & {
   playlistId?: string;
-};
+  coverDataUrl?: string;
+}
 
 /** Extensões aceitas pelo upload; a decodificação final depende do navegador. */
 export const SUPPORTED_AUDIO_EXTENSIONS = [

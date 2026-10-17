@@ -12,6 +12,8 @@ const selectTrack = {
   album: true,
   genre: true,
   mood: true,
+  coverDataUrl: true,
+  favorite: true,
   duration: true,
   fileName: true,
   mimeType: true,
@@ -46,6 +48,7 @@ export async function createMusicTrack(ownerId: string, input: {
   album: string;
   genre: string;
   mood: string;
+  coverDataUrl?: string;
   duration?: number;
   fileName: string;
   mimeType: string;
@@ -61,6 +64,7 @@ export async function createMusicTrack(ownerId: string, input: {
       album: input.album.trim().slice(0, 200),
       genre: input.genre.trim().slice(0, 100),
       mood: input.mood.trim().slice(0, 100),
+      coverDataUrl: input.coverDataUrl?.startsWith('data:image/') ? input.coverDataUrl.slice(0, 2_000_000) : null,
       duration: input.duration && Number.isFinite(input.duration) ? Math.max(0, input.duration) : 0,
       fileName: input.fileName.trim(),
       mimeType: input.mimeType.trim() || 'application/octet-stream',
@@ -104,6 +108,7 @@ export async function updateMusicTrack(ownerId: string, id: string, input: {
   album: string;
   genre: string;
   mood: string;
+  favorite?: boolean;
 }) {
   const track = await prisma.musicTrack.findFirst({ where: { id, ownerId, status: 'READY' } });
   if (!track) throw new AppError(404, 'Música não encontrada.');
@@ -115,7 +120,18 @@ export async function updateMusicTrack(ownerId: string, id: string, input: {
       album: input.album.trim().slice(0, 200),
       genre: input.genre.trim().slice(0, 100),
       mood: input.mood.trim().slice(0, 100),
+      ...(input.favorite === undefined ? {} : { favorite: input.favorite }),
     },
+    select: selectTrack,
+  });
+}
+
+export async function toggleMusicFavorite(ownerId: string, id: string) {
+  const track = await prisma.musicTrack.findFirst({ where: { id, ownerId, status: 'READY' } });
+  if (!track) throw new AppError(404, 'Música não encontrada.');
+  return prisma.musicTrack.update({
+    where: { id },
+    data: { favorite: !track.favorite },
     select: selectTrack,
   });
 }
