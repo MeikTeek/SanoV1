@@ -30,6 +30,7 @@ interface MusicState {
   exportPackage: (trackIds: string[]) => Promise<Blob>;
   downloadTrack: (track: MusicTrack) => Promise<{ downloadUrl: string; fileName: string }>;
   toggleFavorite: (id: string) => Promise<void>;
+  addToPlaylist: (trackId: string, playlistId: string) => void;
 }
 
 const Ctx = createContext<MusicState>(null!);
@@ -466,6 +467,16 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const addToPlaylist = useCallback((trackId: string, playlistId: string) => {
+    setPlaylists((items) => {
+      const nextPlaylists = items.map((playlist) => playlist.id === playlistId && !playlist.trackIds.includes(trackId)
+        ? { ...playlist, trackIds: [...playlist.trackIds, trackId] }
+        : playlist);
+      writePlaylists(nextPlaylists, storageUserRef.current);
+      return nextPlaylists;
+    });
+  }, []);
+
   const playPlaylist = useCallback((playlist: MusicPlaylist) => {
     const playlistTracks = playlist.trackIds.map((id) => tracks.find((track) => track.id === id)).filter((track): track is MusicTrack => Boolean(track));
     if (playlistTracks.length) play(playlistTracks[0], playlistTracks.slice(1));
@@ -540,8 +551,8 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite }),
-    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite],
+    () => ({ tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, addToPlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite }),
+    [tracks, playlists, current, playing, progress, duration, volume, queue, error, play, toggle, next, previous, remove, updateTrack, addFiles, createPlaylist, deletePlaylist, addToPlaylist, playPlaylist, setProgress, setVolume, search, importPackage, exportPackage, downloadTrack, toggleFavorite],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -25,7 +25,7 @@ export default function ChatTerminal() {
   const navigate = useNavigate();
   const history = useCommandHistory();
   const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking } = useChat();
-  const { tracks, play } = useMusic();
+  const { tracks, playlists, volume, playing, play, toggle, setVolume } = useMusic();
   const nextId = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,6 +71,38 @@ export default function ChatTerminal() {
 
     setMessages((m) => [...m, make('user', trimmed)]);
 
+    const normalized = trimmed.toLocaleLowerCase();
+    if (/^(?:sano[,:]?\s*)?(?:pausar|pause|pausa)(?:\s+m[uú]sica)?$/i.test(trimmed)) {
+      if (playing) toggle();
+      setMessages((m) => [...m, make('sano', playing ? 'Música pausada.' : 'A música já está pausada.')]);
+      setBusy(false);
+      inputRef.current?.focus();
+      return;
+    }
+    const volumeRequest = normalized.match(/^(?:sano[,:]?\s*)?(aumentar|diminuir|baixar|subir)\s+(?:o\s+)?volume$/i);
+    if (volumeRequest) {
+      const amount = volumeRequest[1] === 'aumentar' || volumeRequest[1] === 'subir' ? 0.1 : -0.1;
+      setVolume(Math.max(0, Math.min(1, Math.round((volume + amount) * 100) / 100)));
+      setMessages((m) => [...m, make('sano', `Volume ${amount > 0 ? 'aumentado' : 'diminuído'}.`)]);
+      setBusy(false);
+      inputRef.current?.focus();
+      return;
+    }
+    const defaultTracks = tracks.filter((track) => !playlists.some((playlist) => playlist.trackIds.includes(track.id)));
+    const defaultRequest = /^(?:sano[,:]?\s*)?(?:tocar|toque|reproduzir|reproduza)\s+(?:a\s+)?(?:playlist\s+)?(?:default|padr[aã]o|m[uú]sicas?)$/i.test(trimmed);
+    const favoritesRequest = /^(?:sano[,:]?\s*)?(?:tocar|toque|reproduzir|reproduza)\s+(?:as?\s+)?favoritas?$/i.test(trimmed);
+    if (defaultRequest || favoritesRequest) {
+      const selected = favoritesRequest ? tracks.filter((track) => track.favorite) : defaultTracks;
+      if (selected.length) {
+        play(selected[0], selected.slice(1));
+        setMessages((m) => [...m, make('sano', favoritesRequest ? 'Tocando suas músicas favoritas.' : 'Tocando a playlist Músicas.')]);
+      } else {
+        setMessages((m) => [...m, make('sano', favoritesRequest ? 'Você ainda não marcou músicas como favoritas.' : 'Sua playlist Músicas está vazia.')]);
+      }
+      setBusy(false);
+      inputRef.current?.focus();
+      return;
+    }
     const musicRequest = trimmed.match(/^(?:sano[,:]?\s*)?(?:tocar|toque|reproduzir|reproduza)\s+(?:a\s+)?(?:m[uú]sica\s+|playlist\s+|autor\s+)?(.+)$/i);
     if (musicRequest) {
       const term = musicRequest[1].trim().toLocaleLowerCase();
@@ -103,7 +135,7 @@ export default function ChatTerminal() {
       setBusy(false);
       inputRef.current?.focus();
     }
-  }, [busy, history, make, navigate, setMessages, setBusy, setComposing, setThinking, setUser]);
+  }, [busy, history, make, navigate, playing, playlists, play, setMessages, setBusy, setComposing, setThinking, setUser, setVolume, toggle, tracks, volume]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {

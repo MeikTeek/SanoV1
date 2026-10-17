@@ -3,6 +3,7 @@ import AppShell from '../../components/layout/AppShell';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import type { AdminUser, AuditLog, Role } from '../../types';
+import { IconCopy } from '../../components/ui/icons';
 
 export default function AdminPage() {
   const [tab, setTab] = useState<'users' | 'logs'>('users');
@@ -24,6 +25,7 @@ function UsersTab() {
   const [role, setRole] = useState<Role>('USER');
   const [temp, setTemp] = useState<{ username: string; password: string } | null>(null);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const load = useCallback(() => {
     api.get<{ users: AdminUser[] }>('/admin/users').then((r) => setUsers(r.users)).catch((e) => setError(e.message));
@@ -57,6 +59,13 @@ function UsersTab() {
     });
   };
 
+  const copyCredentials = async () => {
+    if (!temp) return;
+    await navigator.clipboard.writeText(`Usuário: ${temp.username}\nSenha: ${temp.password}`);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
   return (
     <section className="card">
       <form className="inline" onSubmit={create}>
@@ -70,8 +79,11 @@ function UsersTab() {
 
       {temp && (
         <div className="notice">
-          Senha temporária de <b>{temp.username}</b>: <code>{temp.password}</code><br />
-          <small>Copie agora — ela não será exibida novamente.</small>
+          <strong>Dados de acesso</strong><br />
+          Usuário: <code>{temp.username}</code><br />
+          Senha: <code>{temp.password}</code><br />
+          <small>Copie agora — a senha não será exibida novamente.</small>
+          <button className="ghost" onClick={() => void copyCredentials()}><IconCopy size={16} /> {copied ? 'Copiado' : 'Copiar dados'}</button>
           <button className="ghost" onClick={() => setTemp(null)}>Fechar</button>
         </div>
       )}

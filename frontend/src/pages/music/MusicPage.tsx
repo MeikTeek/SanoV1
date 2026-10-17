@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { parseBlob } from 'music-metadata';
 import AppShell from '../../components/layout/AppShell';
-import { IconDownload, IconMoreVertical, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
+import { IconCopy, IconDownload, IconMoreVertical, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
+import MusicCover from '../../components/music/MusicCover';
 import { useMusic } from '../../music/musicStore';
 import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
 import { api } from '../../services/api';
@@ -32,7 +33,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, playPlaylist, exportPackage, importPackage, downloadTrack, toggleFavorite } = useMusic();
+  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, addToPlaylist, playPlaylist, exportPackage, importPackage, downloadTrack, toggleFavorite } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -63,6 +64,7 @@ export default function MusicPage() {
   const [openTrackMenu, setOpenTrackMenu] = useState<string | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -270,6 +272,13 @@ export default function MusicPage() {
     setShareOpen(true);
   };
 
+  const copyShareCode = async () => {
+    if (!shareCode) return;
+    await navigator.clipboard.writeText(shareCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
   const saveDownload = (blob: Blob, fileName: string) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -355,18 +364,19 @@ export default function MusicPage() {
     <AppShell
       title="Música"
       status={`${tracks.length} na sua biblioteca`}
+      flush
     >
       <div className="music-page">
         <aside className="music-library-nav" aria-label="Sua biblioteca">
           <div className="music-library-title">
             <strong>Sua biblioteca</strong>
           </div>
-          <button className="music-library-item active" aria-current="page">♫ Músicas</button>
-          <button className={`music-library-item${favoritesOnly ? ' active' : ''}`} onClick={() => setFavoritesOnly((value) => !value)}>☆ Favoritas</button>
-          <button className={`music-library-item${playlistFilter === '' ? '' : ' active'}`} onClick={() => setPlaylistFilter('')}>▦ Playlists</button>
+          <button className={`music-library-item${!favoritesOnly && !playlistFilter ? ' active' : ''}`} aria-current={!favoritesOnly && !playlistFilter ? 'page' : undefined} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(''); }}>♫ Músicas</button>
+          <button className={`music-library-item${favoritesOnly ? ' active' : ''}`} onClick={() => { setFavoritesOnly((value) => !value); setPlaylistFilter(''); }}>☆ Favoritas</button>
+          <button className={`music-library-item${!favoritesOnly && playlistFilter === 'all' ? ' active' : ''}`} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(''); }}>▦ Playlists</button>
           {playlists.map((playlist) => (
             <div className="music-playlist-item" key={playlist.id}>
-              <button className={`music-library-item${playlistFilter === playlist.id ? ' active' : ''}`} onClick={() => setPlaylistFilter(playlist.id)} title={`Tocar playlist ${playlist.name}`}>
+              <button className={`music-library-item${!favoritesOnly && playlistFilter === playlist.id ? ' active' : ''}`} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(playlist.id); }} title={`Tocar playlist ${playlist.name}`}>
                 {playlist.name}
               </button>
               <button className="music-playlist-play" onClick={() => playPlaylist(playlist)} aria-label={`Tocar playlist ${playlist.name}`}>▶</button>
@@ -464,12 +474,10 @@ export default function MusicPage() {
                         aria-label={`Selecionar ${track.title} para compartilhar`}
                       />
                     </label>}
-                  <span className="track-index">{isCurrent && playing ? <Equalizer /> : index + 1}</span>
-                  <div className="track-art" aria-hidden="true">
-                    {track.coverDataUrl ? <img src={track.coverDataUrl} alt="" /> : track.title.slice(0, 1).toUpperCase()}
-                  </div>
+                  <span className="track-index">{isCurrent ? (playing ? <Equalizer /> : <span className="track-current-marker">●</span>) : index + 1}</span>
+                  <MusicCover src={track.coverDataUrl} title={track.title} className="track-art" />
                   <div className="track-info">
-                    <strong title={track.title}>{track.title}</strong>
+                    <strong title={track.title}>{track.title} {track.favorite && <span className="track-favorite" title="Favorita">★</span>}</strong>
                     <span>{track.artist} · {track.genre} · {track.mood}</span>
                     <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
                   </div>
@@ -486,6 +494,16 @@ export default function MusicPage() {
                     {openTrackMenu === track.id && (
                       <div className="track-menu" role="menu">
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void toggleFavorite(track.id); }}>{track.favorite ? 'Desfavoritar' : 'Favoritar'}</button>
+                        {playlists.length > 0 && (
+                          <div className="track-menu-playlists">
+                            <span>Adicionar à playlist</span>
+                            {playlists.map((playlist) => (
+                              <button key={playlist.id} role="menuitem" onClick={() => { addToPlaylist(track.id, playlist.id); setOpenTrackMenu(null); setMessage({ text: `"${track.title}" adicionada à playlist "${playlist.name}".` }); }}>
+                                {playlist.name}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); void downloadOne(track); }} disabled={downloading}><IconDownload size={16} /> Baixar</button>
                         <button role="menuitem" onClick={() => { setOpenTrackMenu(null); openEdit(track); }}>Editar</button>
                         <button role="menuitem" className="danger" onClick={() => { setOpenTrackMenu(null); remove(track.id); }}>Excluir</button>
@@ -506,9 +524,15 @@ export default function MusicPage() {
 
         <aside className="music-side-panel" aria-label="Tocando agora">
           <span className="eyebrow">Tocando agora</span>
-          <div className="music-side-art" aria-hidden="true">{current?.title.slice(0, 1).toUpperCase() || '♪'}</div>
+          <MusicCover src={current?.coverDataUrl} title={current?.title || '♪'} className="music-side-art" />
           <h3>{current?.title || 'Sua biblioteca'}</h3>
           <p>{current?.artist || 'Adicione uma música para começar'}</p>
+          {current && <div className="music-side-meta">
+            <span>{current.album || 'Sem álbum'}</span>
+            <span>{current.genre || 'Sem gênero'} · {current.mood || 'Sem clima'}</span>
+            <span>{playlists.find((playlist) => playlist.trackIds.includes(current.id))?.name || 'Músicas'}</span>
+            <span>{current.duration > 0 ? `${Math.floor(current.duration / 60)}:${String(Math.floor(current.duration % 60)).padStart(2, '0')}` : 'Duração não informada'}</span>
+          </div>}
         </aside>
       </div>
 
@@ -593,7 +617,7 @@ export default function MusicPage() {
                 <button className="music-confirm-upload" onClick={() => void createMusicShare()} disabled={!selectedTrackIds.length || sharing}>
                   {sharing ? 'Preparando pacote…' : `Gerar código (${selectedTrackIds.length} selecionada(s))`}
                 </button>
-                {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong></div>}
+                {shareCode && <div className="music-share-code"><span>Código para enviar</span><strong>{shareCode}</strong><button className="ghost" onClick={() => void copyShareCode()}><IconCopy size={16} /> {copied ? 'Copiado' : 'Copiar código'}</button></div>}
                 <button className="ghost share-back-button" onClick={() => { setShareMode('choose'); setSelectionMode(false); setSelectedTrackIds([]); }}>Voltar</button>
               </>
             )}

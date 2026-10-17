@@ -1,6 +1,7 @@
 import { useRef, type CSSProperties } from 'react';
 import { useMusic } from '../../music/musicStore';
 import { IconBack, IconPause, IconPlay } from '../ui/icons';
+import MusicCover from './MusicCover';
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
@@ -52,9 +53,7 @@ export default function MusicPlayer() {
   return (
     <div className="music-player" role="region" aria-label="Player de música">
       <div className="music-now">
-        <div className={`music-cover${playing ? ' is-playing' : ''}`} aria-hidden="true">
-          {current.title.slice(0, 1).toUpperCase()}
-        </div>
+        <MusicCover src={current.coverDataUrl} title={current.title} className={`music-cover${playing ? ' is-playing' : ''}`} />
         <div className="music-now-text">
           <strong title={current.title}>{current.title}</strong>
           <span>{current.artist || 'Artista desconhecido'}</span>
