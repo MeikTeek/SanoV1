@@ -1,5 +1,5 @@
 import { EXERCISES, type Goal, type Injury, type Equipment } from './exercises';
-import { screenOut, type RuleProfile } from './rules';
+import { availableEquipment, screenOut, type RuleProfile } from './rules';
 
 export const WEEKDAYS = [
   { index: 1, label: 'Segunda', short: 'Seg' },
@@ -50,6 +50,8 @@ export interface PlannedExercise {
   restSeconds: number;
   rir: string;
   minutes: number;
+  order: number;
+  type: 'warmup' | 'normal';
 }
 
 export interface WeeklyWorkout {
@@ -268,7 +270,7 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
 
   const rule: RuleProfile = {
     goal: profile.goal as Goal,
-    equipment: effectiveEquipment(profile.trainingLocation, profile.equipment) as Equipment[],
+    equipment: availableEquipment(effectiveEquipment(profile.trainingLocation, profile.equipment) as Equipment[]),
     injuries: profile.injuries as Injury[],
     age: now.getFullYear() - profile.birthYear,
     level: 1,
@@ -295,7 +297,11 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
       }
 
       const sessionsPerWeek = frequency.get(muscle) ?? 1;
-      const neededExercises = Math.ceil(targetMin / (sets * sessionsPerWeek));
+      // Em grupos treinados uma vez, usamos dois slots de movimento como no
+      // wger. Quando o grupo se repete na semana, a frequência distribui o
+      // mesmo volume entre as sessões.
+      const minimumExercises = sessionsPerWeek === 1 ? 2 : 1;
+      const neededExercises = Math.max(minimumExercises, Math.ceil(targetMin / (sets * sessionsPerWeek)));
       const count = Math.min(options.length, Math.max(chooseExerciseCount(profile.experience, sessionsPerWeek), neededExercises));
       // Em sessões seguintes do mesmo músculo, gira a lista para variar os exercícios.
       const rotation = templates.slice(0, sessionIndex).filter((previous) => previous.muscles.includes(muscle)).length;
@@ -320,6 +326,8 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
           restSeconds: exerciseRest,
           rir: DEFAULT_RIR,
           minutes: exerciseMinutes(exerciseSets, exerciseReps, exerciseRest, exercise),
+          order: sessionExercises.length + 1,
+          type: 'normal',
         });
       }
     }

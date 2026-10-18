@@ -12,6 +12,20 @@ export interface RuleProfile {
   minutesAvailable: number;
 }
 
+/** Expande opções compostas do cadastro sem transformar o filtro em whitelist frágil. */
+export function availableEquipment(equipment: Equipment[]): Equipment[] {
+  const result = new Set<Equipment>(equipment);
+  if (result.has('academia')) {
+    result.add('halteres');
+    result.add('barra-fixa');
+    result.add('elastico');
+    result.add('peso-corporal');
+    result.add('nenhum');
+  }
+  if (result.has('peso-corporal') || result.has('barra-fixa')) result.add('nenhum');
+  return Array.from(result);
+}
+
 export interface Block {
   key: string;
   name: string;
@@ -51,7 +65,7 @@ export function screenOut(e: Exercise, p: RuleProfile): string | null {
   const clash = e.contraindicated.find((i) => p.injuries.includes(i));
   if (clash) return `contraindicado para ${clash}`;
 
-  const hasGear = e.equipment.some((eq) => eq === 'nenhum' || p.equipment.includes(eq));
+  const hasGear = e.equipment.some((eq) => availableEquipment(p.equipment).includes(eq));
   if (!hasGear) return 'precisa de equipamento indisponível';
 
   // Acima dos 60 anos, nada de dificuldade máxima.

@@ -127,6 +127,8 @@ export interface PlannedExercise {
   restSeconds: number;
   rir: string;
   minutes: number;
+  order: number;
+  type: 'warmup' | 'normal';
 }
 
 export interface WeeklyWorkout {

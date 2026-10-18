@@ -67,6 +67,15 @@ test('volume semanal é calculado a partir dos exercícios, sessões e séries',
   assert.ok(chest.weeklySets >= chest.targetMin && chest.weeklySets <= chest.targetMax);
 });
 
+test('prescreve pelo menos dois movimentos por grupo na sessão', () => {
+  const plan = generateWeeklyPlan({ ...base, trainingDays: 5, trainingWeekdays: [1, 2, 3, 4, 5] });
+  const monday = plan.days.find((day) => day.weekday === 1)!;
+  const chestExercises = monday.exercises.filter((exercise) => exercise.muscle === 'chest');
+  assert.ok(chestExercises.length >= 2);
+  assert.ok(chestExercises.every((exercise) => exercise.sets > 0 && exercise.reps.length > 0));
+  assert.deepEqual(monday.exercises.map((exercise) => exercise.order), monday.exercises.map((_, index) => index + 1));
+});
+
 test('calistenia não escolhe exercícios que só exigem academia ou halteres', () => {
   const plan = generateWeeklyPlan({
     ...base,

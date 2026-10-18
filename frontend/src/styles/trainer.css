@@ -117,6 +117,7 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
 .set-log { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
 .set-log-row { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
 .set-log-row > span { width: 48px; }
+.prescribed-reps { min-width: 105px; color: var(--text); }
 .set-log-row label { display: flex; align-items: center; gap: 4px; }
 .set-log-row input { width: 62px; padding: 6px; }
 .library-filters { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 8px; margin: 14px 0; }

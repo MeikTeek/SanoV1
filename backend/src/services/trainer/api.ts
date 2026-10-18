@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 import { prisma } from '../../config/prisma';
 import { getProfile, getStats, getOrCreateMission, getDashboard, completeBlock, applyPenaltyIfMissed, weeklyRawData, toRuleProfile, todayKey } from './service';
-import { generateMission, screenOut, type Block } from './rules';
+import { availableEquipment, generateMission, screenOut, type Block } from './rules';
 import { narrateMission, weeklyReport, biomechanicsAnswer, mealPlan, reviewTraining, aiEnabled } from './ai';
 import { computeDiet, isPlantBased, type DietProfile } from './diet';
 import { fullDetail } from './exerciseDetails';
@@ -400,7 +400,7 @@ export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
     ? profile.equipment.filter((item) => !['academia', 'halteres'].includes(item))
     : profile.equipment;
   const ruleContext = {
-    goal: profile.goal as never, equipment: equipment as never, injuries: profile.injuries as never,
+    goal: profile.goal as never, equipment: availableEquipment(equipment as never), injuries: profile.injuries as never,
     age: ageFromBirthYear(profile.birthYear), level: 1, minutesAvailable: profile.minutesPerDay,
   };
 

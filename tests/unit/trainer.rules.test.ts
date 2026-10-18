@@ -46,6 +46,14 @@ test('filtra por equipamento disponível', () => {
   assert.ok(!mission.blocks.some((b) => b.key.startsWith('barra_fixa')));
 });
 
+test('academia completa libera modalidades e peso corporal', () => {
+  const academia: RuleProfile = { ...base, equipment: ['academia'], injuries: [] };
+  for (const key of ['supino_reto_barra', 'rosca_martelo', 'barra_fixa', 'flexao']) {
+    const exercise = byKey(key)!;
+    assert.equal(screenOut(exercise, academia), null, `${exercise.name} deveria estar liberado na academia`);
+  }
+});
+
 test('respeita o tempo disponível', () => {
   const curto = generateMission({ ...base, minutesAvailable: 15 }, 0);
   assert.ok(curto.plannedMinutes <= 15, `passou do tempo: ${curto.plannedMinutes}`);

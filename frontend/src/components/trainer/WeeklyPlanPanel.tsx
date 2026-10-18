@@ -14,7 +14,6 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
   const [plan, setPlan] = useState<WeeklyPlan | null>(null);
   const [selectedDay, setSelectedDay] = useState(new Date().getDay());
   const [loads, setLoads] = useState<Record<string, string>>({});
-  const [reps, setReps] = useState<Record<string, string>>({});
   const [rirs, setRirs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -42,7 +41,7 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
       const result = await logWorkout(plannedExercises.map((exercise) => ({
         exerciseKey: exercise.key,
         sets: exercise.sets,
-        reps: Number(reps[`${exercise.key}_1`] || repsValue(exercise.reps)),
+        reps: repsValue(exercise.reps),
         ...(loads[`${exercise.key}_1`] ? { loadKg: Number(loads[`${exercise.key}_1`]) } : {}),
         setDetails: Array.from({ length: exercise.sets }, (_, index) => {
           const setNumber = index + 1;
@@ -50,7 +49,7 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
           const rir = rirs[`${exercise.key}_${setNumber}`];
           return {
             setNumber,
-            reps: Number(reps[`${exercise.key}_${setNumber}`] || repsValue(exercise.reps)),
+            reps: repsValue(exercise.reps),
             ...(load ? { loadKg: Number(load) } : {}),
             ...(rir !== undefined && rir !== '' ? { rir: Number(rir) } : {}),
           };
@@ -162,13 +161,7 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
                         const inputKey = `${exercise.key}_${setNumber}`;
                         return <div className="set-log-row" key={inputKey}>
                           <span>Série {setNumber}</span>
-                          <label>Reps
-                            <input type="number" min="1" max="100"
-                              value={reps[inputKey] ?? ''}
-                              placeholder={exercise.reps}
-                              onChange={(event) => setReps({ ...reps, [inputKey]: event.target.value })}
-                              aria-label={`Repetições da série ${setNumber} de ${exercise.name}`} />
-                          </label>
+                          <span className="prescribed-reps">Reps: {exercise.reps}</span>
                           <label>Carga (kg)
                             <input type="number" min="0" step="0.5" value={loads[inputKey] ?? ''}
                               onChange={(event) => setLoads({ ...loads, [inputKey]: event.target.value })}

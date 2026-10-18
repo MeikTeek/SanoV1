@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import type { Block, RuleProfile } from './rules';
-import { generateMission } from './rules';
+import { availableEquipment, generateMission } from './rules';
 import { applyCompletion, applyDebuff, debuffPercent, levelTitle, xpForLevel, type Stats } from './progress';
 import type { Equipment, Goal, Injury } from './exercises';
 
@@ -19,10 +19,14 @@ const dayIndexOf = (day: string) => {
 /** Perfil do banco → entrada do motor de regras. */
 export function toRuleProfile(p: {
   goal: string; equipment: string[]; injuries: string[]; birthYear: number; minutesPerDay: number;
+  trainingLocation?: string;
 }, level: number, now = new Date()): RuleProfile {
+  const equipment = p.trainingLocation === 'CALISTHENICS'
+    ? p.equipment.filter((item) => !['academia', 'halteres'].includes(item))
+    : p.equipment;
   return {
     goal: p.goal as Goal,
-    equipment: p.equipment as Equipment[],
+    equipment: availableEquipment(equipment as Equipment[]),
     injuries: p.injuries as Injury[],
     age: now.getFullYear() - p.birthYear,
     level,
