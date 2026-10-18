@@ -375,8 +375,8 @@ export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
 
   // Só triamos os exercícios enviados (antes triava o catálogo inteiro a cada chamada).
   const invalid: string[] = [];
-  const selected: (WorkoutLogInput[number] & { exercise: string; muscleGroup: string })[] = [];
-  for (const entry of entries) {
+  const selected: (WorkoutLogInput['entries'][number] & { exercise: string; muscleGroup: string })[] = [];
+  for (const entry of entries.entries) {
     const exercise = EXERCISE_BY_KEY.get(entry.exerciseKey);
     if (!exercise || screenOut(exercise, ruleContext) !== null) {
       invalid.push(entry.exerciseKey);
@@ -389,13 +389,31 @@ export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
   }
 
   const day = todayKey();
-  await prisma.workoutLog.createMany({
-    data: selected.map((entry) => ({
-      userId, day, exercise: entry.exercise, exerciseKey: entry.exerciseKey,
-      muscleGroup: entry.muscleGroup, sets: entry.sets, reps: entry.reps, loadKg: entry.loadKg,
-    })),
+  const session = await prisma.workoutSession.create({
+    data: {
+      userId,
+      day,
+      title: entries.sessionTitle ?? 'Treino registrado',
+      notes: entries.notes,
+      completedAt: new Date(),
+      logs: {
+        create: selected.map((entry) => ({
+          userId,
+          day,
+          exercise: entry.exercise,
+          exerciseKey: entry.exerciseKey,
+          muscleGroup: entry.muscleGroup,
+          sets: entry.sets,
+          reps: entry.reps,
+          loadKg: entry.loadKg,
+          setDetails: entry.setDetails?.length
+            ? { create: entry.setDetails }
+            : undefined,
+        })),
+      },
+    },
   });
-  return { saved: selected.length, day };
+  return { saved: selected.length, day, sessionId: session.id };
 }
 
 /** Opções do cadastro, servidas pelo servidor para o frontend não duplicar rótulos. */

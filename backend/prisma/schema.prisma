@@ -59,6 +59,7 @@ model User {
   stats         PlayerStats?
   missions      DailyMission[]
   workoutLogs   WorkoutLog[]
+  workoutSessions WorkoutSession[]
   dietPlans     DietPlan[]
 
   /* Módulo 1 — Bate-papo criptografado */
@@ -386,6 +387,7 @@ model MissionProgress {
 model WorkoutLog {
   id          String   @id @default(uuid())
   userId      String
+  sessionId   String?
   day         String
   exercise    String
   exerciseKey String?
@@ -397,6 +399,44 @@ model WorkoutLog {
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session WorkoutSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  setDetails WorkoutSet[]
 
   @@index([userId, day])
+  @@index([sessionId])
+}
+
+/// Uma sessão concluída, inspirada na separação rotina → treino do wger.
+/// Os registros antigos continuam válidos porque sessionId é opcional.
+model WorkoutSession {
+  id          String   @id @default(uuid())
+  userId      String
+  day         String
+  title       String
+  status      String   @default("COMPLETED") // STARTED | COMPLETED | CANCELED
+  notes       String?  @db.VarChar(500)
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs WorkoutLog[]
+
+  @@index([userId, day])
+  @@index([userId, createdAt])
+}
+
+/// Série individual executada, preservando carga, repetições e RIR reais.
+model WorkoutSet {
+  id           String   @id @default(uuid())
+  workoutLogId String
+  setNumber    Int
+  reps         Int
+  loadKg       Float?
+  rir          Int?
+  completedAt  DateTime @default(now())
+
+  workoutLog WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
+
+  @@unique([workoutLogId, setNumber])
 }

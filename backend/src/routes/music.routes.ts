@@ -7,6 +7,8 @@ r.post('/shares', requireAuth, c.create);
 r.post('/shares/claim', requireAuth, c.claim);
 r.get('/storage-status', requireAuth, c.storageStatus);
 r.get('/tracks', requireAuth, c.library);
+r.get('/playlists', requireAuth, c.playlists);
+r.put('/playlists', requireAuth, c.savePlaylists);
 r.post('/tracks', requireAuth, c.createTrack);
 r.post('/tracks/:id/upload', requireAuth, c.uploadTrack);
 r.get('/tracks/:id/download', requireAuth, c.downloadTrack);

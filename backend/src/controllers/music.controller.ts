@@ -4,6 +4,7 @@ import { claimShare, createShare, finalizeShare, getMusicStorageStatus, normaliz
 import { createMusicTrack, getMusicDownload, listMusicTracks, removeMusicTrack, streamMusicTrack, toggleMusicFavorite, updateMusicTrack, uploadMusicTrack } from '../services/music-library.service';
 import { Readable } from 'node:stream';
 import { AppError } from '../utils/errors';
+import { listMusicPlaylists, saveMusicPlaylists } from '../services/music-playlist.service';
 
 const createSchema = z.object({ size: z.number().int().positive() });
 const idSchema = z.object({ id: z.string().uuid() });
@@ -21,6 +22,13 @@ const trackSchema = z.object({
   fileName: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().max(100).default('application/octet-stream'),
   size: z.number().int().positive(),
+});
+const playlistsSchema = z.object({
+  playlists: z.array(z.object({
+    id: z.string().trim().min(1).max(100),
+    name: z.string().trim().min(1).max(100),
+    trackIds: z.array(z.string().uuid()).max(500),
+  })).max(100),
 });
 
 export async function create(req: Request, res: Response) {
@@ -57,6 +65,15 @@ export function storageStatus(_req: Request, res: Response) {
 
 export async function library(req: Request, res: Response) {
   res.json(await listMusicTracks(req.user!.id));
+}
+
+export async function playlists(req: Request, res: Response) {
+  res.json(await listMusicPlaylists(req.user!.id));
+}
+
+export async function savePlaylists(req: Request, res: Response) {
+  const { playlists: input } = playlistsSchema.parse(req.body);
+  res.json(await saveMusicPlaylists(req.user!.id, input));
 }
 
 export async function createTrack(req: Request, res: Response) {

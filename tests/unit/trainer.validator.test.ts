@@ -23,6 +23,14 @@ test('avaliação valida limites e escalas subjetivas', () => {
 
 test('registro de treino limita quantidade e valores de séries, repetições e carga', () => {
   assert.equal(workoutLogSchema.safeParse({ entries: [{ exerciseKey: 'flexao', sets: 3, reps: 10, loadKg: 0 }] }).success, true);
+  assert.equal(workoutLogSchema.safeParse({
+    sessionTitle: 'Corpo inteiro A',
+    entries: [{
+      exerciseKey: 'flexao', sets: 2, reps: 10,
+      setDetails: [{ setNumber: 1, reps: 10, loadKg: 5, rir: 2 }, { setNumber: 2, reps: 8, rir: 1 }],
+    }],
+  }).success, true);
   assert.equal(workoutLogSchema.safeParse({ entries: [{ exerciseKey: '', sets: 3, reps: 10 }] }).success, false);
   assert.equal(workoutLogSchema.safeParse({ entries: [{ exerciseKey: 'flexao', sets: 0, reps: 10 }] }).success, false);
+  assert.equal(workoutLogSchema.safeParse({ entries: [{ exerciseKey: 'flexao', sets: 3, reps: 10, setDetails: [{ setNumber: 1, reps: 10, rir: 11 }] }] }).success, false);
 });

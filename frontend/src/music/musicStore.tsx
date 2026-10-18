@@ -111,6 +111,11 @@ const readPlaylists = (userId: string): MusicPlaylist[] => {
   } catch { return []; }
 };
 const writePlaylists = (playlists: MusicPlaylist[], userId: string) => localStorage.setItem(scopedKey(PLAYLIST_KEY, userId), JSON.stringify(playlists));
+const syncPlaylists = (playlists: MusicPlaylist[]) => {
+  void api.put('/music/playlists', { playlists }).catch((err) => {
+    console.warn('[música] não foi possível sincronizar as playlists:', err);
+  });
+};
 const trackKey = (track: MusicTrack) => [track.title, track.artist, track.album, track.fileName]
   .map((value) => String(value).trim().toLocaleLowerCase()).join('|');
 const uniqueTracks = (items: MusicTrack[]) => {
@@ -150,6 +155,23 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     storageUserRef.current = userId;
     setTracks(readMeta(userId));
     setPlaylists(readPlaylists(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const local = readPlaylists(userId);
+    void api.get<MusicPlaylist[]>('/music/playlists').then((remote) => {
+      if (cancelled) return;
+      const next = remote.length ? remote : local;
+      setPlaylists(next);
+      writePlaylists(next, userId);
+      if (!remote.length && local.length) syncPlaylists(local);
+    }).catch((err) => {
+      if (!(err instanceof ApiError && err.status === 401)) {
+        console.warn('[música] não foi possível carregar as playlists:', err);
+      }
+    });
+    return () => { cancelled = true; };
   }, [userId]);
 
   useEffect(() => {
@@ -389,6 +411,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
         ? withoutTrack.map((playlist) => playlist.id === metadata.playlistId ? { ...playlist, trackIds: [...playlist.trackIds, id] } : playlist)
         : withoutTrack;
       writePlaylists(nextPlaylists, storageUserRef.current);
+      syncPlaylists(nextPlaylists);
       return nextPlaylists;
     });
   }, []);
@@ -442,6 +465,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
           ? { ...playlist, trackIds: [...playlist.trackIds, ...added.map((track) => track.id)] }
           : playlist);
         writePlaylists(nextPlaylists, storageUserRef.current);
+        syncPlaylists(nextPlaylists);
         return nextPlaylists;
       });
     }
@@ -454,6 +478,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setPlaylists((items) => {
       const nextPlaylists = [playlist, ...items];
       writePlaylists(nextPlaylists, storageUserRef.current);
+      syncPlaylists(nextPlaylists);
       return nextPlaylists;
     });
     return playlist;
@@ -463,6 +488,7 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     setPlaylists((items) => {
       const nextPlaylists = items.filter((playlist) => playlist.id !== id);
       writePlaylists(nextPlaylists, storageUserRef.current);
+      syncPlaylists(nextPlaylists);
       return nextPlaylists;
     });
   }, []);

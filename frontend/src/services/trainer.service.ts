@@ -65,5 +65,14 @@ export const getWeeklyPlan = () => api.get<WeeklyPlan>('/trainer/weekly-plan');
 export const getTrainerData = () => api.get<TrainerData>('/trainer/data');
 export const saveAssessment = (data: BodyAssessmentPayload) =>
   api.post('/trainer/assessments', data);
-export const logWorkout = (entries: { exerciseKey: string; sets: number; reps: number; loadKg?: number }[]) =>
-  api.post<{ saved: number; day: string }>('/trainer/workout-logs', { entries });
+export const logWorkout = (
+  entries: {
+    exerciseKey: string;
+    sets: number;
+    reps: number;
+    loadKg?: number;
+    setDetails?: { setNumber: number; reps: number; loadKg?: number; rir?: number }[];
+  }[],
+  sessionTitle?: string,
+  notes?: string,
+) => api.post<{ saved: number; day: string; sessionId: string }>('/trainer/workout-logs', { entries, sessionTitle, notes });

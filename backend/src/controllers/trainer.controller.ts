@@ -88,8 +88,8 @@ export async function saveAssessment(req: Request, res: Response) {
 
 /** Registra exercícios concluídos para histórico e estimativas de força. */
 export async function logWorkout(req: Request, res: Response) {
-  const { entries } = workoutLogSchema.parse(req.body);
-  const result = await logWorkoutCall(req.user!.id, entries);
+  const data = workoutLogSchema.parse(req.body);
+  const result = await logWorkoutCall(req.user!.id, data);
   await logAudit(req, 'TRAINER_WORKOUT_LOGGED', req.user!.id, { entries: result.saved });
   res.status(201).json(result);
 }

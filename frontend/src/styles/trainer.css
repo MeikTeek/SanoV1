@@ -114,6 +114,11 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
 .planned-exercise-details p { margin: 0; }
 .planned-exercise-details b { color: var(--text); }
 .planned-exercise .muted { font-size: .78rem; }
+.set-log { display: flex; flex-direction: column; gap: 5px; margin-top: 8px; }
+.set-log-row { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .72rem; }
+.set-log-row > span { width: 48px; }
+.set-log-row label { display: flex; align-items: center; gap: 4px; }
+.set-log-row input { width: 62px; padding: 6px; }
 .load-field { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .73rem; white-space: nowrap; }
 .load-field input { width: 78px; padding: 7px; }
 .plan-warning, .assessment-reminder { padding: 11px 13px; border: 1px solid #ffbf4745; background: #ffbf470d; color: var(--warn); border-radius: var(--radius-sm); font-size: .84rem; line-height: 1.5; }
@@ -172,5 +177,6 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .data-charts, .data-lower-grid { grid-template-columns: 1fr; }
   .planned-exercise { align-items: flex-start; flex-direction: column; }
+  .set-log-row { align-items: flex-start; flex-wrap: wrap; }
   .weekly-plan-intro { align-items: flex-start; flex-direction: column; }
 }

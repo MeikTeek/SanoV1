@@ -77,11 +77,19 @@ export const bodyAssessmentSchema = z.object({
 export type BodyAssessmentInput = z.infer<typeof bodyAssessmentSchema>;
 
 export const workoutLogSchema = z.object({
+  sessionTitle: z.string().trim().min(1).max(120).optional(),
+  notes: z.string().trim().max(500).optional(),
   entries: z.array(z.object({
     exerciseKey: z.string().trim().min(1).max(80),
     sets: z.coerce.number().int().min(1).max(12),
     reps: z.coerce.number().int().min(1).max(100),
     loadKg: z.coerce.number().min(0).max(1000).optional(),
+    setDetails: z.array(z.object({
+      setNumber: z.coerce.number().int().min(1).max(12),
+      reps: z.coerce.number().int().min(1).max(100),
+      loadKg: z.coerce.number().min(0).max(1000).optional(),
+      rir: z.coerce.number().int().min(0).max(10).optional(),
+    })).max(12).optional(),
   })).min(1).max(30),
 });
-export type WorkoutLogInput = z.infer<typeof workoutLogSchema>['entries'];
+export type WorkoutLogInput = z.infer<typeof workoutLogSchema>;
