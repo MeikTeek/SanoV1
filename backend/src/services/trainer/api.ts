@@ -303,6 +303,19 @@ export async function dataCall(userId: string) {
     where: { userId, day: { gte: daysAgoKey(90) } },
     orderBy: { createdAt: 'asc' },
   });
+  const sessions = await prisma.workoutSession.findMany({
+    where: { userId },
+    orderBy: { startedAt: 'desc' },
+    take: 12,
+    include: {
+      logs: {
+        select: {
+          exercise: true, sets: true, reps: true, loadKg: true,
+          setDetails: { select: { rir: true } },
+        },
+      },
+    },
+  });
 
   const assessments = assessmentsDesc.slice().reverse();
   const latest = assessments[assessments.length - 1] ?? null;
@@ -344,6 +357,24 @@ export async function dataCall(userId: string) {
     strengthHistory: logs
       .filter((entry) => entry.loadKg !== null)
       .map((entry) => ({ day: entry.day, exercise: entry.exercise, loadKg: entry.loadKg, sets: entry.sets, reps: entry.reps })),
+    recentSessions: sessions.map((session) => ({
+      id: session.id,
+      day: session.day,
+      title: session.title,
+      status: session.status,
+      notes: session.notes,
+      startedAt: session.startedAt.toISOString(),
+      completedAt: session.completedAt?.toISOString() ?? null,
+      exercises: session.logs.map((log) => ({
+        exercise: log.exercise,
+        sets: log.sets,
+        reps: log.reps,
+        loadKg: log.loadKg,
+        averageRir: log.setDetails.length
+          ? round1(log.setDetails.reduce((sum, set) => sum + (set.rir ?? 0), 0) / log.setDetails.length)
+          : null,
+      })),
+    })),
     disclaimer: plan.disclaimer,
   };
 }
@@ -434,18 +465,35 @@ export async function completeCall(userId: string, missionId: string, blockKey: 
   return result;
 }
 
-export async function libraryCall(userId: string) {
+export async function libraryCall(userId: string, filters: { query?: string; group?: string; equipment?: string } = {}) {
   const { rule } = await loadRuleContext(userId);
+  const query = normalize(filters.query ?? '');
 
   // Uma única passada: antes screenOut rodava duas vezes por exercício.
-  const allowed: { key: string; name: string; group: string; difficulty: unknown; equipment: unknown }[] = [];
+  const allowed: {
+    key: string; name: string; group: string; difficulty: unknown; equipment: unknown;
+    muscles: string; howTo: string; benefits: string; progression: string; regression: string;
+    suggestedSets?: number; repsMin?: number; repsMax?: number; restSeconds?: number;
+  }[] = [];
   const blocked: { name: string; reason: string }[] = [];
   for (const e of EXERCISES) {
     const reason = screenOut(e, rule);
-    if (reason === null) allowed.push({ key: e.key, name: e.name, group: e.group, difficulty: e.difficulty, equipment: e.equipment });
-    else blocked.push({ name: e.name, reason });
+    const matchesQuery = !query || normalize(`${e.name} ${e.group} ${e.muscles ?? ''}`).includes(query);
+    const matchesGroup = !filters.group || e.group === filters.group;
+    const matchesEquipment = !filters.equipment || e.equipment.includes(filters.equipment as never);
+    if (reason === null && matchesQuery && matchesGroup && matchesEquipment) {
+      allowed.push({
+        key: e.key, name: e.name, group: e.group, difficulty: e.difficulty, equipment: e.equipment,
+        muscles: e.muscles ?? '', howTo: e.howTo ?? '', benefits: e.benefits ?? '',
+        progression: e.progression ?? '', regression: e.regression ?? '',
+        suggestedSets: e.suggestedSets, repsMin: e.repsMin, repsMax: e.repsMax,
+        restSeconds: e.restSeconds,
+      });
+    } else if (reason !== null) {
+      blocked.push({ name: e.name, reason });
+    }
   }
-  return { allowed, blocked };
+  return { allowed, blocked, filters: { query: filters.query ?? '', group: filters.group ?? '', equipment: filters.equipment ?? '' } };
 }
 
 export async function reportCall(userId: string, username: string) {

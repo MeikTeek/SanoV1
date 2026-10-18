@@ -37,7 +37,10 @@ export async function complete(req: Request, res: Response) {
 
 /** Lista os exercícios liberados e barrados — transparência sobre o filtro. */
 export async function library(req: Request, res: Response) {
-  res.json(await libraryCall(req.user!.id));
+  const query = typeof req.query.q === 'string' ? req.query.q : '';
+  const group = typeof req.query.group === 'string' ? req.query.group : '';
+  const equipment = typeof req.query.equipment === 'string' ? req.query.equipment : '';
+  res.json(await libraryCall(req.user!.id, { query, group, equipment }));
 }
 
 /** Relatório semanal — a IA formata, o código fornece os números. */

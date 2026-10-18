@@ -210,6 +210,24 @@ export default function TrainerDataPanel() {
         <StrengthTrend rows={data.strengthHistory} />
       </div>
 
+      <section className="card session-history">
+        <h3>Diário de sessões</h3>
+        <p className="muted">Histórico recente no formato de sessão do wger: duração, exercícios, carga e esforço percebido.</p>
+        {data.recentSessions.length === 0 && <p className="muted">Nenhuma sessão registrada ainda.</p>}
+        {data.recentSessions.map((session) => (
+          <details key={session.id} className="session-history-item">
+            <summary><b>{session.title}</b><span>{dayLabel(session.day)} · {session.exercises.length} exercícios</span></summary>
+            {session.notes && <p className="muted">{session.notes}</p>}
+            <ul>{session.exercises.map((exercise) => (
+              <li key={`${session.id}-${exercise.exercise}`}>
+                {exercise.exercise}: {exercise.sets} × {exercise.reps}{exercise.loadKg === null ? '' : ` · ${exercise.loadKg} kg`}
+                {exercise.averageRir === null ? '' : ` · RIR médio ${exercise.averageRir}`}
+              </li>
+            ))}</ul>
+          </details>
+        ))}
+      </section>
+
       <div className="data-lower-grid">
         <section className="card">
           <h3>Aderência dos últimos 30 dias</h3>

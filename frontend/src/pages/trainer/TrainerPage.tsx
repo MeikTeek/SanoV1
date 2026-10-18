@@ -4,11 +4,12 @@ import Onboarding from '../../components/trainer/Onboarding';
 import TrainerDataPanel from '../../components/trainer/TrainerDataPanel';
 import WeeklyPlanPanel from '../../components/trainer/WeeklyPlanPanel';
 import WorkoutTimer from '../../components/trainer/WorkoutTimer';
+import ExerciseLibrary from '../../components/trainer/ExerciseLibrary';
 import { getDashboard, getDiet } from '../../services/trainer.service';
 import type { TrainerDashboard, DietNumbers } from '../../types/trainer';
 import '../../styles/trainer.css';
 
-type Tab = 'treino' | 'dieta' | 'dados';
+type Tab = 'treino' | 'biblioteca' | 'dieta' | 'dados';
 type TimerBlock = { key: string; name: string };
 
 export default function TrainerPage() {
@@ -111,11 +112,13 @@ export default function TrainerPage() {
       <section className="card trainer-main">
         <div className="tabs" role="tablist" aria-label="Seções do treino">
           <button role="tab" aria-selected={tab === 'treino'} className={tab === 'treino' ? 'active' : ''} onClick={() => setTab('treino')}>Treino</button>
+          <button role="tab" aria-selected={tab === 'biblioteca'} className={tab === 'biblioteca' ? 'active' : ''} onClick={() => setTab('biblioteca')}>Biblioteca</button>
           <button role="tab" aria-selected={tab === 'dados'} className={tab === 'dados' ? 'active' : ''} onClick={() => setTab('dados')}>Dados</button>
           <button role="tab" aria-selected={tab === 'dieta'} className={tab === 'dieta' ? 'active' : ''} onClick={() => void openDiet()}>Dieta</button>
         </div>
 
         {tab === 'treino' && <WeeklyPlanPanel onStartTimer={startTimer} />}
+        {tab === 'biblioteca' && <ExerciseLibrary />}
         {tab === 'dados' && <TrainerDataPanel key={dataVersion} />}
         {tab === 'dieta' && (
           <div className="diet-panel">

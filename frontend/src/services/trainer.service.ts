@@ -55,7 +55,14 @@ export const completeBlock = (missionId: string, blockKey: string) =>
     { blockKey },
   );
 
-export const getLibrary = () => api.get<LibraryResponse>('/trainer/library');
+export const getLibrary = (filters: { q?: string; group?: string; equipment?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (filters.q) params.set('q', filters.q);
+  if (filters.group) params.set('group', filters.group);
+  if (filters.equipment) params.set('equipment', filters.equipment);
+  const suffix = params.toString() ? `?${params.toString()}` : '';
+  return api.get<LibraryResponse>(`/trainer/library${suffix}`);
+};
 
 export const getReport = () => api.get<{ report: string; aiEnabled: boolean; raw: { completedDays: number; totalMinutes: number } }>('/trainer/report');
 

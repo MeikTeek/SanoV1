@@ -108,8 +108,13 @@ export interface TrainerDashboard {
 }
 
 export interface LibraryResponse {
-  allowed: { key: string; name: string; group: string; difficulty: number; equipment: Equipment[] }[];
+  allowed: {
+    key: string; name: string; group: string; difficulty: number; equipment: Equipment[];
+    muscles: string; howTo: string; benefits: string; progression: string; regression: string;
+    suggestedSets?: number; repsMin?: number; repsMax?: number; restSeconds?: number;
+  }[];
   blocked: { name: string; reason: string }[];
+  filters: { query: string; group: string; equipment: string };
 }
 
 export interface PlannedExercise {
@@ -172,6 +177,11 @@ export interface TrainerData {
   adherence: { completedSessions: number; plannedSessions: number; percent: number };
   weeklyVolume: { key: string; label: string; weeklySets: number; targetMin: number; targetMax: number }[];
   strengthHistory: { day: string; exercise: string; loadKg: number | null; sets: number; reps: number }[];
+  recentSessions: {
+    id: string; day: string; title: string; status: string; notes: string | null;
+    startedAt: string; completedAt: string | null;
+    exercises: { exercise: string; sets: number; reps: number; loadKg: number | null; averageRir: number | null }[];
+  }[];
   disclaimer: string;
 }
 
