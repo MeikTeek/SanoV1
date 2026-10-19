@@ -3,7 +3,7 @@ import { getExerciseDetail } from '../../services/trainer.service';
 import type { ExerciseDetail } from '../../types/trainer';
 
 interface Props {
-  /** Blocos na ordem do treino. */
+  /** Séries na ordem prescrita pelo treino. */
   blocks: { key: string; name: string; restSeconds?: number }[];
   onFinish: () => void;
   onClose: () => void;
@@ -17,9 +17,8 @@ const mmss = (total: number) => {
 };
 
 /**
- * Cronômetro de sequência: percorre os blocos, avisa quando o descanso acaba
- * e passa sozinho para o próximo. Pausar congela a contagem sem perder o
- * bloco atual.
+ * Sessão guiada: percorre as séries na ordem prescrita, controla descanso e
+ * mantém o exercício atual visível enquanto o usuário executa o treino.
  */
 export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   const [index, setIndex] = useState(0);
@@ -29,6 +28,13 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   const [detail, setDetail] = useState<ExerciseDetail | null>(null);
 
   const current = blocks[index];
+  const exerciseName = current?.name.replace(/\s· série \d+\/\d+$/, '') ?? '';
+  const currentSetMatch = current?.name.match(/série (\d+)\/(\d+)/);
+  const currentSet = currentSetMatch ? Number(currentSetMatch[1]) : null;
+  const totalSets = currentSetMatch ? Number(currentSetMatch[2]) : null;
+  const exerciseIndexes = blocks
+    .map((block, blockIndex) => ({ name: block.name.replace(/\s· série \d+\/\d+$/, ''), blockIndex }))
+    .filter((item, itemIndex, all) => itemIndex === all.findIndex((candidate) => candidate.name === item.name));
   // Guarda o total do bloco atual: buscar o detalhe é assíncrono e o timer
   // não pode depender disso para contar.
   const total = useRef(40);
@@ -126,14 +132,21 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
   const phaseLabel = phase === 'work' ? 'TRABALHO' : phase === 'rest' ? 'DESCANSO' : 'FIM';
 
   return (
-    <div className="timer-overlay" role="dialog" aria-modal="true" aria-label="Cronômetro do treino">
+    <div className="timer-overlay" role="dialog" aria-modal="true" aria-label="Sessão guiada do treino">
       <div className="timer-card">
         <div className="timer-head">
-          <span className="muted">Bloco {index + 1} de {blocks.length}</span>
-          <button className="ghost" onClick={onClose} aria-label="Fechar cronômetro">✕</button>
+          <span className="muted">Sessão em andamento · {index + 1}/{blocks.length} séries</span>
+          <button className="ghost" onClick={onClose} aria-label="Fechar sessão">✕</button>
         </div>
 
-        <h2 className="timer-name">{current.name}</h2>
+        <div className="timer-progress-list" aria-label="Progresso dos exercícios">
+          {exerciseIndexes.map((item) => (
+            <span key={item.name} className={index >= item.blockIndex ? 'done' : ''}>{item.name}</span>
+          ))}
+        </div>
+
+        <h2 className="timer-name">{exerciseName}</h2>
+        {currentSet && totalSets && <p className="timer-set">Série {currentSet} de {totalSets}</p>}
 
         {detail && (
           <div className="timer-detail">
@@ -145,25 +158,28 @@ export default function WorkoutTimer({ blocks, onFinish, onClose }: Props) {
           </div>
         )}
 
-        <div className={`timer-phase ${phase}`}>{phaseLabel}</div>
+        <div className={`timer-phase ${phase}`}>{phase === 'work' ? 'EXECUTE' : phaseLabel}</div>
         <div className="timer-clock">{mmss(left)}</div>
         <div className="timer-bar"><div style={{ width: `${pct}%` }} /></div>
 
         <div className="nav-row">
-          <button onClick={() => running ? setRunning(false) : void startTimer()}>{running ? 'Pausar' : 'Ativar som e iniciar'}</button>
+          <button onClick={() => running ? setRunning(false) : void startTimer()}>{running ? 'Pausar' : index === 0 && left === total.current ? 'Começar' : 'Continuar'}</button>
           <button
             className="ghost"
             onClick={() => {
-              // Pula o resto do descanso e vai direto ao próximo bloco.
-              if (phase === 'rest') { setIndex((i) => Math.min(i + 1, blocks.length - 1)); }
-              else { setLeft(Math.min(left, 5)); }
+              if (phase === 'rest') {
+                setIndex((i) => Math.min(i + 1, blocks.length - 1));
+              } else {
+                setLeft(Math.min(left, 5));
+              }
             }}
           >
-            {phase === 'rest' ? 'Pular descanso' : 'Faltam 5s'}
+            {phase === 'rest' ? 'Próxima série' : 'Encerrar série'}
           </button>
         </div>
 
-        {phase === 'rest' && <small className="muted">O próximo exercício começa sozinho ao terminar o descanso.</small>}
+        {phase === 'rest' && <small className="muted">A próxima série começa automaticamente ao terminar o descanso.</small>}
+        {phase === 'work' && !running && <small className="muted">Pressione Começar para ativar o som e iniciar a série.</small>}
       </div>
     </div>
   );

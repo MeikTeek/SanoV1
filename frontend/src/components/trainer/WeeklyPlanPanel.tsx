@@ -117,7 +117,7 @@ export default function WeeklyPlanPanel({ onStartTimer }: {
                 name: `${exercise.name} · série ${index + 1}/${exercise.sets}`,
                 restSeconds: exercise.restSeconds,
               })),
-            ))}>Cronômetro</button>}
+            ))}>Começar</button>}
           </div>
           {!selected.isTrainingDay
             ? <p className="muted">Descanse e deixe os músculos recuperarem. Uma caminhada leve ou mobilidade são opcionais.</p>

@@ -45,6 +45,10 @@ summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
 .timer-card { width: 100%; max-width: 520px; max-height: 92vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; }
 .timer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
 .timer-name { margin: 0 0 10px; font-size: 1.2rem; }
+.timer-set { margin: -4px 0 10px; color: var(--accent); font-size: .85rem; }
+.timer-progress-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 14px; }
+.timer-progress-list span { padding: 4px 7px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: .68rem; }
+.timer-progress-list span.done { border-color: var(--ok); color: var(--ok); }
 .timer-detail { font-size: .82rem; line-height: 1.55; color: var(--muted); margin-bottom: 12px; }
 .timer-detail p { margin: 0 0 6px; }
 .timer-detail b { color: var(--text); }
