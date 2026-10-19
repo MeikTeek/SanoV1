@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet } from '../ui/icons';
 import MusicPlayer from '../music/MusicPlayer';
 import { updatePresence } from '../../services/chat.service';
 
@@ -55,6 +55,8 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
           ? 'Visualizando treino'
           : pathname.startsWith('/musica')
             ? 'Ouvindo música'
+          : pathname.startsWith('/financas')
+            ? 'Organizando as finanças'
           : pathname.startsWith('/mensagens')
             ? 'No chat'
             : pathname.startsWith('/config')
@@ -83,6 +85,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
         <Link to="/agenda" className={`rail-link ${is('/agenda') ? 'active' : ''}`} title="Agenda"><IconCalendar /></Link>
         <Link to="/treino" className={`rail-link ${is('/treino') ? 'active' : ''}`} title="Treino"><IconDumbbell /></Link>
         <Link to="/musica" className={`rail-link ${is('/musica') ? 'active' : ''}`} title="Música"><IconMusic /></Link>
+        <Link to="/financas" className={`rail-link ${is('/financas') ? 'active' : ''}`} title="Finanças"><IconWallet /></Link>
         <Link
           to="/mensagens"
           className={`rail-link ${pathname.startsWith('/mensagens') ? 'active' : ''}`}

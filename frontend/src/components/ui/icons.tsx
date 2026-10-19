@@ -25,6 +25,9 @@ export const IconChat = ({ size = 22 }: P) =>
 export const IconMusic = ({ size = 22 }: P) =>
   svg(size, <><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></>);
 
+export const IconWallet = ({ size = 22 }: P) =>
+  svg(size, <><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4H19a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 17.5v-11z" /><path d="M4 8h15.5a1.5 1.5 0 0 1 0 3H17" /><circle cx="17" cy="9.5" r=".5" fill="currentColor" /></>);
+
 export const IconCalendar = ({ size = 22 }: P) =>
   svg(size, <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M8 3v4M16 3v4M3 10h18" /></>);
 

@@ -19,6 +19,8 @@ app.use(helmet({
       // Libere blob apenas para mídia; scripts e demais recursos continuam
       // restritos pela política padrão do Helmet.
       'media-src': ["'self'", 'blob:'],
+      // O módulo financeiro pode apontar para o servidor web do Actual.
+      'frame-src': ["'self'", 'http://localhost:5006', 'https:'],
     },
   },
 }));
