@@ -64,15 +64,17 @@ npm run test         # testes unitários do núcleo do Sano (node:test)
 
 O Vite faz proxy de `/api` para `localhost:8080`, então navegador e API ficam na mesma origem — isso é o que permite os cookies `SameSite=strict` funcionarem em desenvolvimento.
 
-### Módulo financeiro (Actual)
+### Módulo financeiro interno
 
-O Sano expõe o Actual em `/financas` como um módulo protegido, sem copiar o
-workspace do Actual para dentro do frontend. Para apontar o módulo para uma
-instância do Actual, copie `frontend/.env.example` para `frontend/.env` e
-defina `VITE_ACTUAL_URL` (por exemplo, `http://localhost:5006` durante o
-desenvolvimento do checkout em `Integracoes/actual-26.10.0`). Depois reinicie
-o frontend. A instância do Actual deve estar executando separadamente com seu
-servidor web e sync server.
+O Sano expõe o módulo financeiro em `/financas`, usando a sessão já autenticada
+do Sano e armazenamento isolado por `user.id` no PostgreSQL. A primeira etapa
+reaproveita o contrato de dados do Sano como adaptador; o port das telas e
+regras específicas do Actual em `Integracoes/actual-26.10.0` será feito por
+partes, depois que esse contrato estiver validado.
+
+O módulo já oferece contas, receitas, despesas, categorias, filtro mensal e
+limites de orçamento por categoria. Os valores negativos representam despesas
+e os positivos representam receitas.
 
 ## Build
 

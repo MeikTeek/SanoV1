@@ -7,6 +7,7 @@ import trainerRoutes from './trainer.routes';
 import profileRoutes from './profile.routes';
 import chatRoutes from './chat.routes';
 import musicRoutes from './music.routes';
+import financeRoutes from './finance.routes';
 
 const r = Router();
 
@@ -19,5 +20,6 @@ r.use('/trainer', trainerRoutes);
 r.use('/profile', profileRoutes);
 r.use('/chat', chatRoutes);
 r.use('/music', musicRoutes);
+r.use('/finance', financeRoutes);
 
 export default r;
