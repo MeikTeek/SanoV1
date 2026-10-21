@@ -66,15 +66,26 @@ O Vite faz proxy de `/api` para `localhost:8080`, então navegador e API ficam n
 
 ### Módulo financeiro interno
 
-O Sano expõe o módulo financeiro em `/financas`, usando a sessão já autenticada
-do Sano e armazenamento isolado por `user.id` no PostgreSQL. A primeira etapa
-reaproveita o contrato de dados do Sano como adaptador; o port das telas e
-regras específicas do Actual em `Integracoes/actual-26.10.0` será feito por
-partes, depois que esse contrato estiver validado.
+Página `/financas`: orçamento por envelopes no modelo do Actual Budget
+(`Integracoes/actual-26.10.0`), com tabelas próprias no PostgreSQL (`Finance*`).
 
-O módulo já oferece contas, receitas, despesas, categorias, filtro mensal e
-limites de orçamento por categoria. Os valores negativos representam despesas
-e os positivos representam receitas.
+- **A orçar**: toda receita (categorias do grupo de receitas, incluindo o "Saldo
+  inicial" das contas) entra em "A orçar"; o usuário distribui entre as categorias
+  até zerar.
+- **Envelopes**: saldo = orçado + movimento + sobra do mês anterior. Estouro sem
+  carryover (↻) sai do "A orçar" do mês seguinte; com carryover, continua no envelope.
+  A regra é a mesma de `loot-core/src/server/budget/envelope.ts`, implementada como
+  função pura em `backend/src/services/finance/budget.ts` e coberta por testes.
+- **Contas** no orçamento ou fora dele (investimentos). Transferências criam o par
+  espelhado e só levam categoria quando cruzam o limite do orçamento.
+- **Transações**: beneficiários lembram a última categoria, marcação de "conferida",
+  busca em todo o histórico e categorização direto na linha.
+- **Importação CSV**: `,` ou `;`, datas BR/ISO, valores `1.234,56`/`-12.50`, prévia
+  antes de gravar e deduplicação por ocorrência (reimportar o extrato não duplica).
+- **Relatórios**: receitas × gastos (6 meses), gastos por categoria e patrimônio.
+- **Dinheiro em centavos inteiros** em todo o caminho (banco, API e cálculo).
+- **Migração automática**: no primeiro acesso, o ledger antigo (JSON em `ToolData`)
+  é convertido para as tabelas novas; o JSON original fica como `ledger-backup`.
 
 ## Build
 

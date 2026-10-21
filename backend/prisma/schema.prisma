@@ -23,7 +23,7 @@ model User {
   username           String    @unique
   passwordHash       String
   role               Role      @default(USER)
-  twoFactorSecret    String?   // criptografado (AES-256-GCM)
+  twoFactorSecret    String? // criptografado (AES-256-GCM)
   twoFactorEnabled   Boolean   @default(false)
   active             Boolean   @default(true)
   mustChangePassword Boolean   @default(true)
@@ -52,43 +52,56 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  auditLogs     AuditLog[]
-  toolsData     ToolData[]
-  appointments  Appointment[]
-  training      TrainingProfile?
-  stats         PlayerStats?
-  missions      DailyMission[]
-  workoutLogs   WorkoutLog[]
+  auditLogs       AuditLog[]
+  toolsData       ToolData[]
+  appointments    Appointment[]
+  training        TrainingProfile?
+  stats           PlayerStats?
+  missions        DailyMission[]
+  workoutLogs     WorkoutLog[]
   workoutSessions WorkoutSession[]
-  dietPlans     DietPlan[]
+  dietPlans       DietPlan[]
 
-  /* Módulo 1 — Bate-papo criptografado */
+  /**
+   * Módulo 1 — Bate-papo criptografado
+   */
   sentFriendRequests     FriendRequest[] @relation("FriendRequestSender")
   receivedFriendRequests FriendRequest[] @relation("FriendRequestRecipient")
-  chatMembers   ChatMember[]
-  chatMessages  ChatMessage[]
-  musicSharesCreated MusicShare[] @relation("MusicShareOwner")
-  musicTracks       MusicTrack[]
+  chatMembers            ChatMember[]
+  chatMessages           ChatMessage[]
+  musicSharesCreated     MusicShare[]    @relation("MusicShareOwner")
+  musicTracks            MusicTrack[]
+
+  /**
+   * Finanças — orçamento por envelopes (inspirado no Actual)
+   */
+  financeSettings       FinanceSettings?
+  financeAccounts       FinanceAccount[]
+  financeCategoryGroups FinanceCategoryGroup[]
+  financeCategories     FinanceCategory[]
+  financePayees         FinancePayee[]
+  financeTransactions   FinanceTransaction[]
+  financeBudgets        FinanceBudget[]
 }
 
 model MusicTrack {
-  id        String   @id @default(uuid())
-  ownerId   String
-  title     String
-  artist    String
-  album     String
-  genre     String
-  mood      String
-  coverDataUrl String? @db.Text
-  favorite  Boolean  @default(false)
-  duration  Float    @default(0)
-  fileName  String
-  mimeType  String
-  size      Int
-  objectKey String   @unique
-  status    String   @default("PENDING") // PENDING | READY
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(uuid())
+  ownerId      String
+  title        String
+  artist       String
+  album        String
+  genre        String
+  mood         String
+  coverDataUrl String?  @db.Text
+  favorite     Boolean  @default(false)
+  duration     Float    @default(0)
+  fileName     String
+  mimeType     String
+  size         Int
+  objectKey    String   @unique
+  status       String   @default("PENDING") // PENDING | READY
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
@@ -96,13 +109,13 @@ model MusicTrack {
 }
 
 model MusicShare {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   ownerId   String
-  codeHash  String   @unique
-  objectKey String   @unique
-  status    String   @default("PENDING") // PENDING | READY | CLAIMED
+  codeHash  String    @unique
+  objectKey String    @unique
+  status    String    @default("PENDING") // PENDING | READY | CLAIMED
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   claimedAt DateTime?
 
   owner User @relation("MusicShareOwner", fields: [ownerId], references: [id], onDelete: Cascade)
@@ -111,13 +124,13 @@ model MusicShare {
 }
 
 model FriendRequest {
-  id          String             @id @default(uuid())
+  id          String              @id @default(uuid())
   requesterId String
   recipientId String
-  pairKey     String             @unique
+  pairKey     String              @unique
   status      FriendRequestStatus @default(PENDING)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
 
   requester User @relation("FriendRequestSender", fields: [requesterId], references: [id], onDelete: Cascade)
   recipient User @relation("FriendRequestRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
@@ -130,7 +143,7 @@ model FriendRequest {
 model ChatConversation {
   id            String   @id @default(uuid())
   kind          String   @default("DM") // DM | GROUP
-  name          String?  // apenas grupos
+  name          String? // apenas grupos
   /// Chave "idA:idB" (ordenada) — única para conversas diretas.
   dmKey         String?  @unique
   createdById   String
@@ -152,7 +165,7 @@ model ChatMember {
   joinedAt       DateTime @default(now())
 
   conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
   @@index([userId])
@@ -174,7 +187,7 @@ model ChatMessage {
   createdAt      DateTime @default(now())
 
   conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender       User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  sender       User             @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@unique([senderId, clientId])
   @@index([conversationId, createdAt])
@@ -199,7 +212,7 @@ model AuditLog {
 model ToolData {
   id        String   @id @default(uuid())
   userId    String
-  tool      String   // ex: "agenda", "games", "trainer"
+  tool      String // ex: "agenda", "games", "trainer"
   key       String
   data      Json
   createdAt DateTime @default(now())
@@ -218,10 +231,10 @@ model Appointment {
   userId         String
   title          String
   description    String?
-  participants   String?   // "João e Maria"
+  participants   String? // "João e Maria"
   startsAt       DateTime
   endsAt         DateTime?
-  remindBefore   Int?      // em minutos; null = sem lembrete
+  remindBefore   Int? // em minutos; null = sem lembrete
   reminderSentAt DateTime? // preenchido quando o aviso foi disparado
   status         String    @default("PENDING") // PENDING | DONE | CANCELED
   createdAt      DateTime  @default(now())
@@ -234,25 +247,27 @@ model Appointment {
   @@index([reminderSentAt])
 }
 
-/* ===================== Módulo 5 — Trainer (Fase 4) ===================== */
+/**
+ * ===================== Módulo 5 — Trainer (Fase 4) =====================
+ */
 
 /// Perfil do jogador: a "ficha" criada no onboarding. Tudo que o motor de
 /// regras precisa para decidir o que é seguro prescrever.
 model TrainingProfile {
-  id             String   @id @default(uuid())
-  userId         String   @unique
-  weightKg       Float
-  heightCm       Float
-  birthYear      Int
-  sex            String   // M | F | OTHER
-  goal           String   // HYPERTROPHY | WEIGHT_LOSS | CONDITIONING | HEALTH
-  equipment      String[] // ["academia", "peso-corporal", "elastico", "barra-fixa", "halteres"]
-  injuries       String[] // ["joelho", "lombar", "ombro"] — filtra exercícios proibidos
-  minutesPerDay  Int      @default(45)
+  id               String   @id @default(uuid())
+  userId           String   @unique
+  weightKg         Float
+  heightCm         Float
+  birthYear        Int
+  sex              String // M | F | OTHER
+  goal             String // HYPERTROPHY | WEIGHT_LOSS | CONDITIONING | HEALTH
+  equipment        String[] // ["academia", "peso-corporal", "elastico", "barra-fixa", "halteres"]
+  injuries         String[] // ["joelho", "lombar", "ombro"] — filtra exercícios proibidos
+  minutesPerDay    Int      @default(45)
   restrictionNotes String?
 
   // ── Adaptatividade: o que faz o plano variar de pessoa para pessoa ──
-  somatotype       String?  // ECTOMORPH | MESOMORPH | ENDOMORPH
+  somatotype       String? // ECTOMORPH | MESOMORPH | ENDOMORPH
   experience       String   @default("BEGINNER") // BEGINNER | INTERMEDIATE | ADVANCED
   trainingDays     Int      @default(3)
   trainingWeekdays Int[]    @default([1, 3, 5]) // 0=domingo .. 6=sábado
@@ -269,10 +284,10 @@ model TrainingProfile {
   dietNotes        String?
   dietRestrictions String[]
 
-  onboardedAt    DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  onboardedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   assessments BodyAssessment[]
 }
 
@@ -280,7 +295,7 @@ model TrainingProfile {
 model BodyAssessment {
   id                 String   @id @default(uuid())
   userId             String
-  day                String   // Data local YYYY-MM-DD; um questionário por dia
+  day                String // Data local YYYY-MM-DD; um questionário por dia
   weightKg           Float
   bodyFatPercent     Float?
   waistCm            Float?
@@ -292,13 +307,13 @@ model BodyAssessment {
   calfCm             Float?
   wristCm            Float?
   restingHeartRate   Int?
-  sleepHours          Float?
-  fatigue             Int?     // escala subjetiva de 0 a 10
-  muscleSoreness      Int?     // escala subjetiva de 0 a 10
-  nutritionAdherence Int?     // escala subjetiva de 1 a 5
-  notes               String?  @db.VarChar(500)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  sleepHours         Float?
+  fatigue            Int? // escala subjetiva de 0 a 10
+  muscleSoreness     Int? // escala subjetiva de 0 a 10
+  nutritionAdherence Int? // escala subjetiva de 1 a 5
+  notes              String?  @db.VarChar(500)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   profile TrainingProfile @relation(fields: [userId], references: [userId], onDelete: Cascade)
 
@@ -328,37 +343,37 @@ model DietPlan {
 
 /// Atributos RPG + progressão. Um registro por usuário (upsert).
 model PlayerStats {
-  userId        String   @id
-  strength      Float    @default(10) // parte superior / resistência muscular
-  agility       Float    @default(10) // cardio, flexibilidade
-  stamina       Float    @default(10) // HIIT, constância
-  vitality      Float    @default(10) // sono, hidratação, dieta
-  xp            Int      @default(0)
-  level         Int      @default(1)
-  streak        Int      @default(0)
+  userId          String    @id
+  strength        Float     @default(10) // parte superior / resistência muscular
+  agility         Float     @default(10) // cardio, flexibilidade
+  stamina         Float     @default(10) // HIIT, constância
+  vitality        Float     @default(10) // sono, hidratação, dieta
+  xp              Int       @default(0)
+  level           Int       @default(1)
+  streak          Int       @default(0)
   /// Dia da última conclusão — base para calcular ofensiva e penalidade.
   lastCompletedOn DateTime?
   /// Atributos debuffados até esta data (Penalty Zone).
-  debuffUntil   DateTime?
-  updatedAt     DateTime @updatedAt
+  debuffUntil     DateTime?
+  updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Missão diária gerada pelo motor determinístico.
 model DailyMission {
-  id        String   @id @default(uuid())
-  userId    String
+  id             String    @id @default(uuid())
+  userId         String
   /// Dia local (YYYY-MM-DD) ao qual a missão pertence — unicidade por usuário/dia.
-  day       String
-  title     String
+  day            String
+  title          String
   /// Blocos da missão: exercício, alvo e série, gravados como JSON.
-  blocks    Json
+  blocks         Json
   /// Volume planejado em minutos, já ajustado ao tempo disponível do perfil.
-  plannedMinutes Int  @default(0)
-  completedAt DateTime?
-  xpAwarded Int      @default(0)
-  createdAt DateTime @default(now())
+  plannedMinutes Int       @default(0)
+  completedAt    DateTime?
+  xpAwarded      Int       @default(0)
+  createdAt      DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -398,8 +413,8 @@ model WorkoutLog {
   minutes     Int      @default(0)
   createdAt   DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session WorkoutSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  user       User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session    WorkoutSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   setDetails WorkoutSet[]
 
   @@index([userId, day])
@@ -409,17 +424,17 @@ model WorkoutLog {
 /// Uma sessão concluída, inspirada na separação rotina → treino do wger.
 /// Os registros antigos continuam válidos porque sessionId é opcional.
 model WorkoutSession {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String
   day         String
   title       String
-  status      String   @default("COMPLETED") // STARTED | COMPLETED | CANCELED
-  notes       String?  @db.VarChar(500)
-  startedAt   DateTime @default(now())
+  status      String    @default("COMPLETED") // STARTED | COMPLETED | CANCELED
+  notes       String?   @db.VarChar(500)
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   logs WorkoutLog[]
 
   @@index([userId, day])
@@ -439,4 +454,137 @@ model WorkoutSet {
   workoutLog WorkoutLog @relation(fields: [workoutLogId], references: [id], onDelete: Cascade)
 
   @@unique([workoutLogId, setNumber])
+}
+
+/**
+ * ===================== Finanças — orçamento por envelopes =====================
+ */
+/**
+ * Modelo inspirado no Actual Budget: todo dinheiro que entra numa categoria de
+ * receita vai para "A orçar"; o usuário distribui esse valor entre as
+ * categorias de despesa (envelopes). Valores são SEMPRE inteiros em centavos —
+ * nada de ponto flutuante em dinheiro. Datas são texto `AAAA-MM-DD`
+ * (dia civil, sem fuso), o que também as torna ordenáveis.
+ */
+
+/// Marca que o módulo foi inicializado para o usuário (categorias padrão ou
+/// migração do ledger antigo em ToolData). A chave primária é o próprio
+/// userId: duas abas abrindo o módulo ao mesmo tempo não duplicam a carga.
+model FinanceSettings {
+  userId        String   @id
+  currency      String   @default("BRL")
+  initializedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model FinanceAccount {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String   @db.VarChar(100)
+  type      String   @default("CHECKING") // CHECKING | SAVINGS | CREDIT | CASH | INVESTMENT | OTHER
+  /// Fora do orçamento: investimentos, bens. O saldo conta no patrimônio,
+  /// mas as transações não têm categoria nem afetam os envelopes.
+  offBudget Boolean  @default(false)
+  closed    Boolean  @default(false)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions FinanceTransaction[]
+
+  @@index([userId, sortOrder])
+}
+
+model FinanceCategoryGroup {
+  id        String  @id @default(uuid())
+  userId    String
+  name      String  @db.VarChar(100)
+  isIncome  Boolean @default(false)
+  hidden    Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categories FinanceCategory[]
+
+  @@index([userId, sortOrder])
+}
+
+model FinanceCategory {
+  id        String  @id @default(uuid())
+  userId    String
+  groupId   String
+  name      String  @db.VarChar(100)
+  hidden    Boolean @default(false)
+  sortOrder Int     @default(0)
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group        FinanceCategoryGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  transactions FinanceTransaction[]
+  budgets      FinanceBudget[]
+  payees       FinancePayee[]
+
+  @@index([userId])
+  @@index([groupId, sortOrder])
+}
+
+/// Beneficiário ("Mercado X", "Salário"). Guarda a última categoria usada
+/// para sugerir automaticamente na próxima transação.
+model FinancePayee {
+  id             String  @id @default(uuid())
+  userId         String
+  name           String  @db.VarChar(200)
+  lastCategoryId String?
+
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lastCategory FinanceCategory?     @relation(fields: [lastCategoryId], references: [id], onDelete: SetNull)
+  transactions FinanceTransaction[]
+
+  @@unique([userId, name])
+}
+
+model FinanceTransaction {
+  id         String   @id @default(uuid())
+  userId     String
+  accountId  String
+  date       String   @db.VarChar(10) // AAAA-MM-DD
+  amount     Int // centavos; negativo = saída
+  payeeId    String?
+  categoryId String?
+  notes      String?  @db.VarChar(500)
+  cleared    Boolean  @default(false)
+  /// Transferência: id da transação espelho na outra conta.
+  transferId String?  @unique
+  /// Impressão digital da linha importada (CSV), para não importar duas vezes.
+  importHash String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  FinanceAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  payee    FinancePayee?    @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  category FinanceCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId, date])
+  @@index([accountId, date])
+  @@index([categoryId, date])
+  @@index([userId, importHash])
+}
+
+/// Valor orçado de uma categoria num mês. `carryover` = saldo negativo também
+/// passa para o mês seguinte (em vez de sair do "A orçar"), como no Actual.
+model FinanceBudget {
+  id         String  @id @default(uuid())
+  userId     String
+  categoryId String
+  month      String  @db.VarChar(7) // AAAA-MM
+  budgeted   Int     @default(0) // centavos
+  carryover  Boolean @default(false)
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category FinanceCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([categoryId, month])
+  @@index([userId, month])
 }

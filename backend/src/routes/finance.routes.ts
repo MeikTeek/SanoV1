@@ -4,17 +4,31 @@ import * as c from '../controllers/finance.controller';
 
 const r = Router();
 r.use(requireAuth);
-r.get('/', c.dashboard);
+
+r.get('/', c.overview);
 r.get('/reports', c.reports);
-r.post('/import/preview', c.importPreview);
-r.post('/import/commit', c.importCommit);
-r.post('/accounts', c.account);
-r.post('/categories', c.category);
-r.post('/category-groups', c.categoryGroup);
-r.post('/budgets', c.budget);
-r.post('/transactions', c.transaction);
-r.patch('/transactions/:id', c.update);
-r.post('/transfers', c.move);
-r.delete('/transactions/:id', c.removeTransaction);
+
+r.post('/accounts', c.createAccount);
+r.patch('/accounts/:id', c.updateAccount);
+r.delete('/accounts/:id', c.deleteAccount);
+
+r.post('/groups', c.createGroup);
+r.patch('/groups/:id', c.updateGroup);
+r.delete('/groups/:id', c.deleteGroup);
+r.post('/categories', c.createCategory);
+r.patch('/categories/:id', c.updateCategory);
+r.delete('/categories/:id', c.deleteCategory);
+
+r.put('/budgets', c.setBudget);
+r.post('/budgets/copy-last-month', c.copyLastMonth);
+r.post('/budgets/cover-overspending', c.coverOverspending);
+
+r.get('/transactions', c.listTransactions);
+r.post('/transactions', c.createTransaction);
+r.patch('/transactions/:id', c.updateTransaction);
+r.patch('/transactions/:id/cleared', c.setCleared);
+r.delete('/transactions/:id', c.deleteTransaction);
+
+r.post('/import', c.importTransactions);
 
 export default r;
