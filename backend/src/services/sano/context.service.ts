@@ -25,14 +25,24 @@ export interface SanoMemory {
   /** Dia em foco (ISO yyyy-mm-dd) para "e amanhã?" / "e depois". */
   focusDay: string | null;
   pendingAction: PendingAssistantAction | null;
+  /** Última ação desfazível do chat ("desfazer"). */
+  undo?: UndoEntry | null;
   updatedAt: string;
 }
+
+/** O suficiente para reverter a última ação da agenda feita pelo chat. */
+export type UndoEntry =
+  | { kind: 'create'; id: string; seriesId?: string | null; title: string }
+  | { kind: 'update'; id: string; title: string; startsAt: string; endsAt: string | null; remindBefore: number | null }
+  | { kind: 'cancel'; id: string; seriesId?: string | null; from?: string; title: string }
+  | { kind: 'complete'; id: string; title: string };
 
 export const EMPTY_MEMORY: SanoMemory = {
   lastIntent: null,
   lastAppointments: [],
   focusDay: null,
   pendingAction: null,
+  undo: null,
   updatedAt: '',
 };
 
@@ -72,6 +82,7 @@ export async function loadMemory(userId: string): Promise<SanoMemory> {
       lastAppointments: Array.isArray(data.lastAppointments) ? data.lastAppointments : [],
       focusDay: data.focusDay ?? null,
       pendingAction: isPendingAssistantAction(data.pendingAction) ? data.pendingAction : null,
+      undo: data.undo && typeof data.undo === 'object' && 'kind' in data.undo ? data.undo : null,
       updatedAt: row.updatedAt.toISOString(),
     };
   } catch (err) {

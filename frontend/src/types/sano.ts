@@ -40,6 +40,22 @@ export type SanoView =
       details: string[];
       confirmCommand: string;
       cancelCommand: string;
+    }
+  | {
+      kind: 'event';
+      title: string;
+      when: string;
+      relative?: string;
+      details: string[];
+      state?: 'created' | 'updated' | 'canceled' | 'done' | 'info';
+      actions?: { label: string; command: string }[];
+    }
+  | {
+      kind: 'agenda';
+      title: string;
+      days: { label: string; items: { id: string; time: string; title: string; subtitle?: string; tag?: string }[] }[];
+      emptyText?: string;
+      footer?: string;
     };
 
 export interface SanoResponse {
@@ -47,6 +63,8 @@ export interface SanoResponse {
   reply: string;
   actions?: SanoAction[];
   view?: SanoView;
+  /** Respostas rápidas sugeridas pelo Sano. */
+  suggestions?: string[];
 }
 
 export interface ChatMessage {
@@ -57,4 +75,5 @@ export interface ChatMessage {
   at?: Date;
   /** Painel estruturado anexado à resposta. */
   view?: SanoView;
+  suggestions?: string[];
 }

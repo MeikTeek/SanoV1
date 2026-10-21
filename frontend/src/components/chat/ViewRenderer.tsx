@@ -117,6 +117,65 @@ export default function ViewRenderer({ view, onCommand }: Props) {
         </section>
       );
 
+    case 'event': {
+      const badge = { created: 'Marcado', updated: 'Alterado', canceled: 'Cancelado', done: 'Concluído', info: '' }[view.state ?? 'info'];
+      return (
+        <section className={`hud-card hud-event state-${view.state ?? 'info'}`}>
+          <div className="hud-event-head">
+            <span className="hud-event-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3.5" y="5" width="17" height="15" rx="2.5" /><path d="M3.5 10h17M8 3v4M16 3v4" />
+              </svg>
+            </span>
+            <div className="hud-event-main">
+              <b>{view.title}</b>
+              <span>{view.when}{view.relative && view.state !== 'canceled' ? ` · ${view.relative}` : ''}</span>
+            </div>
+            {badge && <span className="hud-event-badge">{badge}</span>}
+          </div>
+          {view.details.length > 0 && (
+            <ul className="hud-event-details">{view.details.map((d) => <li key={d}>{d}</li>)}</ul>
+          )}
+          {view.actions && view.actions.length > 0 && (
+            <div className="hud-event-actions">
+              {view.actions.map((a) => (
+                <button key={a.label} type="button" className="hud-chip" onClick={() => onCommand(a.command)}>{a.label}</button>
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+
+    case 'agenda':
+      return (
+        <section className="hud-card hud-agenda">
+          <div className="hud-agenda-head">
+            <h4 className="hud-title">{view.title}</h4>
+            {view.footer && <span>{view.footer}</span>}
+          </div>
+          {view.days.length === 0 ? (
+            <p className="muted">{view.emptyText ?? 'Nada marcado.'}</p>
+          ) : view.days.map((day) => (
+            <div key={day.label} className="hud-agenda-day">
+              {/* Um dia só: o título já diz qual é. */}
+              {view.days.length > 1 && <span className="hud-agenda-label">{day.label}</span>}
+              <ol>
+                {day.items.map((i) => (
+                  <li key={i.id}>
+                    <span className="hud-agenda-time">{i.time}</span>
+                    <span className="hud-agenda-body">
+                      <b>{i.title}{i.tag && <i aria-label="recorrente"> {i.tag}</i>}</b>
+                      {i.subtitle && <small>{i.subtitle}</small>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ))}
+        </section>
+      );
+
     default:
       return null;
   }

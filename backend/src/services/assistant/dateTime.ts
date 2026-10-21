@@ -49,7 +49,7 @@ const MONTHS: Record<string, number> = {
 
 type LocalParts = { year: number; month: number; day: number; weekday: number };
 
-function localParts(date: Date): LocalParts {
+export function localParts(date: Date): LocalParts {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: ASSISTANT_TIME_ZONE,
     year: 'numeric',
@@ -67,11 +67,11 @@ function localParts(date: Date): LocalParts {
   };
 }
 
-function localDate(year: number, month: number, day: number): Date {
+export function localDate(year: number, month: number, day: number): Date {
   return new Date(Date.UTC(year, month, day, 12));
 }
 
-function dateAtLocalTime(day: Date, hour = 0, minute = 0): Date {
+export function dateAtLocalTime(day: Date, hour = 0, minute = 0): Date {
   const parts = localParts(day);
   const wallClock = Date.UTC(parts.year, parts.month, parts.day, hour, minute);
   const utcGuess = new Date(wallClock);

@@ -4,11 +4,11 @@ import { loadMemory, saveMemory, type SanoMemory } from './context.service';
 import type { Intent, SanoDeps, SanoResponse, SanoUser } from './types';
 import { detectIntent, listRegisteredIntents } from '../assistant/registry';
 import { normalizeMessage } from '../assistant/normalize';
-import { classifyDialogReply, type PendingAssistantAction } from '../assistant/dialog';
+import { classifyDialogReply, classifySeriesScope, type PendingAssistantAction } from '../assistant/dialog';
 import { socialResponse, unknownResponse, variedReply } from '../assistant/recovery';
 import { recordLearningPhrase } from '../assistant/learning';
 import { registerSanoIntents } from '../assistant/intents';
-import { agendaIntent } from './intents/agenda';
+import { agendaIntent, executeAgendaPending } from './intents/schedule';
 
 const help = createHelpIntent(() => intents);
 export const intents: Intent[] = [help, ...baseIntents];
@@ -84,80 +84,15 @@ function pendingIsFresh(action: PendingAssistantAction, now: Date): boolean {
   return Number.isFinite(createdAt) && age >= 0 && age <= PENDING_TTL_MS;
 }
 
-async function executePendingAction(
+/** A confirmação ("sim") executa a ação guardada; a lógica vive no módulo da agenda. */
+function executePendingAction(
   user: SanoUser,
   action: PendingAssistantAction,
   deps: SanoDeps,
+  now: Date,
+  scope: 'one' | 'series' = 'one',
 ): Promise<SanoResponse> {
-  const agenda = deps.agenda;
-  if (!agenda) throw new Error('O serviço de agenda não está disponível para concluir essa ação.');
-
-  if (action.type === 'create') {
-    const saved = await agenda.create(user.id, {
-      title: action.title,
-      startsAt: new Date(action.startsAt),
-      endsAt: action.endsAt ? new Date(action.endsAt) : undefined,
-      participants: action.participants,
-      remindBefore: action.remindBefore ?? null,
-    });
-    return {
-      intent: 'agenda',
-      reply: variedReply(user.id, 'agenda:created', [
-        `Pronto, ${saved.title} está na agenda para ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-        `Anotado! ${saved.title} ficou marcado para ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-        `Fechado: ${saved.title} foi agendado para ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-      ]),
-      actions: [{ type: 'navigate', to: '/agenda' }],
-      memory: { appointments: [{ id: saved.id, title: saved.title, startsAt: saved.startsAt }] },
-    };
-  }
-
-  if (action.type === 'cancel') {
-    await agenda.cancel(user.id, action.appointmentId);
-    return {
-      intent: 'agenda',
-      reply: variedReply(user.id, 'agenda:canceled', [
-        `Pronto, cancelei "${action.title}".`,
-        `"${action.title}" foi removido da sua agenda.`,
-        `Feito — "${action.title}" está cancelado.`,
-      ]),
-      actions: [{ type: 'navigate', to: '/agenda' }],
-    };
-  }
-
-  if (action.type === 'cancel-day') {
-    const count = await agenda.cancelDay(user.id, new Date(action.startsAt), new Date(action.endsAt));
-    return {
-      intent: 'agenda',
-      reply: `Pronto, cancelei ${count} ${count === 1 ? 'compromisso' : 'compromissos'} desse dia.`,
-      actions: [{ type: 'navigate', to: '/agenda' }],
-    };
-  }
-
-  if (action.type === 'draft') {
-    throw new Error('A ação da agenda ainda precisa de informações antes da confirmação.');
-  }
-  if (action.type !== 'update') {
-    throw new Error('Tipo de ação pendente não é compatível com atualização.');
-  }
-  if (!action.appointmentId) throw new Error('A alteração pendente não tem compromisso associado.');
-  const saved = await agenda.update(user.id, action.appointmentId, {
-    title: action.title,
-    startsAt: new Date(action.startsAt),
-    endsAt: action.endsAt ? new Date(action.endsAt) : undefined,
-    participants: action.participants,
-    remindBefore: action.remindBefore,
-  });
-  return {
-    intent: 'agenda',
-    reply: variedReply(user.id, 'agenda:updated', [
-      `Atualizei "${saved.title}" para ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-      `"${saved.title}" ficou remarcado para ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-      `Feito — a nova data de "${saved.title}" é ${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }).format(saved.startsAt)}.`,
-    ]),
-    actions: [{ type: 'navigate', to: '/agenda' }],
-    memory: { appointments: [{ id: saved.id, title: saved.title, startsAt: saved.startsAt }] },
-  };
+  return executeAgendaPending(user, action, deps, now, scope);
 }
 
 /**
@@ -212,9 +147,11 @@ export async function handleCommand(
   if (social) return { intent: 'greeting', ...social };
 
   if (pending && pending.type !== 'draft') {
-    const decision = classifyDialogReply(normalized);
+    // Ocorrência de série: "só essa" / "todas as próximas" também respondem.
+    const scope = pending.type === 'cancel' && pending.seriesId ? classifySeriesScope(normalized) : null;
+    const decision = scope ? 'confirm' : classifyDialogReply(normalized);
     if (decision === 'confirm') {
-      const result = await executePendingAction(user, pending, deps);
+      const result = await executePendingAction(user, pending, deps, now, scope ?? 'one');
       await saveMemory(user.id, {
         lastIntent: 'agenda',
         ...(result.memory?.appointments && {
@@ -223,9 +160,10 @@ export async function handleCommand(
           })),
           focusDay: localDateKey(new Date(result.memory.appointments[0].startsAt)),
         }),
+        ...result.dialog,
         pendingAction: null,
       });
-      const { memory: _memory, ...publicResult } = result;
+      const { memory: _memory, dialog: _dialog, ...publicResult } = result;
       return publicResult;
     }
     if (decision === 'cancel') {

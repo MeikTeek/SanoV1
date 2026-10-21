@@ -14,6 +14,14 @@ interface Props {
 const fmtTime = (iso: string) =>
   new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 
+/** "amanhã", "sex 23". */
+const fmtDay = (iso: string) => {
+  const d = new Date(iso);
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+  if (d.toDateString() === tomorrow.toDateString()) return 'amanhã';
+  return new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: '2-digit' }).format(d).replace('.', '');
+};
+
 /** Minutos até o próximo compromisso — vira o alerta proativo do painel. */
 const minutesUntil = (iso: string) => (new Date(iso).getTime() - Date.now()) / 60_000;
 
@@ -29,6 +37,7 @@ export default function SidePanels({ refreshKey, side }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [today, setToday] = useState<Appointment[]>([]);
+  const [upcoming, setUpcoming] = useState<Appointment[]>([]);
   const [training, setTraining] = useState<PanelTraining | null>(null);
   const [dbMs, setDbMs] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -39,6 +48,7 @@ export default function SidePanels({ refreshKey, side }: Props) {
       .then((d) => {
         if (!alive) return;
         setToday(d.today);
+        setUpcoming(d.upcoming ?? []);
         setTraining(d.training);
         setDbMs(d.system.dbMs);
       })
@@ -72,6 +82,19 @@ export default function SidePanels({ refreshKey, side }: Props) {
                   <li key={a.id} className={a.status === 'DONE' ? 'done' : ''}>
                     <span className="t">{fmtTime(a.startsAt)}</span>
                     <span className="n">{a.title}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {upcoming.length > 0 && (
+            <>
+              <h4 className="hud-title hud-title-sub">Próximos</h4>
+              <ul className="hud-side-list">
+                {upcoming.map((a) => (
+                  <li key={a.id}>
+                    <span className="t">{fmtDay(a.startsAt)}</span>
+                    <span className="n">{a.title}<small>{a.allDay ? 'dia inteiro' : fmtTime(a.startsAt)}</small></span>
                   </li>
                 ))}
               </ul>

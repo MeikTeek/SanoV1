@@ -30,6 +30,12 @@ export async function command(req: Request, res: Response) {
       update: (userId, id, data) => agenda.updateAppointment(userId, id, data),
       listByDay: (userId, from, to) => agenda.listByDay(userId, from, to),
       cancelDay: async (userId, from, to) => (await agenda.cancelDay(userId, from, to)).count,
+      next: (userId, limit) => agenda.nextAppointments(userId, limit),
+      get: (userId, id) => agenda.getAppointment(userId, id),
+      remove: async (userId, id) => { await agenda.deleteAppointment(userId, id); },
+      cancelSeries: async (userId, seriesId, from) => (await agenda.cancelSeries(userId, seriesId, from)).count,
+      restoreSeries: async (userId, seriesId, from) => (await agenda.restoreSeries(userId, seriesId, from)).count,
+      deleteSeries: async (userId, seriesId) => (await agenda.deleteSeries(userId, seriesId)).count,
     },
     trainer: {
       status: (userId) => trainer.statusForChat(userId),
@@ -73,6 +79,11 @@ export async function greeting(req: Request, res: Response) {
 export async function panels(req: Request, res: Response) {
   const userId = req.user!.id;
   const today = await agenda.listToday(userId);
+  // Próximos depois de hoje: o painel não fica vazio num dia livre.
+  const tomorrow = new Date(Math.max(...today.map((a) => a.startsAt.getTime()), Date.now()) + 1);
+  const upcoming = (await agenda.nextAppointments(userId, 8, tomorrow))
+    .filter((a) => !today.some((t) => t.id === a.id))
+    .slice(0, 4);
 
   let training = null;
   try {
@@ -88,5 +99,5 @@ export async function panels(req: Request, res: Response) {
     dbMs = null;
   }
 
-  res.json({ today, training, system: { dbMs } });
+  res.json({ today, upcoming, training, system: { dbMs } });
 }

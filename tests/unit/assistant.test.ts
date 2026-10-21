@@ -194,7 +194,7 @@ test('datas e horas extraídas produzem o mesmo instante local', () => {
   assert.deepEqual(spoken.time, { hours: 14, minutes: 0 });
 });
 
-test('preenche data e hora em turnos separados e não grava antes da confirmação', async () => {
+test('preenche data e hora em turnos separados e grava quando completa', async () => {
   const store: { id: string; title: string; startsAt: Date; status: string }[] = [];
   const agenda = {
     list: async () => store as never,
@@ -216,10 +216,9 @@ test('preenche data e hora em turnos separados e não grava antes da confirmaç�
   assert.match(dateQuestion.reply, /para qual dia/i);
   const timeQuestion = await handleCommand(assistantUser, 'amanhã', deps, NOW);
   assert.match(timeQuestion.reply, /que horas/i);
-  const preview = await handleCommand(assistantUser, '14h', deps, NOW);
-  assert.equal(preview.view?.kind, 'confirmation');
-  assert.equal(store.length, 0);
-  await handleCommand(assistantUser, 'confirmar', deps, NOW);
+  // Com o horário, o compromisso está completo: entra na agenda (com "desfazer").
+  const saved = await handleCommand(assistantUser, '14h', deps, NOW);
+  assert.equal(saved.view?.kind, 'event');
   assert.equal(store.length, 1);
   assert.equal(store[0].title, 'Reunião com o time');
   assert.equal(store[0].startsAt.toISOString(), '2026-10-04T17:00:00.000Z');

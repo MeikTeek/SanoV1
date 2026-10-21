@@ -11,6 +11,20 @@ import ViewRenderer from './ViewRenderer';
 import { useMusic } from '../../music/musicStore';
 import '../../styles/chat.css';
 
+/** Cartões que ficam melhores acompanhados da frase do Sano. */
+const WITH_TEXT = new Set(['event', 'agenda', 'confirmation']);
+
+const STARTERS = ['o que tenho hoje?', 'qual meu próximo compromisso?', 'tô livre amanhã à tarde?', 'resumo financeiro'];
+
+const PLACEHOLDERS = [
+  'Fale com o Sano — ex.: "marca dentista sexta às 15h"',
+  'Ex.: "me lembra de ligar pra minha mãe às 19h"',
+  'Ex.: "o que tenho essa semana?"',
+  'Ex.: "adia a reunião em 30 minutos"',
+  'Ex.: "academia toda segunda às 7h"',
+  'Ex.: "gastei 45,90 no mercado"',
+];
+
 const hhmm = (d: Date) => new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(d);
 
 /**
@@ -24,17 +38,19 @@ export default function ChatTerminal() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const history = useCommandHistory();
-  const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking } = useChat();
+  const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking, refreshPanels } = useChat();
   const { tracks, playlists, volume, playing, play, toggle, setVolume } = useMusic();
   const nextId = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [input, setInput] = useState('');
+  // Exemplo diferente a cada mensagem: ensina o que dá para pedir sem precisar de "ajuda".
+  const placeholder = messages.length % PLACEHOLDERS.length;
 
   const make = useCallback(
-    (role: ChatMessage['role'], text: string, view?: ChatMessage['view']): ChatMessage =>
-      ({ id: nextId.current++, role, text, at: new Date(), view }),
+    (role: ChatMessage['role'], text: string, view?: ChatMessage['view'], suggestions?: string[]): ChatMessage =>
+      ({ id: nextId.current++, role, text, at: new Date(), view, suggestions }),
     [],
   );
 
@@ -124,7 +140,9 @@ export default function ChatTerminal() {
 
     try {
       const res = await sendCommand(trimmed);
-      setMessages((m) => [...m, make('sano', res.reply, res.view)]);
+      setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
+      // Mexeu na agenda pelo chat: os painéis "Hoje" precisam refletir na hora.
+      if (res.intent === 'agenda' || res.intent === 'financas') refreshPanels();
       res.actions?.forEach((a) => {
         if (a.type === 'navigate') setTimeout(() => navigate(a.to), 600);
       });
@@ -135,7 +153,7 @@ export default function ChatTerminal() {
       setBusy(false);
       inputRef.current?.focus();
     }
-  }, [busy, history, make, navigate, playing, playlists, play, setMessages, setBusy, setComposing, setThinking, setUser, setVolume, toggle, tracks, volume]);
+  }, [busy, history, make, navigate, playing, playlists, play, refreshPanels, setMessages, setBusy, setComposing, setThinking, setUser, setVolume, toggle, tracks, volume]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {
@@ -149,6 +167,10 @@ export default function ChatTerminal() {
 
   const submit = (e: FormEvent) => { e.preventDefault(); void send(input); };
   const label = user?.displayName || user?.username;
+  const lastSano = [...messages].reverse().find((m) => m.role !== 'user');
+  // Conversa recém-aberta: o Sano oferece por onde começar.
+  const fresh = messages.filter((m) => m.role === 'user').length === 0;
+  const chips = busy ? [] : fresh ? STARTERS : lastSano?.suggestions ?? [];
 return (
     <div className="chat-console">
       <div className="chat-log" ref={logRef} aria-live="polite">
@@ -162,11 +184,10 @@ return (
             <div className="msg-body">
               {m.role !== 'error' && <span className="who">{m.role === 'user' ? label : 'Sano'}</span>}
               {/* Resposta com painel: o painel manda, o texto fica como apoio. */}
-              {m.view ? (
-                <ViewRenderer view={m.view} onCommand={(c) => void send(c)} />
-              ) : (
-                <div className="bubble">{m.text}</div>
-              )}
+              {/* Cartões curtos (evento, agenda, confirmação) vêm com a frase do Sano junto;
+                  painéis densos (medidores, ajuda) substituem o texto. */}
+              {(!m.view || WITH_TEXT.has(m.view.kind)) && <div className="bubble">{m.text}</div>}
+              {m.view && <ViewRenderer view={m.view} onCommand={(c) => void send(c)} />}
               {m.at && <div className="time">{hhmm(m.at)}</div>}
             </div>
           </div>
@@ -185,6 +206,14 @@ return (
         )}
       </div>
 
+      {chips.length > 0 && (
+        <div className="chat-chips" aria-label="Sugestões">
+          {chips.map((c) => (
+            <button key={c} type="button" className="hud-chip" onClick={() => void send(c)}>{c}</button>
+          ))}
+        </div>
+      )}
+
       <form className="chat-input" onSubmit={submit}>
         <input
           ref={inputRef}
@@ -194,7 +223,7 @@ return (
             setComposing(Boolean(e.target.value.trim()));
           }}
           onKeyDown={onKeyDown}
-          placeholder="Fale com o Sano"
+          placeholder={PLACEHOLDERS[placeholder]}
           maxLength={500}
           autoComplete="off"
           spellCheck={false}

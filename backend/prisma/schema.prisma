@@ -228,24 +228,33 @@ model ToolData {
 /// Compromisso da agenda. lembretes ficam no mesmo registro: `remindBefore` é
 /// quantos minutos antes avisar e `reminderSentAt` garante aviso único.
 model Appointment {
-  id             String    @id @default(uuid())
-  userId         String
-  title          String
-  description    String?
-  participants   String? // "João e Maria"
-  startsAt       DateTime
-  endsAt         DateTime?
-  remindBefore   Int? // em minutos; null = sem lembrete
-  reminderSentAt DateTime? // preenchido quando o aviso foi disparado
-  status         String    @default("PENDING") // PENDING | DONE | CANCELED
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(uuid())
+  userId          String
+  title           String
+  description     String?
+  participants    String? // "João e Maria"
+  startsAt        DateTime
+  endsAt          DateTime?
+  remindBefore    Int? // em minutos; null = sem lembrete
+  reminderSentAt  DateTime? // preenchido quando o aviso foi disparado
+  status          String    @default("PENDING") // PENDING | DONE | CANCELED
+  location        String?   @db.VarChar(200)
+  /// Dia inteiro: `startsAt` é 00:00 local e o horário não é exibido.
+  allDay          Boolean   @default(false)
+  /// Recorrência: cada ocorrência é uma linha própria (lembrete, "feito" e
+  /// cancelamento funcionam igual a um compromisso avulso); `seriesId` agrupa.
+  seriesId        String?
+  recurrence      String? // DAILY | WEEKDAYS | WEEKLY | MONTHLY | YEARLY
+  recurrenceUntil DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, startsAt])
   @@index([userId, status, startsAt])
   @@index([reminderSentAt])
+  @@index([userId, seriesId])
 }
 
 /**

@@ -9,6 +9,9 @@ export type PendingAssistantAction =
       date: string | null;
       participants?: string;
       remindBefore?: number | null;
+      location?: string;
+      allDay?: boolean;
+      recurrence?: 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
       createdAt: string;
     }
   | {
@@ -19,6 +22,9 @@ export type PendingAssistantAction =
       participants?: string;
       remindBefore?: number | null;
       appointmentId?: string;
+      location?: string;
+      allDay?: boolean;
+      recurrence?: 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
       createdAt: string;
     }
   | {
@@ -26,6 +32,8 @@ export type PendingAssistantAction =
       appointmentId: string;
       title: string;
       startsAt: string;
+      /** Ocorrência de série: a resposta escolhe "só essa" ou "todas as próximas". */
+      seriesId?: string;
       createdAt: string;
     }
   | {
@@ -47,6 +55,9 @@ export const pendingAssistantActionSchema = z.discriminatedUnion('type', [
     date: z.string().datetime().nullable(),
     participants: z.string().max(500).optional(),
     remindBefore: z.number().int().min(0).max(43_200).nullable().optional(),
+    location: z.string().max(200).optional(),
+    allDay: z.boolean().optional(),
+    recurrence: z.enum(['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
     createdAt: z.string().datetime(),
   }),
   z.object({
@@ -57,6 +68,9 @@ export const pendingAssistantActionSchema = z.discriminatedUnion('type', [
     participants: z.string().max(500).optional(),
     remindBefore: z.number().int().min(0).max(43_200).nullable().optional(),
     appointmentId: z.string().min(1).optional(),
+    location: z.string().max(200).optional(),
+    allDay: z.boolean().optional(),
+    recurrence: z.enum(['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
     createdAt: z.string().datetime(),
   }),
   z.object({
@@ -64,6 +78,7 @@ export const pendingAssistantActionSchema = z.discriminatedUnion('type', [
     appointmentId: z.string().min(1),
     title: z.string().trim().min(1).max(160),
     startsAt: z.string().datetime(),
+    seriesId: z.string().min(1).optional(),
     createdAt: z.string().datetime(),
   }),
   z.object({
@@ -89,6 +104,17 @@ export function classifyDialogReply(text: string): DialogReply {
     .trim();
 
   if (/^(nao|cancela|cancele|cancelar|cancela essa|cancela isso|cancelar acao|deixa|deixa pra la|volta|desiste)$/.test(normalized)) return 'cancel';
-  if (/^(sim|confirmar|confirmo|confirma|isso|isso mesmo|pode|pode sim|pode cancelar|vai|autorizo)$/.test(normalized)) return 'confirm';
+  if (/^(sim|s|confirmar|confirmo|confirma|isso|isso mesmo|pode|pode sim|pode cancelar|pode marcar|pode salvar|vai|manda|beleza|ok|claro|com certeza|autorizo|marca mesmo assim|mesmo assim)$/.test(normalized)) return 'confirm';
+  // "sim, marca mesmo assim", "ok pode cancelar": confirmação com o verbo junto.
+  if (/^(?:sim|s|ok|pode|beleza|claro)?\s*(?:pode\s+)?(?:marcar|marca|marque|salvar|salva|confirmar|confirma|cancelar|cancela|apagar|apaga)?\s*(?:mesmo assim|sim)?$/.test(normalized)
+    && /^(sim|s|ok|pode|beleza|claro)\b|mesmo assim$/.test(normalized)) return 'confirm';
   return 'other';
+}
+
+/** Ocorrência de série: "só essa" ou "todas as próximas"? */
+export function classifySeriesScope(text: string): 'one' | 'series' | null {
+  const normalized = text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[?!.,]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (/^(so )?(essa|esta|a proxima|a de [\w ]+|apenas essa|so a proxima|so uma|uma)( mesmo| so)?$/.test(normalized)) return 'one';
+  if (/\b(todas|todos|tudo|a serie|serie toda|serie inteira|todas as proximas|sempre)\b/.test(normalized)) return 'series';
+  return null;
 }

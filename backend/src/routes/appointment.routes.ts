@@ -8,6 +8,7 @@ r.use(requireAuth);
 
 r.get('/', c.list);
 r.get('/due', c.due); // polled pelo ReminderWatcher; antes de '/:id' por segurança
+r.post('/parse', c.parse); // prévia da criação rápida (mesmo entendimento do chat)
 r.post('/', c.create);
 r.patch('/:id', c.update);
 r.delete('/:id', c.remove);

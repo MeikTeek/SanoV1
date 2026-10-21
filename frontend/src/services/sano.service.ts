@@ -21,4 +21,4 @@ export const fetchGreeting = () =>
 
 /** Dados dos painéis laterais: agenda de hoje, treino e saúde do sistema. */
 export const fetchPanels = () =>
-  api.get<{ today: Appointment[]; training: PanelTraining | null; system: { dbMs: number | null } }>('/sano/panels');
+  api.get<{ today: Appointment[]; upcoming?: Appointment[]; training: PanelTraining | null; system: { dbMs: number | null } }>('/sano/panels');

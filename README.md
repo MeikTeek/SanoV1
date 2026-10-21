@@ -137,27 +137,42 @@ npm run test    # cobre normalização, intenções, permissões e comandos plan
 
 ## Agenda (Fase 3 — módulo 2)
 
-Os compromissos ficam no banco (modelo `Appointment`, por usuário) e aparecem em `/agenda`. O Sano cria, lista e cancela por frase:
+Página `/agenda`: calendário do mês, próximos compromissos, lista por dia ou semana,
+criação rápida por frase (com prévia do que será salvo) e editor completo — local,
+participantes, dia inteiro, lembrete, recorrência e notas.
+
+### O Sano como assistente de agenda
 
 ```
-agendar reunião com João amanhã às 14h
-agendar revisão do projeto amanhã das 14h às 15h30 me lembre 15 minutos antes
-ligar para o banco daqui a 10 minutos
-quais são meus compromissos
-cancelar reunião
-cancelar todos os compromissos de amanhã, pode cancelar
+marca dentista sexta às 15h                  → cria na hora, com "Desfazer"
+me lembra de ligar pra minha mãe às 19h      → hoje (ou amanhã, se já passou)
+academia toda segunda às 7h                  → série semanal (também: todo dia, dias úteis, todo dia 5, todo ano)
+aniversário da Bia dia 15/11                 → dia inteiro
+reunião com Ana dia 30 das 10h às 11h30 local: Sala 3
+qual meu próximo compromisso? / quando é o dentista?
+o que tenho essa semana? / quantos compromissos semana que vem?
+tô livre quinta à tarde?                     → mostra os intervalos livres
+adia o dentista 1 hora / antecipa a reunião 30 min / passa a call pra sexta
+me lembra da reunião 1 dia antes / concluí a reunião com Ana
+cancela o dentista (confirma) · cancela a academia → "só essa" ou "todas as próximas"
+desfazer
 ```
 
-O cancelamento em lote é a única ação destrutiva em massa, então **nunca apaga na primeira frase**: mostra a prévia do que será removido e só executa depois da confirmação.
-
-- **Parser determinístico** (`backend/src/services/agenda/parse.ts`), sem IA: entende "hoje/amanhã/depois de amanhã", dias da semana, `15/10`, "da 15 de outubro", "daqui a 2 horas", `14h`, `14:30`, `das 14h às 15h30` e lembretes ("me lembre 15 minutos antes").
-- **Fuso**: frases são resolvidas em `America/Sao_Paulo` e gravadas em UTC.
-- **Falta de informação**: se a frase não tiver título ou data, o Sano pergunta o que falta em vez de adivinhar.
-- **Cancelamento**: busca por trecho no título; havendo mais de um candidato, ele pergunta qual em vez de apagar o errado.
-- **Limpeza do dia** (`cancelar todos … de <data>`): apaga apenas o dia pedido, exige confirmação por palavra e a frase sugerida usa um formato que o próprio parser entende.
-- **Lembretes**: `remindBefore` (minutos) + `reminderSentAt`. Enquanto o app estiver aberto, `ReminderWatcher` faz polling a cada 30 s, mostra o aviso na tela e dispara a notificação do navegador (pedindo permissão com o sino na barra superior).
-- **Aviso único**: o servidor marca o lembrete como enviado antes de responder, então polling concorrente ou várias abas não geram duplicidade.
-- **Limite conhecido**: com o app fechado não há aviso — o push do PWA (Service Worker) fica para a Fase 5.
+- **Entendimento** em `services/agenda/nlu.ts` (o que o pedido quer, intervalos como
+  "essa semana"/"à tarde", recorrência, termo de busca) + `parse.ts` (título,
+  participantes, horários). Determinístico, sem IA, coberto por testes.
+- **Criar e mover acontecem na hora** com "desfazer" (são reversíveis). **Cancelar pede
+  confirmação**; conflito de horário também, sugerindo horários livres próximos.
+- **Respostas como cartões** (compromisso, agenda do período) e **respostas rápidas**
+  (chips) — perguntas incompletas oferecem os dias/horários mais prováveis.
+- **Lembrete padrão**: 15 min antes (na hora, se faltar menos de 30 min).
+- **Recorrência**: cada ocorrência é uma linha própria com o mesmo `seriesId`, gerada
+  até 120 dias à frente e estendida sob demanda. Editar/excluir na tela permite "só
+  este" ou "este e os próximos".
+- **Busca sem acento**: "reuniao" acha "Reunião"; título e participantes contam.
+- **Lembretes**: `ReminderWatcher` faz polling a cada 30 s; o servidor marca como enviado
+  antes de responder, então várias abas não duplicam aviso. Com o app fechado não há
+  aviso — o push do PWA fica para a Fase 5.
 
 ## Trainer / Sistema (Fase 4 — módulo 5)
 

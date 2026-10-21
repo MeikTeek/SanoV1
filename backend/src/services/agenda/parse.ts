@@ -26,6 +26,8 @@ export interface ParsedSchedule {
   confirmed?: boolean;
   /** Minutos de antecedência do lembrete, quando pedido. */
   remindBeforeMinutes?: number;
+  /** O dia não foi dito e o parser assumiu hoje/amanhã pelo horário. */
+  assumedDate?: boolean;
   /** Motivo da recusa, quando a frase não tem título ou data utilizável. */
   missing?: 'title' | 'date' | 'time';
 }
@@ -67,7 +69,7 @@ const spanOf = (m: RegExpExecArray): Span => ({ start: m.index, end: m.index + m
 
 /* --------------------------------- ação --------------------------------- */
 
-const CREATE_WORDS = /\b(agendar|agende|agendo|criar|crie|marcar|marque|coloca|coloque|lembrar|lembre|lembra|anote|anota|cadastrar|registrar|registre)\b/;
+const CREATE_WORDS = /\b(agendar|agende|agendo|criar|crie|cria|marcar|marque|marca|marquei|coloca|coloque|bota|boto|poe|lembrar|lembre|lembra|anote|anota|anotar|adiciona|adicione|adicionar|inclui|incluir|cadastrar|cadastra|registrar|registre)\b/;
 const LIST_WORDS = /\b(quais|listar|lista|listagem|mostrar|mostre|ver|tenho|minha agenda|tem algo|marcado|marcada|o que tenho)\b/;
 const OPEN_AGENDA_WORDS = /\b(abre|abrir|abra|acessar|acessa|consultar|consulta|ver|mostrar|mostra|ir para|ir ao)\b/;
 const AGENDA_NOUNS = /\b(agenda|calendario|compromissos?)\b/;
@@ -126,20 +128,28 @@ function resolveReminder(t: string): { minutes?: number; span?: Span } {
 /* ------------------------------ montagem final ------------------------------ */
 
 /** Ruído de comando que nunca faz parte do título. "de/do/da" ficam de fora: são comuns em títulos ("Aula de História"). */
-const NOISE = /\b(por favor|favor|por gentileza|entao|nao|preciso|quero|um|uma|novo|nova|meu|minha|ate|pra|para|proxim[ao])\b/gi;
+/** Ruído em qualquer posição (cortesia). Preposições e possessivos só saem nas pontas — ver EDGE_NOISE. */
+const NOISE = /(?<!\p{L})(por favor|por gentileza|favor)(?!\p{L})/giu;
 
-const TITLE_TRIM = /\b(agendar|agende|agendo|criar|crie|marcar|marque|coloca|coloque|lembrar|lembre|lembra|anote|anota|cadastrar|registrar|registre|mudar|muda|alterar|altere|altera|remarcar|remarque|reagendar|reagende)\b/gi;
+// Fronteira por letra Unicode: `\b` não entende "põe" nem "lembrá".
+const TITLE_TRIM = /(?<!\p{L})(agendar|agende|agendo|agenda|criar|crie|cria|marcar|marque|marca|marquei|coloca|coloque|bota|boto|põe|poe|lembrar|lembre|lembra|anote|anota|anotar|adiciona|adicione|adicionar|inclui|incluir|cadastrar|cadastra|registrar|registre|mudar|muda|alterar|altere|altera|remarcar|remarque|reagendar|reagende)(?!\p{L})/giu;
+
+/** Começo de frase que é só pedido: "me lembra de", "tenho que", "lembrete para", "uma". */
+const LEADING_REQUEST = /^\s*(?:(?:ei|oi|ok|sano)[,\s]+)*(?:me\s+lembr\p{L}*|lembrete|tenho\s+que|tenho|preciso(?:\s+de)?|vou\s+ter|eu\s+tenho|quero|gostaria\s+de)?\s*(?:(?:de|que|para|pra)\s+)?(?:(?:o|a|os|as|um|uma)\s+)?/iu;
+
+/** Sobras nas pontas depois de tirar data/hora: "reunião para", "uma nova call". */
+const EDGE_NOISE = /^(?:(?:um|uma|novo|nova|meu|minha|pra|para|proxim[ao]|ate|entao|de|do|da|no|na|em|as|às|a|o)\s+)+|(?:\s+(?:pra|para|de|do|da|no|na|em|as|às|a|o|e|com|ate|até|dia|que))+\s*$/giu;
 
 function tidy(s: string): string {
-  const cleaned = s
-    .replace(/\b(?:na|pela|para a) agenda\b/gi, ' ')
-    .replace(/\b(?:me lembra(?:r)?|me avisa|por favor|por gentileza)\b/gi, ' ')
-    .replace(TITLE_TRIM, ' ')
-    .replace(/^\s*de\s+/i, ' ')
+  let cleaned = s
+    .replace(/(?<!\p{L})(?:na|pela|para a|pra|em) (?:minha )?agenda(?!\p{L})/giu, ' ')
+    .replace(/(?<!\p{L})(?:me avisa|pra mim|para mim)(?!\p{L})/giu, ' ')
     .replace(NOISE, ' ')
-    .replace(/\b(?:de|do|da)\s*$/i, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .replace(/\s+/g, ' ');
+  cleaned = cleaned.replace(LEADING_REQUEST, ' ').replace(TITLE_TRIM, ' ').replace(/\s+/g, ' ');
+  cleaned = cleaned.replace(LEADING_REQUEST, '').trim();
+  // "cria um lembrete pra tomar remédio": o artigo esconde o pedido; alterna as limpezas.
+  for (let i = 0; i < 3; i += 1) cleaned = cleaned.replace(EDGE_NOISE, '').trim().replace(LEADING_REQUEST, '').trim();
   return cleaned ? cleaned.charAt(0).toUpperCase() + cleaned.slice(1) : '';
 }
 
@@ -147,9 +157,10 @@ function tidy(s: string): string {
  * Ponto de entrada. `now` é injetável para testes determinísticos.
  * `text` é o texto ORIGINAL digitado, com acentos.
  */
-export function parseSchedule(text: string, now: Date = new Date()): ParsedSchedule {
+export function parseSchedule(text: string, now: Date = new Date(), forced?: ParsedSchedule['action']): ParsedSchedule {
   const f = fold(text);
-  const action = detectAction(f);
+  // `forced`: quem já classificou a frase (nlu.ts) só quer a extração.
+  const action = forced ?? detectAction(f);
 
   if (action === 'list') {
     const date = resolveDate(f, now);
@@ -215,7 +226,20 @@ export function parseSchedule(text: string, now: Date = new Date()): ParsedSched
   ].filter((s): s is Span => Boolean(s))));
 
   if (!title) return { action, title: '', startsAt: new Date(now), missing: 'title' };
-  if (!dateHit) return { action, title, participants, startsAt: new Date(now), missing: 'date' };
+  if (!dateHit) {
+    const hour = range ? Number(range[1]) : timeHit?.hours;
+    const minute = range ? (range[2] ? Number(range[2]) : 0) : timeHit?.minutes ?? 0;
+    if (hour === undefined || hour > 23) return { action, title, participants, startsAt: new Date(now), missing: 'date' };
+    // "me lembra às 19h" sem dia: hoje, ou amanhã se esse horário já passou.
+    let startsAt = atLocal(now, hour, minute);
+    if (startsAt.getTime() <= now.getTime()) startsAt = atLocal(new Date(now.getTime() + 86_400_000), hour, minute);
+    let endsAt: Date | undefined;
+    if (range && Number(range[3]) <= 23) {
+      endsAt = atLocal(startsAt, Number(range[3]), range[4] ? Number(range[4]) : 0);
+      if (endsAt <= startsAt) endsAt = undefined;
+    }
+    return { action, title, participants, startsAt, endsAt, remindBeforeMinutes: reminder.minutes, assumedDate: true };
+  }
 
   let startsAt: Date;
   let endsAt: Date | undefined;
