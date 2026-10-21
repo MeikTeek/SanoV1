@@ -76,20 +76,26 @@ export const bodyAssessmentSchema = z.object({
 });
 export type BodyAssessmentInput = z.infer<typeof bodyAssessmentSchema>;
 
-export const workoutLogSchema = z.object({
-  sessionTitle: z.string().trim().min(1).max(120).optional(),
+const loggedSet = z.object({
+  reps: z.coerce.number().int().min(1, 'Informe as repetições').max(200),
+  loadKg: z.coerce.number().min(0).max(1000).nullable().optional(),
+  rir: z.coerce.number().int().min(0).max(10).nullable().optional(),
+});
+
+/** Sessão concluída: só as séries marcadas como feitas, com reps e carga reais. */
+export const workoutSessionSchema = z.object({
+  title: z.string().trim().min(1).max(120),
+  startedAt: z.string().datetime().optional(),
   notes: z.string().trim().max(500).optional(),
   entries: z.array(z.object({
     exerciseKey: z.string().trim().min(1).max(80),
-    sets: z.coerce.number().int().min(1).max(12),
-    reps: z.coerce.number().int().min(1).max(100),
-    loadKg: z.coerce.number().min(0).max(1000).optional(),
-    setDetails: z.array(z.object({
-      setNumber: z.coerce.number().int().min(1).max(12),
-      reps: z.coerce.number().int().min(1).max(100),
-      loadKg: z.coerce.number().min(0).max(1000).optional(),
-      rir: z.coerce.number().int().min(0).max(10).optional(),
-    })).max(12).optional(),
-  })).min(1).max(30),
+    sets: z.array(loggedSet).min(1).max(15),
+  })).min(1, 'Marque ao menos uma série feita').max(30),
 });
-export type WorkoutLogInput = z.infer<typeof workoutLogSchema>;
+export type WorkoutSessionInput = z.infer<typeof workoutSessionSchema>;
+
+export const swapSchema = z.object({
+  weekday: z.coerce.number().int().min(0).max(6),
+  exerciseKey: z.string().trim().min(1).max(80),
+  replacementKey: z.string().trim().min(1).max(80).nullable(),
+});

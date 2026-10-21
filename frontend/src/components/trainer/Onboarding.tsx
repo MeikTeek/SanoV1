@@ -6,6 +6,7 @@ const toggle = <T,>(list: T[], value: T): T[] =>
   list.includes(value) ? list.filter((x) => x !== value) : [...list, value];
 
 const LAST_STEP = 4;
+const STEPS = ['Objetivo e corpo', 'Rotina de treino', 'Equipamento e saúde', 'Alimentação', 'Hidratação e resumo'];
 
 export interface ProfileDraft {
   goal: Goal;
@@ -121,7 +122,7 @@ export default function Onboarding({ onDone, initial }: {
     }
   };
 
-  if (!meta) return <section className="card"><p className="muted">Carregando…</p></section>;
+  if (!meta) return <section className="tr-onboard"><p className="muted">{error || 'Carregando…'}</p></section>;
 
   const selected = meta.goals.find((g) => g.key === f.goal);
   const next = () => setStep((s) => Math.min(s + 1, LAST_STEP));
@@ -130,9 +131,15 @@ export default function Onboarding({ onDone, initial }: {
   const chip = (on: boolean) => `chip ${on ? 'active' : ''}`;
 
   return (
-    <section className="card">
-      <h2>{initial ? 'Editar perfil' : 'Seu treino'}</h2>
-      <p className="muted">Passo {step + 1} de {LAST_STEP + 1} — cada resposta muda diretamente o plano.</p>
+    <section className="tr-onboard">
+      <header className="tr-onboard-head">
+        <span className="tr-eyebrow">{initial ? 'Editar perfil' : 'Montar seu treino'} · passo {step + 1} de {LAST_STEP + 1}</span>
+        <h2>{STEPS[step]}</h2>
+        <div className="tr-steps" aria-hidden="true">{STEPS.map((label, index) => (
+          <button key={label} type="button" className={index <= step ? 'on' : ''} title={label} tabIndex={-1} onClick={() => index < step && setStep(index)} />
+        ))}</div>
+        <p className="muted">Cada resposta muda diretamente o plano — nada aqui é decorativo.</p>
+      </header>
 
       <form onSubmit={submit}>
         {/* 1 — objetivo e corpo */}

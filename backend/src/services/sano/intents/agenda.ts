@@ -14,7 +14,7 @@ export { agendaIntent } from './schedule';
 async function trainerStatus(ctx: SanoContext): Promise<SanoResult> {
   if (!ctx.deps.trainer) {
     return {
-      reply: 'Posso te levar ao módulo de treino para conferir sua missão e seu progresso.',
+      reply: 'Posso te levar ao módulo de treino para conferir o treino de hoje e seu progresso.',
       actions: [{ type: 'navigate', to: '/treino' }],
     };
   }
@@ -22,22 +22,22 @@ async function trainerStatus(ctx: SanoContext): Promise<SanoResult> {
   const s = await ctx.deps.trainer.status(ctx.user.id);
   if (!s.onboarded) {
     return {
-      reply: 'Você ainda não criou seu personagem no Sistema. Abra o módulo Treino para fazer o cadastro.',
+      reply: 'Você ainda não montou seu plano de treino. Abra o módulo Treino para fazer o cadastro.',
       actions: [{ type: 'navigate', to: '/treino' }],
     };
   }
 
   const lines = [
-    `Objetivo: ${s.goalLabel} · nível ${s.level} (${s.levelTitle}) · ofensiva ${s.streak}${s.debuffed ? ' · DEBUFF ATIVO' : ''}`,
+    `Objetivo: ${s.goalLabel} · nível ${s.level} (${s.levelTitle}) · ofensiva ${s.streak}`,
   ];
   if (s.mission) {
     lines.push(
-      `Missão de hoje: ${s.mission.title}`,
-      `Progresso: ${s.mission.done}/${s.mission.total} blocos (${s.mission.plannedMinutes} min planejados).`,
+      `Treino de hoje: ${s.mission.title} · ~${s.mission.plannedMinutes} min`,
+      `Progresso: ${s.mission.done}/${s.mission.total} exercícios.`,
     );
-    if (s.mission.done === s.mission.total) lines.push('Missão concluída. Bom trabalho.');
+    if (s.mission.total > 0 && s.mission.done >= s.mission.total) lines.push('Treino de hoje concluído. Bom trabalho.');
   } else {
-    lines.push('Nenhuma missão gerada ainda.');
+    lines.push('Hoje é dia de descanso no seu plano.');
   }
 
   return { reply: lines.join('\n'), actions: [{ type: 'navigate', to: '/treino' }] };
@@ -84,7 +84,7 @@ export const trainerIntent: Intent = {
   handle: async (ctx) => {
     if (!ctx.deps.trainer) {
       return {
-        reply: 'Posso abrir o treino para você consultar a missão e o progresso.',
+        reply: 'Posso abrir o treino para você consultar o treino de hoje e o progresso.',
         actions: [{ type: 'navigate', to: '/treino' }],
       };
     }
@@ -114,12 +114,12 @@ export const aiIntent: Intent = {
     const asker = ctx.deps.trainer?.ask;
     if (!asker) {
       return {
-        reply: 'Posso mostrar sua missão de hoje ou abrir o treino para você conferir os exercícios.',
+        reply: 'Posso mostrar seu treino de hoje ou abrir o treino para você conferir os exercícios.',
         view: {
           kind: 'actions',
           title: 'Atalhos do treino',
           items: [
-            { label: 'Ver missão e status', command: 'meu treino' },
+            { label: 'Ver treino de hoje', command: 'meu treino' },
             { label: 'Abrir treino', command: 'abrir treino' },
           ],
         },

@@ -142,7 +142,7 @@ export async function completeBlock(userId: string, missionId: string, blockKey:
 
 /**
  * Penalidade: zera a ofensiva e aplica o debuff quando houve dias em branco
- * entre a última conclus—o e hoje.
+ * entre a última conclusão e hoje.
  */
 export async function applyPenaltyIfMissed(userId: string, now = new Date()) {
   const stats = await prisma.playerStats.findUnique({ where: { userId } });

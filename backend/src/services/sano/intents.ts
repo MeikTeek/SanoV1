@@ -130,7 +130,7 @@ const status: Intent = {
  * Briefing proativo: um resumo do dia montado por código.
  *
  * É o que o Sano mostra ao entrar e o que responde a "como está meu dia?".
- * Reúne agenda, missão pendente e ofensiva — o usuário não precisa perguntar.
+ * Reúne agenda, treino pendente e ofensiva — o usuário não precisa perguntar.
  */
 const briefing: Intent = {
   name: 'briefing',
@@ -164,9 +164,9 @@ const briefing: Intent = {
           title: 'Treino',
           lines: [
             `Nível ${s.level ?? 1} · ofensiva ${s.streak ?? 0} ${s.streak === 1 ? 'dia' : 'dias'}`,
-            done ? 'Missão de hoje concluída.' : s.mission ? `Pendente: ${s.mission.title}` : 'Nenhuma missão gerada.',
+            done ? 'Treino de hoje concluído.' : s.mission ? `Pendente: ${s.mission.title}` : 'Hoje é descanso.',
           ],
-          tone: done ? 'ok' : 'warn',
+          tone: done || !s.mission ? 'ok' : 'warn',
         });
       }
     }

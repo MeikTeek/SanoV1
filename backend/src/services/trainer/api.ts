@@ -6,16 +6,17 @@
  */
 import { createHash } from 'node:crypto';
 import { prisma } from '../../config/prisma';
-import { getProfile, getStats, getOrCreateMission, getDashboard, completeBlock, applyPenaltyIfMissed, weeklyRawData, toRuleProfile, todayKey } from './service';
-import { availableEquipment, generateMission, screenOut, type Block } from './rules';
+import { getProfile, getStats, weeklyRawData, toRuleProfile, todayKey } from './service';
+import { screenOut } from './rules';
 import { narrateMission, weeklyReport, biomechanicsAnswer, mealPlan, reviewTraining, aiEnabled } from './ai';
 import { computeDiet, isPlantBased, type DietProfile } from './diet';
 import { fullDetail } from './exerciseDetails';
 import { EXERCISES, GOALS, GOAL_LABELS, EQUIPMENT_LABELS, INJURY_LABELS } from './exercises';
-import { levelTitle } from './progress';
+import { musclesFor } from './muscles';
+import { planForProfile, todayForChat, quickLog } from './workouts';
 import { AppError } from '../../utils/errors';
 import { generateWeeklyPlan } from './weeklyPlan';
-import type { BodyAssessmentInput, WorkoutLogInput } from '../../validators/trainer.validator';
+import type { BodyAssessmentInput } from '../../validators/trainer.validator';
 
 /* ── Constantes e helpers compartilhados ────────────────────────────────── */
 
@@ -124,18 +125,27 @@ export async function onboardCall(userId: string, username: string, data: Onboar
     }),
   ]);
 
-  const stats = await getStats(userId);
-  const plan = generateMission(toRuleProfile(profile, stats.level), 0);
-  const mission = await getOrCreateMission(userId);
+  const plan = await planForProfile(profile);
+  const first = plan.days.find((day) => day.isTrainingDay);
+  const rule = toRuleProfile(profile, 1);
+  const blocked = EXERCISES
+    .map((e) => ({ name: e.name, reason: screenOut(e, rule) }))
+    .filter((e): e is { name: string; reason: string } => e.reason !== null);
 
   const intro = await narrateMission({
     username,
     goalLabel: goalLabel(profile.goal),
-    plan: { title: plan.title, blocks: plan.blocks, plannedMinutes: plan.plannedMinutes },
-    exclusions: plan.excluded,
+    plan: {
+      title: first ? `${first.label}: ${first.title}` : plan.split,
+      blocks: (first?.exercises ?? []).map((e) => ({
+        key: e.key, name: e.name, group: e.muscle, target: `${e.sets}×${e.reps}`, minutes: e.minutes, xp: 0,
+      })),
+      plannedMinutes: first?.plannedMinutes ?? 0,
+    },
+    exclusions: blocked.slice(0, 6),
   });
 
-  return { profile, mission, intro };
+  return { profile, intro };
 }
 
 /* ── Métricas corporais ─────────────────────────────────────────────────── */
@@ -287,7 +297,7 @@ function buildWeeklyPlan(profile: Profile) {
 }
 
 export async function weeklyPlanCall(userId: string) {
-  return buildWeeklyPlan(await requireProfile(userId));
+  return planForProfile(await requireProfile(userId));
 }
 
 export async function dataCall(userId: string) {
@@ -394,59 +404,6 @@ export async function saveAssessmentCall(userId: string, data: BodyAssessmentInp
   return assessment;
 }
 
-export async function logWorkoutCall(userId: string, entries: WorkoutLogInput) {
-  const profile = await requireProfile(userId);
-  const equipment = profile.trainingLocation === 'CALISTHENICS'
-    ? profile.equipment.filter((item) => !['academia', 'halteres'].includes(item))
-    : profile.equipment;
-  const ruleContext = {
-    goal: profile.goal as never, equipment: availableEquipment(equipment as never), injuries: profile.injuries as never,
-    age: ageFromBirthYear(profile.birthYear), level: 1, minutesAvailable: profile.minutesPerDay,
-  };
-
-  // Só triamos os exercícios enviados (antes triava o catálogo inteiro a cada chamada).
-  const invalid: string[] = [];
-  const selected: (WorkoutLogInput['entries'][number] & { exercise: string; muscleGroup: string })[] = [];
-  for (const entry of entries.entries) {
-    const exercise = EXERCISE_BY_KEY.get(entry.exerciseKey);
-    if (!exercise || screenOut(exercise, ruleContext) !== null) {
-      invalid.push(entry.exerciseKey);
-    } else {
-      selected.push({ ...entry, exercise: exercise.name, muscleGroup: exercise.group });
-    }
-  }
-  if (invalid.length) {
-    throw new AppError(400, `Exercício não permitido para o perfil: ${[...new Set(invalid)].join(', ')}.`);
-  }
-
-  const day = todayKey();
-  const session = await prisma.workoutSession.create({
-    data: {
-      userId,
-      day,
-      title: entries.sessionTitle ?? 'Treino registrado',
-      notes: entries.notes,
-      completedAt: new Date(),
-      logs: {
-        create: selected.map((entry) => ({
-          userId,
-          day,
-          exercise: entry.exercise,
-          exerciseKey: entry.exerciseKey,
-          muscleGroup: entry.muscleGroup,
-          sets: entry.sets,
-          reps: entry.reps,
-          loadKg: entry.loadKg,
-          setDetails: entry.setDetails?.length
-            ? { create: entry.setDetails }
-            : undefined,
-        })),
-      },
-    },
-  });
-  return { saved: selected.length, day, sessionId: session.id };
-}
-
 /** Opções do cadastro, servidas pelo servidor para o frontend não duplicar rótulos. */
 export function meta() {
   return { goals: GOALS, equipment: EQUIPMENT_LABELS, injuries: INJURY_LABELS };
@@ -455,14 +412,9 @@ export function meta() {
 /* ── Missão diária, biblioteca, relatório e IA ──────────────────────────── */
 
 export async function dashboardCall(userId: string) {
-  const penalty = await applyPenaltyIfMissed(userId);
-  return { ...(await getDashboard(userId)), penalty, aiEnabled: aiEnabled() };
-}
-
-export async function completeCall(userId: string, missionId: string, blockKey: string) {
-  const result = await completeBlock(userId, missionId, blockKey);
-  if (!result.ok) throw new AppError(400, result.error);
-  return result;
+  const profile = await getProfile(userId);
+  if (!profile) return { onboarded: false as const, aiEnabled: aiEnabled() };
+  return { onboarded: true as const, profile, aiEnabled: aiEnabled() };
 }
 
 export async function libraryCall(userId: string, filters: { query?: string; group?: string; equipment?: string } = {}) {
@@ -474,8 +426,9 @@ export async function libraryCall(userId: string, filters: { query?: string; gro
     key: string; name: string; group: string; difficulty: unknown; equipment: unknown;
     muscles: string; howTo: string; benefits: string; progression: string; regression: string;
     suggestedSets?: number; repsMin?: number; repsMax?: number; restSeconds?: number;
+    unit: string; primaryMuscles: number[]; secondaryMuscles: number[];
   }[] = [];
-  const blocked: { name: string; reason: string }[] = [];
+  const blocked: { key: string; name: string; reason: string }[] = [];
   for (const e of EXERCISES) {
     const reason = screenOut(e, rule);
     const matchesQuery = !query || normalize(`${e.name} ${e.group} ${e.muscles ?? ''}`).includes(query);
@@ -488,26 +441,30 @@ export async function libraryCall(userId: string, filters: { query?: string; gro
         progression: e.progression ?? '', regression: e.regression ?? '',
         suggestedSets: e.suggestedSets, repsMin: e.repsMin, repsMax: e.repsMax,
         restSeconds: e.restSeconds,
+        unit: e.unit ?? 'reps',
+        primaryMuscles: musclesFor(e).primary,
+        secondaryMuscles: musclesFor(e).secondary,
       });
     } else if (reason !== null) {
-      blocked.push({ name: e.name, reason });
+      blocked.push({ key: e.key, name: e.name, reason });
     }
   }
   return { allowed, blocked, filters: { query: filters.query ?? '', group: filters.group ?? '', equipment: filters.equipment ?? '' } };
 }
 
 export async function reportCall(userId: string, username: string) {
-  const [profile, stats, raw] = await Promise.all([getProfile(userId), getStats(userId), weeklyRawData(userId)]);
-  if (!profile) throw new AppError(400, ONBOARDING_REQUIRED);
+  const [state, raw] = await Promise.all([todayForChat(userId), weeklyRawData(userId)]);
+  if (!state) throw new AppError(400, ONBOARDING_REQUIRED);
+  const { profile, level, streak } = state;
 
   const totalXp = raw.missions.reduce((sum, m) => sum + m.xpAwarded, 0);
   const report = await weeklyReport({
     username,
     goalLabel: goalLabel(profile.goal),
-    level: stats.level,
-    levelTitle: levelTitle(stats.level),
-    streak: stats.streak,
-    completedDays: raw.completedDays,
+    level: level.current,
+    levelTitle: level.title,
+    streak,
+    completedDays: new Set(raw.logs.map((log) => log.day)).size,
     totalMinutes: raw.totalMinutes,
     statGains: [{ attr: 'Disciplina', gain: totalXp / XP_PER_DISCIPLINE_POINT }],
   });
@@ -534,39 +491,27 @@ export async function askCall(userId: string, question: string) {
 
 const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '');
 
-/** Resumo do estado do jogador para o Sano falar sobre o treino. */
+/** Resumo do treino de hoje para o Sano — o mesmo plano que a tela mostra. */
 export async function statusForChat(userId: string) {
-  const profile = await getProfile(userId);
-  if (!profile) return { onboarded: false as const };
-
-  // Três leituras independentes, agora em paralelo.
-  const [stats, playerRow, mission] = await Promise.all([
-    getStats(userId),
-    prisma.playerStats.findUnique({ where: { userId }, select: { debuffUntil: true } }),
-    getOrCreateMission(userId),
-  ]);
-
-  const base = {
+  const state = await todayForChat(userId);
+  if (!state) return { onboarded: false as const };
+  const { workout, doneKeys, level, streak, profile } = state;
+  const done = workout.exercises.filter((e) => doneKeys.has(e.key));
+  return {
     onboarded: true as const,
     goalLabel: goalLabel(profile.goal),
-    level: stats.level,
-    levelTitle: levelTitle(stats.level),
-    streak: stats.streak,
-    debuffed: Boolean(playerRow?.debuffUntil),
-  };
-  if (!mission) return { ...base, mission: null };
-
-  const blocks = mission.blocks as unknown as Block[];
-  const done = new Set(mission.progress.map((p) => p.blockKey));
-  return {
-    ...base,
-    mission: {
-      title: mission.title,
-      plannedMinutes: mission.plannedMinutes,
-      done: done.size,
-      total: blocks.length,
-      doneMinutes: blocks.filter((b) => done.has(b.key)).reduce((sum, b) => sum + b.minutes, 0),
-    },
+    level: level.current,
+    levelTitle: level.title,
+    streak,
+    debuffed: false,
+    restDay: !workout.isTrainingDay,
+    mission: workout.isTrainingDay ? {
+      title: workout.title,
+      plannedMinutes: workout.plannedMinutes,
+      done: done.length,
+      total: workout.exercises.length,
+      doneMinutes: done.reduce((sum, e) => sum + e.minutes, 0),
+    } : null,
   };
 }
 
@@ -594,44 +539,36 @@ export async function completeByName(userId: string, nameWanted: string) {
   const wanted = keywords(nameWanted);
   if (!wanted.length) return { ok: false, message: 'Diga qual exercício você concluiu.' };
 
-  const mission = await getOrCreateMission(userId);
-  if (!mission) return { ok: false, message: 'Crie seu personagem no módulo Treino antes de concluir exercícios.' };
-  if (mission.completedAt) return { ok: false, message: 'O treino de hoje já foi concluído.' };
+  const state = await todayForChat(userId);
+  if (!state) return { ok: false, message: 'Faça o cadastro no módulo Treino antes de registrar exercícios.' };
+  if (!state.workout.isTrainingDay) return { ok: false, message: 'Hoje é dia de descanso no seu plano. Para registrar um treino extra, use a tela de Treino.' };
 
-  const blocks = mission.blocks as unknown as Block[];
-  const scored = blocks
-    .map((block) => {
-      const blockWords = keywords(block.name);
-      const score = wanted.filter((w) => blockWords.some((t) => t.includes(w))).length;
-      return { block, score };
+  const exercises = state.workout.exercises;
+  const scored = exercises
+    .map((exercise) => {
+      const words = keywords(exercise.name);
+      return { exercise, score: wanted.filter((w) => words.some((t) => t.includes(w))).length };
     })
     .filter((x) => x.score > 0);
 
   if (!scored.length) {
-    const disponiveis = blocks.map((b) => b.name).join(', ');
-    return { ok: false, message: `Não achei "${nameWanted}" no treino de hoje.\nExercícios do dia: ${disponiveis}` };
+    return { ok: false, message: `Não achei "${nameWanted}" no treino de hoje.\nExercícios do dia: ${exercises.map((e) => e.name).join(', ')}` };
   }
-
   const top = Math.max(...scored.map((x) => x.score));
   const best = scored.filter((x) => x.score === top);
   if (best.length > 1) {
-    return { ok: false, message: `"${nameWanted}" combina com mais de um exercício: ${best.map((x) => x.block.name).join(', ')}. Diga o nome completo.` };
+    return { ok: false, message: `"${nameWanted}" combina com mais de um exercício: ${best.map((x) => x.exercise.name).join(', ')}. Diga o nome completo.` };
   }
 
-  const { block } = best[0];
-  if (mission.progress.some((p) => p.blockKey === block.key)) {
-    return { ok: false, message: `${block.name} já estava anotado.` };
-  }
+  const { exercise } = best[0];
+  if (state.doneKeys.has(exercise.key)) return { ok: false, message: `${exercise.name} já estava anotado hoje.` };
 
-  const result = await completeBlock(userId, mission.id, block.key);
-  if (!result.ok) return { ok: false, message: result.error };
-
-  const { done, completed } = result;
+  const { remaining } = await quickLog(userId, exercise.key);
   return {
     ok: true,
-    message: completed
-      ? `Treino do dia concluído! Você fechou os ${done.length} exercícios.`
-      : `Anotado: ${block.name}. Faltam ${blocks.length - done.length} exercícios.`,
+    message: remaining.length
+      ? `Anotado: ${exercise.name} (${exercise.sets}×${exercise.repsMin}). Faltam ${remaining.length}: ${remaining.map((e) => e.name).join(', ')}.\nPara registrar carga e repetições reais, use a tela de Treino.`
+      : `Treino de hoje concluído! ${exercise.name} era o último.`,
   };
 }
 
@@ -697,14 +634,14 @@ export function exerciseDetailCall(key: string) {
  * bloqueados explicitamente para não sugerir nada proibido.
  */
 export async function reviewCall(userId: string) {
-  const [{ profile, rule }, mission] = await Promise.all([loadRuleContext(userId), getOrCreateMission(userId)]);
-
-  const blocks = (mission?.blocks ?? []) as unknown as Block[];
+  const { profile, rule } = await loadRuleContext(userId);
+  const plan = await planForProfile(profile);
+  const exercises = plan.days.flatMap((day) => day.exercises);
   const blockedCount = EXERCISES.filter((e) => screenOut(e, rule) !== null).length;
 
   const review = await reviewTraining({
     profile: `objetivo ${goalLabel(profile.goal)}, ${profile.experience}, ${profile.trainingDays}x/semana, lesões: ${profile.injuries.join(', ') || 'nenhuma'}`,
-    blocks: blocks.map((b) => ({ name: b.name, target: b.target, minutes: b.minutes })),
+    blocks: exercises.map((e) => ({ name: e.name, target: `${e.sets}×${e.reps}`, minutes: e.minutes })),
     blocked: [`${blockedCount} exercícios bloqueados por segurança/equipamento`],
   });
 

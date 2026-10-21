@@ -2,7 +2,8 @@ import { api } from './api';
 import type {
   TrainerDashboard, LibraryResponse, TrainingProfile, TrainerMeta,
   Equipment, Injury, Goal, Somatotype, ExerciseDetail, DietNumbers,
-  WeeklyPlan, TrainerData, BodyAssessmentPayload,
+  WeeklyPlan, TrainerData, BodyAssessmentPayload, TrainerOverview, WorkoutDay,
+  SessionResult, SwapOption, ExerciseStats,
 } from '../types/trainer';
 
 export const getMeta = () => api.get<TrainerMeta>('/trainer/meta');
@@ -38,7 +39,7 @@ export interface OnboardingPayload {
 }
 
 export const onboard = (data: OnboardingPayload) =>
-  api.post<{ profile: TrainingProfile; mission: unknown; intro: string }>('/trainer/onboarding', data);
+  api.post<{ profile: TrainingProfile; intro: string }>('/trainer/onboarding', data);
 
 export const getExerciseDetail = (key: string) =>
   api.get<ExerciseDetail>(`/trainer/exercises/${key}`);
@@ -48,12 +49,6 @@ export const getDiet = () =>
 
 export const getReview = () =>
   api.get<{ review: string; aiEnabled: boolean }>('/trainer/review');
-
-export const completeBlock = (missionId: string, blockKey: string) =>
-  api.post<{ ok: true; done: string[]; completed: boolean; leveledUp?: boolean; level?: number }>(
-    `/trainer/missions/${missionId}/complete`,
-    { blockKey },
-  );
 
 export const getLibrary = (filters: { q?: string; group?: string; equipment?: string } = {}) => {
   const params = new URLSearchParams();
@@ -72,14 +67,22 @@ export const getWeeklyPlan = () => api.get<WeeklyPlan>('/trainer/weekly-plan');
 export const getTrainerData = () => api.get<TrainerData>('/trainer/data');
 export const saveAssessment = (data: BodyAssessmentPayload) =>
   api.post('/trainer/assessments', data);
-export const logWorkout = (
-  entries: {
-    exerciseKey: string;
-    sets: number;
-    reps: number;
-    loadKg?: number;
-    setDetails?: { setNumber: number; reps: number; loadKg?: number; rir?: number }[];
-  }[],
-  sessionTitle?: string,
-  notes?: string,
-) => api.post<{ saved: number; day: string; sessionId: string }>('/trainer/workout-logs', { entries, sessionTitle, notes });
+export const getOverview = () => api.get<TrainerOverview>('/trainer/overview');
+export const getWorkoutDay = (weekday: number) => api.get<WorkoutDay>(`/trainer/workout/${weekday}`);
+export const getExerciseStats = (key: string) => api.get<ExerciseStats>(`/trainer/exercises/${encodeURIComponent(key)}/stats`);
+
+export interface SessionPayload {
+  title: string;
+  startedAt?: string;
+  notes?: string;
+  entries: { exerciseKey: string; sets: { reps: number; loadKg?: number | null; rir?: number | null }[] }[];
+}
+export const saveSession = (data: SessionPayload) => api.post<SessionResult>('/trainer/sessions', data);
+export const deleteSession = (id: string) => api.delete<{ ok: true }>(`/trainer/sessions/${id}`);
+
+export const getSwapOptions = (weekday: number, exerciseKey: string) =>
+  api.get<{ original: string; current: string; options: SwapOption[] }>(
+    `/trainer/swap-options?weekday=${weekday}&exerciseKey=${encodeURIComponent(exerciseKey)}`,
+  );
+export const swapExercise = (weekday: number, exerciseKey: string, replacementKey: string | null) =>
+  api.put<WeeklyPlan>('/trainer/swaps', { weekday, exerciseKey, replacementKey });

@@ -1,11 +1,12 @@
 import type { Request, Response } from 'express';
-import { onboardingSchema, completeBlockSchema, askAiSchema, bodyAssessmentSchema, workoutLogSchema } from '../validators/trainer.validator';
+import { onboardingSchema, askAiSchema, bodyAssessmentSchema, workoutSessionSchema, swapSchema } from '../validators/trainer.validator';
 import { logAudit } from '../services/audit.service';
 import {
-  onboardCall, dashboardCall, completeCall, libraryCall, reportCall, askCall, meta,
+  onboardCall, dashboardCall, libraryCall, reportCall, askCall, meta,
   dietCall, reviewCall, exerciseDetailCall,
-  weeklyPlanCall, dataCall, saveAssessmentCall, logWorkoutCall,
+  weeklyPlanCall, dataCall, saveAssessmentCall,
 } from '../services/trainer/api';
+import * as workouts from '../services/trainer/workouts';
 
 /** Opções do cadastro — vêm do servidor para não duplicar rótulos no frontend. */
 export function metaHandler(_req: Request, res: Response) {
@@ -23,16 +24,6 @@ export async function onboard(req: Request, res: Response) {
 /** Estado completo do dashboard. Aplica a penalidade antes de responder. */
 export async function dashboard(req: Request, res: Response) {
   res.json(await dashboardCall(req.user!.id));
-}
-
-/** Marca um bloco da missão do dia. */
-export async function complete(req: Request, res: Response) {
-  const { blockKey } = completeBlockSchema.parse(req.body);
-  const result = await completeCall(req.user!.id, String(req.params.id), blockKey);
-  if (result.completed) {
-    await logAudit(req, 'TRAINER_MISSION_DONE', req.user!.id, { leveledUp: result.leveledUp });
-  }
-  res.json(result);
 }
 
 /** Lista os exercícios liberados e barrados — transparência sobre o filtro. */
@@ -89,10 +80,47 @@ export async function saveAssessment(req: Request, res: Response) {
   res.status(201).json(result);
 }
 
-/** Registra exercícios concluídos para histórico e estimativas de força. */
-export async function logWorkout(req: Request, res: Response) {
-  const data = workoutLogSchema.parse(req.body);
-  const result = await logWorkoutCall(req.user!.id, data);
-  await logAudit(req, 'TRAINER_WORKOUT_LOGGED', req.user!.id, { entries: result.saved });
+/** Hoje, semana, progresso, recordes e conquistas — tudo derivado do histórico. */
+export async function overview(req: Request, res: Response) {
+  res.json(await workouts.overview(req.user!.id));
+}
+
+/** Treino de um dia da semana com a última execução e a carga sugerida por exercício. */
+export async function workoutDay(req: Request, res: Response) {
+  const weekday = Number(req.params.weekday);
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    res.status(400).json({ error: 'Dia inválido.' });
+    return;
+  }
+  res.json(await workouts.workoutForDay(req.user!.id, weekday));
+}
+
+/** Sessão concluída com as séries reais. Devolve recordes, XP e nível. */
+export async function logSession(req: Request, res: Response) {
+  const data = workoutSessionSchema.parse(req.body);
+  const result = await workouts.logSession(req.user!.id, data);
+  await logAudit(req, 'TRAINER_WORKOUT_LOGGED', req.user!.id, { entries: result.totals.exercises, sets: result.totals.sets });
   res.status(201).json(result);
+}
+
+export async function deleteSession(req: Request, res: Response) {
+  res.json(await workouts.deleteSession(req.user!.id, String(req.params.id)));
+}
+
+/** Alternativas seguras para trocar um exercício do plano. */
+export async function swapOptions(req: Request, res: Response) {
+  const weekday = Number(req.query.weekday);
+  const exerciseKey = typeof req.query.exerciseKey === 'string' ? req.query.exerciseKey : '';
+  const { weekday: day, exerciseKey: key } = swapSchema.pick({ weekday: true, exerciseKey: true }).parse({ weekday, exerciseKey });
+  res.json(await workouts.swapOptionsFor(req.user!.id, day, key));
+}
+
+export async function swapExercise(req: Request, res: Response) {
+  const { weekday, exerciseKey, replacementKey } = swapSchema.parse(req.body);
+  res.json(await workouts.swapExercise(req.user!.id, weekday, exerciseKey, replacementKey));
+}
+
+/** Histórico, recordes e sugestão de um exercício. */
+export async function exerciseStats(req: Request, res: Response) {
+  res.json(await workouts.exerciseStats(req.user!.id, String(req.params.key)));
 }

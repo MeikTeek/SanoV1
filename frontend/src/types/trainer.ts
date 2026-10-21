@@ -1,3 +1,4 @@
+export type ExerciseUnit = 'reps' | 'segundos' | 'minutos';
 export type Goal = 'HYPERTROPHY' | 'STRENGTH' | 'WEIGHT_LOSS' | 'CONDITIONING' | 'HEALTH';
 export type Somatotype = 'ECTOMORPH' | 'MESOMORPH' | 'ENDOMORPH';
 
@@ -67,43 +68,9 @@ export interface TrainerMeta {
   injuries: Record<Injury, string>;
 }
 
-export interface PlayerStats {
-  strength: number;
-  agility: number;
-  stamina: number;
-  vitality: number;
-  streak: number;
-  debuffed: boolean;
-}
-
-export interface MissionBlock {
-  key: string;
-  name: string;
-  group: string;
-  target: string;
-  minutes: number;
-  xp: number;
-}
-
-export interface DailyMission {
-  id: string;
-  day: string;
-  title: string;
-  blocks: MissionBlock[];
-  plannedMinutes: number;
-  completedAt: string | null;
-  xpAwarded: number;
-  progress: { blockKey: string; doneCount: number }[];
-}
-
 export interface TrainerDashboard {
   onboarded: boolean;
   profile?: TrainingProfile;
-  stats?: PlayerStats;
-  level?: { current: number; title: string; xp: number; xpNeeded: number };
-  mission?: DailyMission | null;
-  history?: { day: string; completedAt: string | null; plannedMinutes: number; xpAwarded: number }[];
-  penalty?: { daysMissed: number; percent: number } | null;
   aiEnabled?: boolean;
 }
 
@@ -112,8 +79,9 @@ export interface LibraryResponse {
     key: string; name: string; group: string; difficulty: number; equipment: Equipment[];
     muscles: string; howTo: string; benefits: string; progression: string; regression: string;
     suggestedSets?: number; repsMin?: number; repsMax?: number; restSeconds?: number;
+    unit: ExerciseUnit; primaryMuscles: number[]; secondaryMuscles: number[];
   }[];
-  blocked: { name: string; reason: string }[];
+  blocked: { key: string; name: string; reason: string }[];
   filters: { query: string; group: string; equipment: string };
 }
 
@@ -129,6 +97,14 @@ export interface PlannedExercise {
   minutes: number;
   order: number;
   type: 'warmup' | 'normal';
+  unit: ExerciseUnit;
+  repsMin: number;
+  repsMax: number;
+  equipment: string[];
+  primaryMuscles: number[];
+  secondaryMuscles: number[];
+  lowerBody: boolean;
+  swappedFrom?: string;
 }
 
 export interface WeeklyWorkout {
@@ -142,6 +118,7 @@ export interface WeeklyWorkout {
   plannedMinutes: number;
   warnings: string[];
   isTrainingDay: boolean;
+  muscleIds: { primary: number[]; secondary: number[] };
 }
 
 export interface WeeklyPlan {
@@ -204,4 +181,79 @@ export interface BodyAssessmentPayload {
   muscleSoreness?: number;
   nutritionAdherence?: number;
   notes?: string;
+}
+
+/* ── Sessões, progresso e conquistas ───────────────────────────────────── */
+
+export interface SetEntry { reps: number; loadKg: number | null; rir: number | null }
+
+export interface Suggestion { loadKg: number | null; reps: number; note: string; trend: 'up' | 'hold' | 'down' | 'new' }
+
+export interface DayExercise extends PlannedExercise {
+  previous: { day: string; sets: SetEntry[] } | null;
+  suggestion: Suggestion;
+}
+
+export interface WorkoutDay extends Omit<WeeklyWorkout, 'exercises'> {
+  exercises: DayExercise[];
+}
+
+export interface LevelInfo { current: number; title: string; xp: number; xpNeeded: number; totalXp: number }
+
+export interface Achievement { key: string; title: string; description: string; unlocked: boolean; progress: number; icon: string }
+
+export interface SessionSummary {
+  id: string; day: string; title: string; notes: string | null; startedAt: string;
+  durationMinutes: number; sets: number; volumeKg: number; records: number;
+  exercises: { key: string | null; name: string; sets: SetEntry[] }[];
+}
+
+export interface TrainerOverview {
+  goalLabel: string;
+  split: string;
+  today: {
+    day: string;
+    workout: WeeklyWorkout;
+    doneToday: boolean;
+    next: { inDays: number; title: string; label: string; weekday: number } | null;
+  };
+  week: { day: string; weekday: number; shortLabel: string; title: string; isTrainingDay: boolean; done: boolean; isToday: boolean; isPast: boolean }[];
+  weekGoal: { done: number; target: number; streakWeeks: number };
+  streak: number;
+  level: LevelInfo;
+  totals: { sessions: number; volumeKg: number; sets: number; minutes: number };
+  heatmap: { day: string; sessions: number; volumeKg: number; future: boolean }[];
+  weekly: { weekStart: string; sessions: number; volumeKg: number; sets: number; minutes: number }[];
+  recovery: { id: number; hoursSince: number }[];
+  recentSessions: SessionSummary[];
+  records: { key: string; name: string; loadKg: number; e1rm: number; reps: number; day: string }[];
+  achievements: Achievement[];
+}
+
+export interface PersonalRecord { kind: 'load' | 'e1rm' | 'reps'; value: number; previous: number; exercise: string }
+
+export interface SessionResult {
+  sessionId: string;
+  day: string;
+  durationSeconds: number;
+  totals: { exercises: number; sets: number; reps: number; volumeKg: number };
+  records: PersonalRecord[];
+  xpEarned: number;
+  level: LevelInfo;
+  leveledUp: boolean;
+}
+
+export interface SwapOption extends PlannedExercise { difficulty: number }
+
+export interface ExerciseStats {
+  key: string; name: string; group: string; equipment: string[]; difficulty: number; unit: ExerciseUnit;
+  primaryMuscles: number[]; secondaryMuscles: number[];
+  muscles: string; howTo: string; commonMistake: string; benefits: string;
+  workSeconds: number; restSeconds: number; progression: string; regression: string;
+  suggestedSets?: number; repsMin?: number; repsMax?: number;
+  history: { day: string; sets: SetEntry[]; loadKg: number; e1rm: number; reps: number; volumeKg: number; topSet: SetEntry | null; records: number }[];
+  best: { loadKg: number; e1rm: number; reps: number; volume: number } | null;
+  estimated1Rm: number | null;
+  suggestion: Suggestion;
+  sessions: number;
 }

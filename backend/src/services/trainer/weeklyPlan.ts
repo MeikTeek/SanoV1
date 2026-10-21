@@ -1,5 +1,6 @@
 import { EXERCISES, type Goal, type Injury, type Equipment } from './exercises';
 import { availableEquipment, screenOut, type RuleProfile } from './rules';
+import { musclesFor } from './muscles';
 
 export const WEEKDAYS = [
   { index: 1, label: 'Segunda', short: 'Seg' },
@@ -40,6 +41,10 @@ export interface WeeklyPlanProfile {
   minutesPerDay: number;
 }
 
+/** Trocas feitas pelo usuário: `"<dia da semana>:<chave original>"` → chave nova. */
+export type PlanSwaps = Record<string, string>;
+export const swapKey = (weekday: number, originalKey: string) => `${weekday}:${originalKey}`;
+
 export interface PlannedExercise {
   key: string;
   name: string;
@@ -52,6 +57,16 @@ export interface PlannedExercise {
   minutes: number;
   order: number;
   type: 'warmup' | 'normal';
+  unit: 'reps' | 'segundos' | 'minutos';
+  repsMin: number;
+  repsMax: number;
+  equipment: string[];
+  primaryMuscles: number[];
+  secondaryMuscles: number[];
+  /** Pernas e quadril: progridem com incrementos de carga maiores. */
+  lowerBody: boolean;
+  /** Chave do exercício que o gerador escolheu, quando o usuário trocou o slot. */
+  swappedFrom?: string;
 }
 
 export interface WeeklyWorkout {
@@ -65,6 +80,8 @@ export interface WeeklyWorkout {
   plannedMinutes: number;
   warnings: string[];
   isTrainingDay: boolean;
+  /** Músculos (ids do wger) do dia inteiro, para o mapa corporal. */
+  muscleIds: { primary: number[]; secondary: number[] };
 }
 
 export interface WeeklyPlan {
@@ -99,6 +116,7 @@ const MIN_RECOVERY_DAYS = 2;
 /** Os splits cobrem até 6 dias; o 7º dia da semana fica sempre de descanso. */
 const MAX_TRAINING_DAYS = 6;
 const CALISTHENICS_EXCLUDED_EQUIPMENT = ['academia', 'halteres'];
+const LOWER_BODY_MUSCLES: MuscleKey[] = ['quadriceps', 'posterior', 'calves'];
 
 /** Faixa de séries semanais por músculo, por nível de experiência. */
 const weeklySetRange = (experience: string) =>
@@ -121,8 +139,12 @@ export const effectiveEquipment = (location: string, equipment: string[]) =>
 
 const POSTERIOR_KEYS = ['ponte_gluteo', 'stiff_romeno', 'mesa_flexora'];
 
+/**
+ * Só o músculo PRINCIPAL conta: antes qualquer músculo envolvido servia, e
+ * Superman/remada curvada (costas) entravam como "posterior" no dia de pernas.
+ */
 const hasSourceMuscle = (exercise: Exercise, ...sources: string[]) =>
-  sources.some((source) => exercise.sourceMuscles?.includes(source));
+  sources.includes(exercise.sourceMuscles?.[0] ?? '');
 
 /** Usa `sourceMuscles` quando o exercício tem; senão cai na regra legada. */
 const byMuscle = (sources: string[], fallback: (exercise: Exercise) => boolean) =>
@@ -241,12 +263,84 @@ function restDay(day: Weekday): WeeklyWorkout {
     weekday: day.index, label: day.label, shortLabel: day.short,
     title: 'Descanso', muscles: [], muscleLabels: [], exercises: [],
     plannedMinutes: 0, warnings: [], isTrainingDay: false,
+    muscleIds: { primary: [], secondary: [] },
   };
+}
+
+/* ── Contexto comum: triagem de segurança feita uma vez ─────────────────── */
+
+function planContext(profile: WeeklyPlanProfile, now: Date) {
+  const baseSets = setsFor(profile.goal, profile.experience);
+  const sets = profile.sleepHours < 6 ? Math.max(1, baseSets - 1) : baseSets;
+  const reps = repsFor(profile.goal);
+  const restSeconds = restFor(profile.goal);
+
+  const rule: RuleProfile = {
+    goal: profile.goal as Goal,
+    equipment: availableEquipment(effectiveEquipment(profile.trainingLocation, profile.equipment) as Equipment[]),
+    injuries: profile.injuries as Injury[],
+    age: now.getFullYear() - profile.birthYear,
+    level: 1,
+    minutesAvailable: profile.minutesPerDay,
+  };
+
+  // Preferência dentro de cada músculo: equipamento do local escolhido,
+  // compostos antes de isolados, dificuldade perto da experiência e menos impacto.
+  const idealDifficulty = profile.experience === 'BEGINNER' ? 1 : profile.experience === 'ADVANCED' ? 3 : 2;
+  const preference = (exercise: Exercise) => {
+    const usesGear = exercise.equipment.some((item) => item === 'academia' || item === 'halteres');
+    let score = (profile.trainingLocation === 'GYM') === usesGear ? 2 : 0;
+    if (exercise.xp >= 15) score += 1;
+    score -= Math.abs(exercise.difficulty - idealDifficulty) * 0.5;
+    if (exercise.impact === 'alto') score -= 1;
+    return score;
+  };
+  const safe = EXERCISES.filter((exercise) => screenOut(exercise, rule) === null);
+  const safeByMuscle = Object.fromEntries(
+    WEEKLY_MUSCLES.map(({ key }) => [key, safe.filter(MUSCLE_EXERCISES[key]).sort((a, b) => preference(b) - preference(a))]),
+  ) as Record<MuscleKey, Exercise[]>;
+
+  /** Séries, faixa e descanso de um exercício neste perfil. */
+  const prescribe = (exercise: Exercise, muscle: MuscleKey, order: number): PlannedExercise => {
+    const exerciseSets = Math.min(sets, exercise.suggestedSets ?? sets);
+    const unit = exercise.unit ?? 'reps';
+    const hasRange = exercise.repsMin !== undefined && exercise.repsMax !== undefined;
+    const exerciseReps = hasRange
+      ? `${exercise.repsMin}–${exercise.repsMax}${unit === 'reps' ? '' : ` ${unit}`}`
+      : reps;
+    const [goalMin, goalMax] = reps.split('–').map(Number);
+    const exerciseRest = profile.goal === 'STRENGTH'
+      ? Math.max(restSeconds, exercise.restSeconds ?? 0)
+      : exercise.restSeconds ?? restSeconds;
+    const { primary, secondary } = musclesFor(exercise);
+    return {
+      key: exercise.key,
+      name: exercise.name,
+      muscle,
+      muscleLabel: MUSCLE_LABEL[muscle],
+      sets: exerciseSets,
+      reps: exerciseReps,
+      restSeconds: exerciseRest,
+      rir: DEFAULT_RIR,
+      minutes: exerciseMinutes(exerciseSets, exerciseReps, exerciseRest, exercise),
+      order,
+      type: 'normal',
+      unit,
+      repsMin: hasRange ? exercise.repsMin! : goalMin,
+      repsMax: hasRange ? exercise.repsMax! : goalMax,
+      equipment: exercise.equipment,
+      primaryMuscles: primary,
+      secondaryMuscles: secondary,
+      lowerBody: LOWER_BODY_MUSCLES.includes(muscle),
+    };
+  };
+
+  return { sets, reps, restSeconds, safe, safeByMuscle, prescribe };
 }
 
 /* ── Geração do plano ───────────────────────────────────────────────────── */
 
-export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date()): WeeklyPlan {
+export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date(), swaps: PlanSwaps = {}): WeeklyPlan {
   // Dias inválidos são descartados; se nada sobrar, usa os dias padrão
   // (antes o plano saía vazio). O nº de dias efetivo define o split.
   const validWeekdays = profile.trainingWeekdays.filter((day) => Number.isInteger(day) && day >= 0 && day <= 6);
@@ -262,26 +356,9 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
     WEEKLY_MUSCLES.map(({ key }) => [key, templates.filter((template) => template.muscles.includes(key)).length]),
   );
 
-  const baseSets = setsFor(profile.goal, profile.experience);
-  const sets = profile.sleepHours < 6 ? Math.max(1, baseSets - 1) : baseSets;
-  const reps = repsFor(profile.goal);
-  const restSeconds = restFor(profile.goal);
   const { min: targetMin, max: targetMax } = weeklySetRange(profile.experience);
-
-  const rule: RuleProfile = {
-    goal: profile.goal as Goal,
-    equipment: availableEquipment(effectiveEquipment(profile.trainingLocation, profile.equipment) as Equipment[]),
-    injuries: profile.injuries as Injury[],
-    age: now.getFullYear() - profile.birthYear,
-    level: 1,
-    minutesAvailable: profile.minutesPerDay,
-  };
-
-  // Triagem de segurança e agrupamento por músculo feitos uma única vez.
-  const safe = EXERCISES.filter((exercise) => screenOut(exercise, rule) === null);
-  const safeByMuscle = Object.fromEntries(
-    WEEKLY_MUSCLES.map(({ key }) => [key, safe.filter(MUSCLE_EXERCISES[key])]),
-  ) as Record<MuscleKey, Exercise[]>;
+  const { sets, reps, restSeconds, safeByMuscle, safe, prescribe } = planContext(profile, now);
+  const safeByKey = new Map(safe.map((exercise) => [exercise.key, exercise]));
 
   const trainingWorkouts: WeeklyWorkout[] = orderedDays.map((day, sessionIndex) => {
     const template = templates[sessionIndex];
@@ -307,28 +384,16 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
       const rotation = templates.slice(0, sessionIndex).filter((previous) => previous.muscles.includes(muscle)).length;
 
       for (let index = 0; index < count; index += 1) {
-        const exercise = options[(rotation * count + index) % options.length];
+        const chosen = options[(rotation * count + index) % options.length];
+        // A troca só vale se o substituto continua seguro e não repete o dia.
+        const replacementKey = swaps[swapKey(day.index, chosen.key)];
+        const replacement = replacementKey ? safeByKey.get(replacementKey) : undefined;
+        const exercise = replacement && !usedKeys.has(replacement.key) ? replacement : chosen;
+        usedKeys.add(chosen.key);
         usedKeys.add(exercise.key);
-        const exerciseSets = Math.min(sets, exercise.suggestedSets ?? sets);
-        const exerciseReps = exercise.repsMin !== undefined && exercise.repsMax !== undefined
-          ? `${exercise.repsMin}–${exercise.repsMax}${exercise.unit === 'reps' ? '' : ` ${exercise.unit}`}`
-          : reps;
-        const exerciseRest = profile.goal === 'STRENGTH'
-          ? Math.max(restSeconds, exercise.restSeconds ?? 0)
-          : exercise.restSeconds ?? restSeconds;
-        sessionExercises.push({
-          key: exercise.key,
-          name: exercise.name,
-          muscle,
-          muscleLabel: MUSCLE_LABEL[muscle],
-          sets: exerciseSets,
-          reps: exerciseReps,
-          restSeconds: exerciseRest,
-          rir: DEFAULT_RIR,
-          minutes: exerciseMinutes(exerciseSets, exerciseReps, exerciseRest, exercise),
-          order: sessionExercises.length + 1,
-          type: 'normal',
-        });
+        const planned = prescribe(exercise, muscle, sessionExercises.length + 1);
+        if (exercise !== chosen) planned.swappedFrom = chosen.key;
+        sessionExercises.push(planned);
       }
     }
 
@@ -349,6 +414,9 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
       warnings.push(`A sessão foi estimada em cerca de ${plannedMinutes} min, acima dos ${profile.minutesPerDay} min escolhidos. Aumente o tempo disponível ou converse com um educador físico para ajustar o volume.`);
     }
 
+    const primary = new Set(sessionExercises.flatMap((exercise) => exercise.primaryMuscles));
+    const secondary = new Set(sessionExercises.flatMap((exercise) => exercise.secondaryMuscles).filter((id) => !primary.has(id)));
+
     return {
       weekday: day.index,
       label: day.label,
@@ -360,6 +428,7 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
       plannedMinutes,
       warnings,
       isTrainingDay: true,
+      muscleIds: { primary: [...primary], secondary: [...secondary] },
     };
   });
 
@@ -401,5 +470,25 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date())
     days,
     matrix,
     disclaimer: 'Este plano é uma estimativa baseada nas respostas informadas. Não substitui avaliação ou orientação de um educador físico ou profissional de saúde.',
+  };
+}
+
+/**
+ * Exercícios que podem substituir um slot do plano: mesmo músculo-alvo,
+ * liberados pelo filtro de segurança e que ainda não estão no dia.
+ */
+export function swapOptions(profile: WeeklyPlanProfile, plan: WeeklyPlan, weekday: number, exerciseKey: string, now = new Date()) {
+  const day = plan.days.find((item) => item.weekday === weekday);
+  const slot = day?.exercises.find((exercise) => exercise.key === exerciseKey);
+  if (!day || !slot) return null;
+  const { safeByMuscle, prescribe } = planContext(profile, now);
+  const inDay = new Set(day.exercises.map((exercise) => exercise.key));
+  const original = slot.swappedFrom ?? slot.key;
+  return {
+    original,
+    current: slot.key,
+    options: safeByMuscle[slot.muscle]
+      .filter((exercise) => !inDay.has(exercise.key) || exercise.key === original)
+      .map((exercise) => ({ ...prescribe(exercise, slot.muscle, slot.order), difficulty: exercise.difficulty })),
   };
 }

@@ -104,7 +104,7 @@ export async function weeklyReport(a: {
 
   const viaAi = await ask([
     `Jogador ${a.username}, objetivo ${a.goalLabel}, nível ${a.level} (${a.levelTitle}).`,
-    `Semana: ${a.completedDays} dias conclu—dos, ${a.totalMinutes} minutos, ofensiva ${a.streak}.`,
+    `Semana: ${a.completedDays} dias concluídos, ${a.totalMinutes} minutos, ofensiva ${a.streak}.`,
     `Ganhos por atributo: ${a.statGains.map((g) => `${g.attr} +${g.gain.toFixed(1)}`).join(', ') || 'nenhum'}.`,
     a.weakDay ? `Ponto fraco: ${a.weakDay}.` : '',
     'Escreva o resumo semanal (3-5 linhas), direto e prático.',

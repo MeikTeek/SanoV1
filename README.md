@@ -189,7 +189,31 @@ O bot fica em um projeto separado (`../SanoBot`) e fala com o Sano por
 
 ## Trainer / Sistema (Fase 4 — módulo 5)
 
-Página `/treino`: cadastro objetivo, treino do dia, atributos em evolução e penalidades.
+Página `/treino`, organizada em seis seções numa barra lateral (nível, ofensiva e semana sempre à vista):
+
+| Seção | O que tem |
+|---|---|
+| **Hoje** | Treino do dia com mapa muscular, sugestão de carga por exercício, meta semanal, recuperação muscular (mapa de calor das últimas 72h), últimos treinos e o coach |
+| **Plano** | Semana completa; trocar exercício por outro do mesmo músculo (só opções seguras); volume semanal × faixa recomendada e recuperação por músculo |
+| **Exercícios** | Biblioteca filtrada tocando no músculo do corpo (padrão wger), por equipamento ou busca; detalhe com técnica, erro comum, variações e o seu histórico |
+| **Progresso** | Calendário de frequência, gráfico de 8 semanas, recordes pessoais, conquistas e histórico de sessões (apagar recalcula tudo) |
+| **Corpo** | Avaliação quinzenal, composição corporal, meta de peso e aderência |
+| **Nutrição** | Calorias e macros calculados, sugestão de refeições |
+
+**Treino ao vivo** (`WorkoutPlayer`): cada série tem carga, reps e RIR reais, a última execução ao lado e a carga sugerida
+já preenchida — marcar a série é um toque e dispara o descanso (com bipe, vibração e tela ligada). A sessão fica salva no
+navegador: recarregar ou minimizar não perde nada. Ao finalizar, só as séries marcadas são gravadas e o resumo mostra
+duração, volume, XP e recordes batidos.
+
+**Progressão dupla** (`services/trainer/progression.ts`, regra do wger): sobe as repetições dentro da faixa; quando
+todas as séries chegam ao topo sem falha (RIR ≥ 1), sobe a carga (+2,5 kg; +5 kg em pernas) e volta ao início da faixa.
+
+**Tudo derivado do histórico**: XP, nível, ofensiva, recordes e conquistas são recalculados das sessões
+(`WorkoutSession`/`WorkoutLog`/`WorkoutSet`). A ofensiva conta **dias planejados** — descanso do plano não quebra a
+sequência. Trocas de exercício ficam em `ToolData` (`trainer/plan-swaps`); nenhuma migração foi necessária.
+
+**Mapa muscular**: desenhos do wger (`frontend/public/muscles`, base do Wikimedia Commons) e contornos por músculo
+em `components/trainer/musclePaths.ts`; os ids de músculo são os mesmos do wger (`services/trainer/muscles.ts`).
 
 **Objetivo, não "classe".** O cadastro não oferece rótulos decorativos (Guerreiro/Monarca) — eles não mudavam nada no treino e só criavam interpretação ambígua. São quatro objetivos que descrevem exatamente o efeito:
 
@@ -202,7 +226,7 @@ Página `/treino`: cadastro objetivo, treino do dia, atributos em evolução e p
 
 Os grupos focais exibidos na tela vêm do **mesmo array** que o motor aplica, e um teste garante que o treino gerado nunca sai dessa lista — a tela não pode prometer uma coisa e entregar outra.
 
-**O que continua temático (e é funcional):** nível, XP, radar de atributos e ofensiva — que são o histórico real de treino, não enfeite.
+**O que continua temático (e é funcional):** nível, XP, ofensiva e conquistas — que são o histórico real de treino, não enfeite.
 
 **Divisão 80/20 com a IA, aplicada de verdade:**
 
@@ -215,11 +239,13 @@ Os grupos focais exibidos na tela vêm do **mesmo array** que o motor aplica, e 
 2. equipamento indisponível → removido;
 3. acima de 60 anos → nada de dificuldade máxima.
 
-A ordem é proposital: a lesão vem primeiro, senão o motivo exibido esconderia o risco real. O usuário vê a lista do que foi bloqueado e por quê na aba "Biblioteca".
+A ordem é proposital: a lesão vem primeiro, senão o motivo exibido esconderia o risco real. O usuário vê a lista do que foi bloqueado e por quê em "Exercícios".
 
-**Missões** nascem sob demanda (sem cron): uma por dia, garantida pelo índice único `(userId, day)`. Marcar todos os blocos fecha a missão e aplica XP, atributos e ofensiva. Dias em branco zeram a ofensiva e aplicam debuff de 5%/dia (teto de 40%), visível no radar em vermelho.
+**Escolha dos exercícios** (`weeklyPlan.ts`): cada slot usa o músculo **principal** do exercício (antes um músculo
+secundário bastava, e Superman entrava no dia de pernas) e, dentro do músculo, prefere o equipamento do local
+escolhido, compostos antes de isolados, dificuldade compatível com a experiência e menos impacto.
 
-**Atalhos no chat** (o chat resume e age; a tela continua sendo o lugar principal):
+**Atalhos no chat** (usam o mesmo plano semanal da tela; o chat resume e anota, a tela continua sendo o lugar principal):
 
 ```
 meu treino
