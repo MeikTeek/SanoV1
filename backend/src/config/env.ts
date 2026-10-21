@@ -33,6 +33,12 @@ const schema = z.object({
   MUSIC_STORAGE_BUCKET: z.string().optional(),
   MUSIC_STORAGE_ACCESS_KEY: z.string().optional(),
   MUSIC_STORAGE_SECRET_KEY: z.string().optional(),
+  // Segredo compartilhado com o SanoBot (Discord). Sem ele, a integração fica desligada.
+  // Vazio no .env = desligada (não pode impedir o Sano de subir).
+  DISCORD_BOT_SECRET: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().min(32, 'DISCORD_BOT_SECRET precisa ter ao menos 32 caracteres').optional(),
+  ),
 });
 
 const parsed = schema.safeParse(testEnv);

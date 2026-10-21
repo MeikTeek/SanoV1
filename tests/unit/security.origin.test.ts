@@ -70,3 +70,14 @@ test('originCheck não deixa um host permitido substituir uma Origin externa', (
 
   assert.ok(nextError instanceof Error, 'deve rejeitar Origin externa mesmo se o host for permitido');
 });
+
+test('rota do bot do Discord com Bearer dispensa Origin; sem Bearer, não', () => {
+  const run = (url: string, headers: Record<string, string>) => {
+    let nextError: unknown = 'not-called';
+    originCheck({ method: 'POST', originalUrl: url, secure: true, get: (n: string) => headers[n.toLowerCase()] } as any, {} as any, (err?: unknown) => { nextError = err; });
+    return nextError;
+  };
+  assert.equal(run('/api/integrations/discord/bot/command', { authorization: 'Bearer x', host: 'evil.example' }), undefined);
+  assert.ok(run('/api/integrations/discord/bot/command', { host: 'evil.example' }) instanceof Error, 'sem token continua exigindo Origin');
+  assert.ok(run('/api/finance/transactions', { authorization: 'Bearer x', host: 'evil.example' }) instanceof Error, 'Bearer não abre outras rotas');
+});

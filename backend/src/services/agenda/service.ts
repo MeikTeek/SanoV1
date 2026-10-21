@@ -174,7 +174,7 @@ export async function updateAppointment(
       ...(data.remindBefore !== undefined && { remindBefore: data.remindBefore }),
       ...(data.status !== undefined && { status: data.status }),
       // Ao reagendar ou trocar o lembrete, o aviso precisa disparar de novo.
-      ...((data.startsAt !== undefined || data.remindBefore !== undefined) && { reminderSentAt: null }),
+      ...((data.startsAt !== undefined || data.remindBefore !== undefined) && { reminderSentAt: null, discordRemindedAt: null }),
     },
     select,
   });
@@ -297,8 +297,8 @@ export async function updateFollowing(
         ...(data.participants !== undefined && { participants: data.participants }),
         ...(data.location !== undefined && { location: data.location }),
         ...(data.allDay !== undefined && { allDay: data.allDay }),
-        ...(data.remindBefore !== undefined && { remindBefore: data.remindBefore, reminderSentAt: null }),
-        ...(delta !== 0 && { startsAt, reminderSentAt: null }),
+        ...(data.remindBefore !== undefined && { remindBefore: data.remindBefore, reminderSentAt: null, discordRemindedAt: null }),
+        ...(delta !== 0 && { startsAt, reminderSentAt: null, discordRemindedAt: null }),
         endsAt: duration !== null ? new Date(startsAt.getTime() + duration) : null,
       },
     });

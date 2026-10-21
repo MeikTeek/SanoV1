@@ -8,6 +8,7 @@ import profileRoutes from './profile.routes';
 import chatRoutes from './chat.routes';
 import musicRoutes from './music.routes';
 import financeRoutes from './finance.routes';
+import discordRoutes from './discord.routes';
 
 const r = Router();
 
@@ -21,5 +22,6 @@ r.use('/profile', profileRoutes);
 r.use('/chat', chatRoutes);
 r.use('/music', musicRoutes);
 r.use('/finance', financeRoutes);
+r.use('/integrations/discord', discordRoutes);
 
 export default r;

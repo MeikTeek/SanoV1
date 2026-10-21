@@ -174,6 +174,19 @@ desfazer
   antes de responder, então várias abas não duplicam aviso. Com o app fechado não há
   aviso — o push do PWA fica para a Fase 5.
 
+### Agenda no Discord (SanoBot)
+
+O bot fica em um projeto separado (`../SanoBot`) e fala com o Sano por
+`/api/integrations/discord/bot/*`, autenticado por `Authorization: Bearer
+<DISCORD_BOT_SECRET>` (sem essa variável, a integração fica desligada).
+
+- **Vínculo**: em *Ajustes → Discord* o usuário gera um código de uso único (10 min)
+  e digita `/vincular` no Discord. Sem vínculo o bot não acessa nada.
+- **Só agenda**: o bot roda o mesmo roteador do chat, mas recebe apenas a agenda;
+  outros pedidos recebem um aviso. Memória, confirmação e "desfazer" são os mesmos do site.
+- **Lembretes por DM**: `discordRemindedAt` é independente do aviso no navegador; o
+  Sano marca antes de responder, então nenhum lembrete chega duas vezes.
+
 ## Trainer / Sistema (Fase 4 — módulo 5)
 
 Página `/treino`: cadastro objetivo, treino do dia, atributos em evolução e penalidades.

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../components/layout/AppShell';
+import DiscordLinkCard from '../../components/settings/DiscordLinkCard';
 import { useAuth } from '../../context/AuthContext';
 import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, setPrivacy, type Profile } from '../../services/profile.service';
 
@@ -180,6 +181,7 @@ export default function SettingsPage() {
 
       {error && <div className="error">{error}</div>}
       {ok && <div className="notice">{ok}</div>}
+      <DiscordLinkCard />
     </AppShell>
   );
 }

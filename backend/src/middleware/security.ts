@@ -2,11 +2,15 @@ import type { Request, Response, NextFunction } from 'express';
 import rateLimit from 'express-rate-limit';
 import { env, isAllowedOrigin, normalizeOrigin } from '../config/env';
 import { AppError } from '../utils/errors';
+import { BOT_PATH_PREFIX } from './botAuth';
 
 /** Proteção CSRF extra: métodos que alteram dados só aceitos se a Origin for a do frontend. */
 export function originCheck(req: Request, _res: Response, next: NextFunction) {
   const method = req.method.toUpperCase();
   if (['GET', 'HEAD', 'OPTIONS'].includes(method)) return next();
+  // Bot do Discord: chamada servidor → servidor com token Bearer (requireBot), sem
+  // cookie — CSRF não se aplica. Só a rota do bot; o resto continua exigindo Origin.
+  if (req.originalUrl?.startsWith(BOT_PATH_PREFIX) && req.get('authorization')?.startsWith('Bearer ')) return next();
 
   const originHeader = req.get('origin') ?? req.get('referer');
   const requestOrigin = (() => {

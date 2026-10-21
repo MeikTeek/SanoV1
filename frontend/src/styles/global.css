@@ -933,3 +933,8 @@ td.actions { display: flex; gap: 6px; }
   .track-play { opacity: 1; width: 34px; height: 34px; }
   .track-menu-trigger { width: 34px; height: 34px; }
 }
+/* Vínculo com o SanoBot (Discord) */
+.discord-card p { margin: 0 0 14px; }
+.discord-linked { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.discord-code { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.discord-code-value { font-size: 1.15rem; padding: 10px 14px; letter-spacing: .04em; user-select: all; }
