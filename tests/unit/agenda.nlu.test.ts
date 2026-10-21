@@ -68,3 +68,30 @@ test('recorrência mantém o horário local e o dia do mês', () => {
   const weeks = expandSeries(new Date('2026-10-26T10:00:00Z'), 'WEEKLY', new Date('2026-11-20T00:00:00Z'));
   assert.deepEqual(weeks.map((d) => d.toISOString().slice(0, 10)), ['2026-10-26', '2026-11-02', '2026-11-09', '2026-11-16']);
 });
+
+test('recorrência no próprio dia começa hoje, se o horário ainda não passou', () => {
+  // NOW é quarta, 21/10, 13h.
+  const today = understandAgenda('reunião toda quarta às 19h', NOW).schedule!;
+  assert.equal(today.startsAt.toISOString(), '2026-10-21T22:00:00.000Z');
+  const passed = understandAgenda('academia toda quarta às 8h', NOW).schedule!;
+  assert.equal(passed.startsAt.toISOString(), '2026-10-28T11:00:00.000Z');
+  assert.equal(understandAgenda('pagar conta todo dia 21 às 20h', NOW).schedule!.startsAt.toISOString(), '2026-10-21T23:00:00.000Z');
+  assert.equal(understandAgenda('pagar conta todo dia 21 às 9h', NOW).schedule!.startsAt.toISOString(), '2026-11-21T12:00:00.000Z');
+  assert.equal(understandAgenda('remédio todo dia às 22h', NOW).schedule!.startsAt.toISOString(), '2026-10-22T01:00:00.000Z');
+});
+
+test('série sem término não tem limite; "até" define o fim', () => {
+  assert.equal(understandAgenda('aula toda quinta às 19h', NOW).recurrenceUntil, undefined);
+  const until = understandAgenda('aula toda quinta às 19h até 10/12', NOW);
+  assert.equal(until.schedule!.title, 'Aula');
+  assert.equal(until.recurrenceUntil?.toISOString(), '2026-12-11T03:00:00.000Z'); // fim de 10/12
+  assert.equal(understandAgenda('inglês toda terça às 18h até dezembro', NOW).recurrenceUntil?.toISOString(), '2027-01-01T03:00:00.000Z');
+  // "das 10h até 11h" é intervalo, não fim de série.
+  assert.equal(understandAgenda('reunião toda segunda das 10h até 11h', NOW).recurrenceUntil, undefined);
+});
+
+test('série gerada até onde se pede, mesmo um ano à frente', () => {
+  const weekly = expandSeries(new Date('2026-10-21T22:00:00Z'), 'WEEKLY', new Date('2027-10-21T23:00:00Z'));
+  assert.equal(weekly.length, 53);
+  assert.equal(weekly[0].toISOString(), '2026-10-21T22:00:00.000Z');
+});

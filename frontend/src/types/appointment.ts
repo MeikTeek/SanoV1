@@ -15,6 +15,7 @@ export interface Appointment {
   status: AppointmentStatus;
   seriesId?: string | null;
   recurrence?: Recurrence | null;
+  recurrenceUntil?: string | null;
   createdAt: string;
 }
 
@@ -28,6 +29,7 @@ export interface AppointmentInput {
   allDay?: boolean;
   remindBefore?: number | null;
   recurrence?: Recurrence | null;
+  recurrenceUntil?: string | null;
 }
 
 /** Prévia da criação rápida ("dentista sexta às 15h"), interpretada pelo servidor. */
@@ -39,6 +41,7 @@ export interface AppointmentPreview {
   endsAt: string | null;
   allDay: boolean;
   recurrence: Recurrence | null;
+  recurrenceUntil: string | null;
   remindBefore: number | null;
   missing: 'title' | 'date' | 'time' | null;
 }

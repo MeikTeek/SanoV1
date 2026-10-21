@@ -58,6 +58,7 @@ export async function parse(req: Request, res: Response) {
       endsAt: s.endsAt?.toISOString() ?? null,
       allDay,
       recurrence: r.recurrence ?? null,
+      recurrenceUntil: r.recurrenceUntil?.toISOString() ?? null,
       remindBefore: r.remindMinutes !== undefined ? r.remindMinutes : s.remindBeforeMinutes ?? (allDay ? null : 15),
       missing: allDay && s.missing === 'time' ? null : s.missing ?? null,
     },

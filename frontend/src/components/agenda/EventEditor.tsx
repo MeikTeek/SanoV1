@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Appointment, AppointmentInput, Recurrence } from '../../types/appointment';
 import type { SeriesScope } from '../../services/appointment.service';
-import { RECURRENCE_LABEL, REMINDER_OPTIONS, combine, toDateInput, toTimeInput } from './format';
+import { RECURRENCE_LABEL, REMINDER_OPTIONS, addDays, combine, toDateInput, toTimeInput, untilLabel } from './format';
 
 interface Props {
   /** Existente = edição; null = novo (com o dia sugerido). */
@@ -28,6 +28,8 @@ export default function EventEditor({ appointment, defaultDay, initial, onSave, 
   const [participants, setParticipants] = useState(source?.participants ?? '');
   const [remind, setRemind] = useState(source && source.remindBefore !== undefined ? (source.remindBefore === null ? '' : String(source.remindBefore)) : '15');
   const [recurrence, setRecurrence] = useState<Recurrence | ''>(source?.recurrence ?? '');
+  // Vazio = a série não termina. Guardado como o fim do dia escolhido.
+  const [until, setUntil] = useState(source?.recurrenceUntil ? toDateInput(new Date(new Date(source.recurrenceUntil).getTime() - 1)) : '');
   const [notes, setNotes] = useState(appointment?.description ?? '');
   const [scope, setScope] = useState<SeriesScope>('one');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -51,7 +53,10 @@ export default function EventEditor({ appointment, defaultDay, initial, onSave, 
         participants: participants.trim() || null,
         remindBefore: remind === '' ? null : Number(remind),
         description: notes.trim() || null,
-        ...(!appointment && { recurrence: recurrence || null }),
+        ...(!appointment && {
+          recurrence: recurrence || null,
+          recurrenceUntil: recurrence && until ? addDays(combine(until, '00:00'), 1).toISOString() : null,
+        }),
       }, scope);
     } catch (e) {
       setError((e as Error).message);
@@ -92,7 +97,7 @@ export default function EventEditor({ appointment, defaultDay, initial, onSave, 
             </select>
           </label>
           {appointment ? (
-            inSeries && <label>Repete<input value={RECURRENCE_LABEL[appointment.recurrence!] ?? ''} disabled /></label>
+            inSeries && <label>Repete<input value={`${RECURRENCE_LABEL[appointment.recurrence!] ?? ''}, ${untilLabel(appointment.recurrenceUntil)}`} disabled /></label>
           ) : (
             <label>Repetir
               <select value={recurrence} onChange={(e) => setRecurrence(e.target.value as Recurrence | '')}>
@@ -102,6 +107,12 @@ export default function EventEditor({ appointment, defaultDay, initial, onSave, 
             </label>
           )}
         </div>
+
+        {!appointment && recurrence && (
+          <label>Repetir até <small className="muted">(opcional — vazio = sem fim)</small>
+            <input type="date" value={until} min={date} onChange={(e) => setUntil(e.target.value)} />
+          </label>
+        )}
 
         <label>Notas<textarea value={notes} maxLength={1000} rows={3} onChange={(e) => setNotes(e.target.value)} /></label>
 

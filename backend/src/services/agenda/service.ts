@@ -31,8 +31,11 @@ const DAY = 86_400_000;
  * Mantém as séries recorrentes geradas até o horizonte. Barato: só olha
  * séries cuja última ocorrência já está perto de acabar.
  */
-export async function extendSeries(userId: string, now = new Date()) {
-  const horizon = new Date(now.getTime() + HORIZON_DAYS * DAY);
+export async function extendSeries(userId: string, now = new Date(), until?: Date) {
+  // Gera até onde a tela/consulta está olhando (no mínimo 120 dias), com teto de
+  // 3 anos para uma navegação muito distante não criar milhares de linhas.
+  const cap = now.getTime() + 3 * 365 * DAY;
+  const horizon = new Date(Math.min(cap, Math.max(now.getTime() + HORIZON_DAYS * DAY, until?.getTime() ?? 0)));
   const tails = await prisma.appointment.groupBy({
     by: ['seriesId'],
     where: { userId, seriesId: { not: null } },
@@ -40,9 +43,12 @@ export async function extendSeries(userId: string, now = new Date()) {
   });
   for (const tail of tails) {
     const last = tail._max.startsAt;
-    if (!tail.seriesId || !last || last.getTime() > now.getTime() + (HORIZON_DAYS / 2) * DAY) continue;
+    // Já gerado até perto do horizonte: nada a fazer (evita extensões de 1 linha).
+    if (!tail.seriesId || !last || last.getTime() >= horizon.getTime() - 7 * DAY) continue;
     const model = await prisma.appointment.findFirst({ where: { userId, seriesId: tail.seriesId, startsAt: last } });
-    if (!model?.recurrence || model.status === 'CANCELED') continue;
+    // O fim da série vem de `recurrenceUntil` (pedido pelo usuário ou gravado ao
+    // cancelar/excluir "daqui em diante") — não do status da última linha.
+    if (!model?.recurrence || (model.recurrenceUntil && last >= model.recurrenceUntil)) continue;
     const rule = model.recurrence as Recurrence;
     const anchor = await prisma.appointment.findFirst({ where: { seriesId: tail.seriesId }, orderBy: { startsAt: 'asc' }, select: { startsAt: true } });
     const next = nextOccurrence(last, rule, localParts(anchor?.startsAt ?? last).day);
@@ -62,7 +68,7 @@ export async function extendSeries(userId: string, now = new Date()) {
 
 /** Compromissos do usuário (sem os cancelados). `from`/`to` filtram por janela. */
 export async function listAppointments(userId: string, from?: Date, to?: Date) {
-  await extendSeries(userId);
+  await extendSeries(userId, new Date(), to);
   return prisma.appointment.findMany({
     where: {
       userId,
@@ -176,18 +182,27 @@ export async function updateAppointment(
 
 /** Cancela esta e as próximas ocorrências da série (as passadas ficam no histórico). */
 export async function cancelSeries(userId: string, seriesId: string, from: Date) {
-  return prisma.appointment.updateMany({
-    where: { userId, seriesId, status: 'PENDING', startsAt: { gte: from } },
-    data: { status: 'CANCELED' },
-  });
+  const [canceled] = await prisma.$transaction([
+    prisma.appointment.updateMany({
+      where: { userId, seriesId, status: 'PENDING', startsAt: { gte: from } },
+      data: { status: 'CANCELED' },
+    }),
+    // Marca o fim: sem isso, a extensão automática geraria as próximas de novo.
+    prisma.appointment.updateMany({ where: { userId, seriesId }, data: { recurrenceUntil: new Date(from.getTime() - 1) } }),
+  ]);
+  return canceled;
 }
 
-/** Desfaz um cancelamento de série (usado pelo "desfazer" do chat). */
+/** Desfaz um cancelamento de série (usado pelo "desfazer" do chat): a série volta a não ter fim. */
 export async function restoreSeries(userId: string, seriesId: string, from: Date) {
-  return prisma.appointment.updateMany({
-    where: { userId, seriesId, status: 'CANCELED', startsAt: { gte: from } },
-    data: { status: 'PENDING' },
-  });
+  const [restored] = await prisma.$transaction([
+    prisma.appointment.updateMany({
+      where: { userId, seriesId, status: 'CANCELED', startsAt: { gte: from } },
+      data: { status: 'PENDING' },
+    }),
+    prisma.appointment.updateMany({ where: { userId, seriesId }, data: { recurrenceUntil: null } }),
+  ]);
+  return restored;
 }
 
 /** Apaga de vez uma série recém-criada (desfazer criação). */
@@ -201,7 +216,7 @@ export async function deleteAppointment(userId: string, id: string) {
 
 /** Compromissos de um intervalo [from, to) — usado para listar, contar e achar horário livre. */
 export async function listByDay(userId: string, from: Date, to: Date) {
-  await extendSeries(userId);
+  await extendSeries(userId, new Date(), to);
   return prisma.appointment.findMany({
     where: { userId, status: 'PENDING', startsAt: { gte: from, lt: to } },
     select,
@@ -296,5 +311,13 @@ export async function deleteFollowing(userId: string, id: string) {
   const current = await prisma.appointment.findFirst({ where: { id, userId } });
   if (!current) return { count: 0 };
   if (!current.seriesId) return prisma.appointment.deleteMany({ where: { id, userId } });
-  return prisma.appointment.deleteMany({ where: { userId, seriesId: current.seriesId, startsAt: { gte: current.startsAt } } });
+  const [deleted] = await prisma.$transaction([
+    prisma.appointment.deleteMany({ where: { userId, seriesId: current.seriesId, startsAt: { gte: current.startsAt } } }),
+    // As que sobraram passam a terminar antes desta, senão a extensão as recriaria.
+    prisma.appointment.updateMany({
+      where: { userId, seriesId: current.seriesId },
+      data: { recurrenceUntil: new Date(current.startsAt.getTime() - 1) },
+    }),
+  ]);
+  return deleted;
 }

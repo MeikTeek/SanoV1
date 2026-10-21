@@ -71,6 +71,7 @@ export interface SanoAppointment {
   status?: string;
   seriesId?: string | null;
   recurrence?: string | null;
+  recurrenceUntil?: Date | null;
 }
 
 export interface SanoAgendaDeps {
@@ -84,6 +85,7 @@ export interface SanoAgendaDeps {
     allDay?: boolean;
     remindBefore?: number | null;
     recurrence?: 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'MONTHLY' | 'YEARLY' | null;
+    recurrenceUntil?: Date | null;
   }) => Promise<SanoAppointment>;
   findByTitle: (userId: string, term: string) => Promise<SanoAppointment[]>;
   cancel: (userId: string, id: string) => Promise<void>;

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createAppointment, previewAppointment } from '../../services/appointment.service';
 import type { AppointmentPreview } from '../../types/appointment';
-import { RECURRENCE_LABEL, dayTitle, reminderLabel, timeRange } from './format';
+import { RECURRENCE_LABEL, dayTitle, reminderLabel, timeRange, untilLabel } from './format';
 
 interface Props {
   onCreated: () => Promise<void>;
@@ -51,6 +51,7 @@ export default function QuickAdd({ onCreated, onNeedsDetails }: Props) {
         location: preview.location,
         remindBefore: preview.remindBefore,
         recurrence: preview.recurrence,
+        recurrenceUntil: preview.recurrenceUntil,
       });
       setText('');
       setPreview(null);
@@ -83,7 +84,7 @@ export default function QuickAdd({ onCreated, onNeedsDetails }: Props) {
             : <span>falta o dia</span>}
           {preview.participants && <span>com {preview.participants}</span>}
           {preview.location && <span>{preview.location}</span>}
-          {preview.recurrence && <span>↻ {RECURRENCE_LABEL[preview.recurrence]}</span>}
+          {preview.recurrence && <span>↻ {RECURRENCE_LABEL[preview.recurrence]}, {untilLabel(preview.recurrenceUntil)}</span>}
           {reminderLabel(preview.remindBefore) && <span>🔔 {reminderLabel(preview.remindBefore)}</span>}
         </div>
       )}

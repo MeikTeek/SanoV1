@@ -25,6 +25,7 @@ export type PendingAssistantAction =
       location?: string;
       allDay?: boolean;
       recurrence?: 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
+      recurrenceUntil?: string;
       createdAt: string;
     }
   | {
@@ -71,6 +72,7 @@ export const pendingAssistantActionSchema = z.discriminatedUnion('type', [
     location: z.string().max(200).optional(),
     allDay: z.boolean().optional(),
     recurrence: z.enum(['DAILY', 'WEEKDAYS', 'WEEKLY', 'MONTHLY', 'YEARLY']).optional(),
+    recurrenceUntil: z.string().datetime().optional(),
     createdAt: z.string().datetime(),
   }),
   z.object({

@@ -70,3 +70,10 @@ export function relativeLabel(iso: string, now = new Date()) {
   if (dayKey(new Date(iso)) === dayKey(now)) return `em ${Math.round(diff / 3_600_000)}h`;
   return '';
 }
+
+/** "até 20/12" ou "sem fim". `recurrenceUntil` é o fim do último dia (00:00 do seguinte). */
+export function untilLabel(iso?: string | null) {
+  if (!iso) return 'sem fim';
+  const last = new Date(new Date(iso).getTime() - 1);
+  return `até ${new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' }).format(last)}`;
+}

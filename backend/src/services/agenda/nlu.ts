@@ -8,7 +8,7 @@
  */
 import { dateAtLocalTime, extractDateTime, localDate, localDayBounds, localParts } from '../assistant/dateTime';
 import { parseSchedule, type ParsedSchedule } from './parse';
-import type { Recurrence } from './recurrence';
+import { nextOccurrence, type Recurrence } from './recurrence';
 
 export type AgendaAct =
   | 'create' | 'list' | 'next' | 'when' | 'free' | 'count'
@@ -37,6 +37,8 @@ export interface AgendaRequest {
   hasDate: boolean;
   hasTime: boolean;
   recurrence?: Recurrence;
+  /** "até 20/12": fim da série (inclusive). Sem isso, a série não termina. */
+  recurrenceUntil?: Date;
   allDay?: boolean;
   daypart?: Daypart;
   location?: string;
@@ -149,10 +151,29 @@ export function extractRange(text: string, now: Date): AgendaRange | undefined {
 
 /* ───────────────────────── recorrência / extras ───────────────────────── */
 
-interface Extras { text: string; recurrence?: Recurrence; allDay?: boolean; location?: string; remindMinutes?: number | null }
+interface Extras {
+  text: string; recurrence?: Recurrence; recurrenceUntil?: Date; allDay?: boolean; location?: string; remindMinutes?: number | null;
+}
+
+const MONTH_NAMES = ['janeiro', 'fevereiro', 'marco', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/**
+ * "até 20/12", "até dia 15", "até 3 de março", "até dezembro" → fim desse dia
+ * (ou do último dia do mês). Só faz sentido junto de uma recorrência.
+ */
+function untilDate(phrase: string, now: Date): Date | undefined {
+  const month = MONTH_NAMES.indexOf(phrase.replace(/^(o )?(fim|final) de /, '').trim());
+  if (month >= 0) {
+    const today = localParts(now);
+    const year = month < today.month ? today.year + 1 : today.year;
+    return localDayBounds(localDate(year, month + 1, 0)).end; // dia 0 do mês seguinte = último dia
+  }
+  const { date } = extractDateTime(phrase, now);
+  return date ? localDayBounds(date.value).end : undefined;
+}
 
 /** Tira da frase o que não é título/data comum, trocando por algo que o parser entende. */
-function extractExtras(text: string): Extras {
+function extractExtras(text: string, now: Date): Extras {
   let out = text;
   const out2 = () => fold(out);
   const replace = (re: RegExp, by: (m: RegExpExecArray) => string) => {
@@ -181,7 +202,9 @@ function extractExtras(text: string): Extras {
   // O período ("de manhã") vira pergunta de horário com sugestões; não é título.
   replace(/\b(de|pela|na|a|essa|esta|nesta|nessa) (manha|tarde|noite)\b/, () => ' ');
 
-  const weekly = replace(/\btod[oa]s? (?:as |os )?(segunda|terca|quarta|quinta|sexta|sabado|domingo)s?(?:-feiras?)?\b/, (m) => ` ${m[1]} `);
+  // Se hoje já é o dia pedido, começa hoje: o parser leria "quarta" (numa quarta) como a da semana que vem.
+  const weekly = replace(/\btod[oa]s? (?:as |os )?(segunda|terca|quarta|quinta|sexta|sabado|domingo)s?(?:-feiras?)?\b/,
+    (m) => (WEEKDAY_NAMES.indexOf(m[1]) === localParts(now).weekday ? ' hoje ' : ` ${m[1]} `));
   if (weekly) extras.recurrence = 'WEEKLY';
   else if (replace(/\b(dias uteis|de segunda a sexta|segunda a sexta)\b/, () => ' ')) extras.recurrence = 'WEEKDAYS';
   else if (replace(/\b(todo dia|todos os dias|diariamente|todo santo dia)\b(?! \d)/, () => ' ')) extras.recurrence = 'DAILY';
@@ -189,6 +212,13 @@ function extractExtras(text: string): Extras {
   else if (replace(/\btodo dia (\d{1,2})\b/, (m) => ` dia ${m[1]} `)) extras.recurrence = 'MONTHLY';
   else if (replace(/\b(todo mes|todos os meses|mensalmente)\b/, () => ' ')) extras.recurrence = 'MONTHLY';
   else if (replace(/\b(todo ano|todos os anos|anualmente)\b/, () => ' ')) extras.recurrence = 'YEARLY';
+
+  if (extras.recurrence) {
+    replace(/\bate (?:o |a )?((?:dia )?\d{1,2}(?:\/\d{1,2}(?:\/\d{2,4})?)?|\d{1,2} de [a-z]+(?: de \d{4})?|(?:o )?(?:fim|final) de [a-z]+|janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/, (m) => {
+      extras.recurrenceUntil = untilDate(m[1], now);
+      return ' ';
+    });
+  }
 
   extras.text = out.replace(/\s+/g, ' ').trim();
   return extras;
@@ -263,7 +293,7 @@ export function understandAgenda(text: string, now: Date): AgendaRequest {
 
   // Lembrete para algo já marcado: "me lembra do dentista 1 dia antes", "sem lembrete na reunião".
   if (REMIND_ONLY.test(f) && !time && !date && !CREATE.test(f.replace(/\b(lembr\w*|avis\w*|me)\b/g, ''))) {
-    const extras = extractExtras(text);
+    const extras = extractExtras(text, now);
     return { ...base, act: 'remind', term: extractTerm(extras.text, now), remindMinutes: extras.remindMinutes };
   }
 
@@ -278,13 +308,23 @@ export function understandAgenda(text: string, now: Date): AgendaRequest {
     return { ...base, act: 'list', range: extractRange(text, now) };
   }
 
-  const extras = extractExtras(text);
+  const extras = extractExtras(text, now);
   const schedule = parseSchedule(extras.text, now, 'create');
+  // Série nunca começa no passado: "toda quarta às 8h" numa quarta às 13h vai para
+  // a próxima quarta; "todo dia 5" no dia 5, depois do horário, para o mês seguinte.
+  if (extras.recurrence && !schedule.missing && schedule.startsAt.getTime() <= now.getTime()) {
+    const next = nextOccurrence(schedule.startsAt, extras.recurrence, localParts(schedule.startsAt).day);
+    const delta = next.getTime() - schedule.startsAt.getTime();
+    schedule.startsAt = next;
+    if (schedule.endsAt) schedule.endsAt = new Date(schedule.endsAt.getTime() + delta);
+    schedule.assumedDate = false;
+  }
   return {
     ...base,
     act: 'create',
     schedule,
     recurrence: extras.recurrence,
+    recurrenceUntil: extras.recurrenceUntil,
     allDay: extras.allDay,
     location: extras.location,
     remindMinutes: extras.remindMinutes,

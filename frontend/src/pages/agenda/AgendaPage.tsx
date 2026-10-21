@@ -38,14 +38,22 @@ export default function AgendaPage() {
   });
   const [editing, setEditing] = useState<Editing>(null);
   const [showDone, setShowDone] = useState(false);
+  // Quantas semanas a lista mostra a partir do dia escolhido; "Mostrar mais" soma 8.
+  const [listWeeks, setListWeeks] = useState(8);
+  useEffect(() => { setListWeeks(8); }, [selected]);
 
-  // Janela carregada: do começo do calendário exibido até 6 semanas depois do dia escolhido.
-  const from = useMemo(() => startOfWeek(new Date(month.getFullYear(), month.getMonth(), 1)), [month]);
+  // Janela carregada: o calendário exibido e a lista inteira (o servidor estende as
+  // séries recorrentes até o fim dessa janela — não há limite de ocorrências).
+  const from = useMemo(() => {
+    const calendarStart = startOfWeek(new Date(month.getFullYear(), month.getMonth(), 1));
+    const listStart = fromDayKey(selected);
+    return calendarStart < listStart ? calendarStart : listStart;
+  }, [month, selected]);
+  const listEnd = useMemo(() => addDays(fromDayKey(selected), listWeeks * 7), [selected, listWeeks]);
   const to = useMemo(() => {
-    const monthEnd = addDays(from, 42);
-    const listEnd = addDays(fromDayKey(selected), 42);
+    const monthEnd = addDays(startOfWeek(new Date(month.getFullYear(), month.getMonth(), 1)), 42);
     return monthEnd > listEnd ? monthEnd : listEnd;
-  }, [from, selected]);
+  }, [month, listEnd]);
 
   const load = useCallback(async () => {
     try {
@@ -80,14 +88,15 @@ export default function AgendaPage() {
   const listDays = useMemo(() => {
     const startKey = selected;
     const groups = new Map<string, Appointment[]>();
+    const endKey = dayKey(listEnd);
     for (const a of visible) {
       const key = dayKey(new Date(a.startsAt));
-      if (key < startKey) continue;
+      if (key < startKey || key >= endKey) continue;
       groups.set(key, [...(groups.get(key) ?? []), a]);
     }
     if (!groups.has(startKey)) groups.set(startKey, []);
-    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b)).slice(0, 21);
-  }, [visible, selected]);
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [visible, selected, listEnd]);
 
   const weekStart = startOfWeek(fromDayKey(selected));
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
@@ -178,7 +187,8 @@ export default function AgendaPage() {
               kind: 'new',
               initial: {
                 title: p.title, participants: p.participants, location: p.location, allDay: p.allDay,
-                remindBefore: p.remindBefore, recurrence: p.recurrence, ...(p.startsAt && { startsAt: p.startsAt }),
+                remindBefore: p.remindBefore, recurrence: p.recurrence, recurrenceUntil: p.recurrenceUntil,
+                ...(p.startsAt && { startsAt: p.startsAt }),
               },
             })}
           />
@@ -222,6 +232,9 @@ export default function AgendaPage() {
                   </section>
                 );
               })}
+              <button type="button" className="ghost ag-more" onClick={() => setListWeeks((w) => w + 8)}>
+                Mostrar mais (até {dayTitle(addDays(listEnd, 8 * 7 - 1)).toLowerCase()})
+              </button>
             </div>
           ) : (
             <div className="ag-week">

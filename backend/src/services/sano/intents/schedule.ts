@@ -98,6 +98,12 @@ function whenWithRelative(a: SanoAppointment, now: Date) {
   return /^(hoje|amanhã)/.test(when) && !rel.startsWith('daqui') && !rel.startsWith('começou') ? when : `${when} — ${rel}`;
 }
 
+/** " até 20/12" ou " (sem data para acabar)". `recurrenceUntil` é o fim do último dia. */
+function untilText(a: SanoAppointment, now: Date) {
+  if (!a.recurrenceUntil) return ' (sem data para acabar)';
+  return ` até ${dayPhrase(new Date(new Date(a.recurrenceUntil).getTime() - 1), now)}`;
+}
+
 export function reminderText(minutes?: number | null) {
   if (minutes === null || minutes === undefined) return null;
   if (minutes === 0) return 'na hora';
@@ -111,7 +117,7 @@ function details(a: SanoAppointment) {
   return [
     a.participants ? `Com ${a.participants}` : null,
     a.location ? `Local: ${a.location}` : null,
-    a.recurrence ? `Repete ${RECURRENCE_LABEL[a.recurrence as Recurrence] ?? ''}` : null,
+    a.recurrence ? `Repete ${RECURRENCE_LABEL[a.recurrence as Recurrence] ?? ''}${a.recurrenceUntil ? ` até ${dayCommand(new Date(new Date(a.recurrenceUntil).getTime() - 1), new Date(0))}` : ', sem data para acabar'}` : null,
     reminderText(a.remindBefore) ? `Lembrete ${reminderText(a.remindBefore)}` : 'Sem lembrete',
   ].filter((x): x is string => !!x);
 }
@@ -332,6 +338,7 @@ async function create(ctx: SanoContext, req: AgendaRequest): Promise<SanoResult>
     ...(req.location && { location: req.location }),
     ...(allDay && { allDay }),
     ...(req.recurrence && { recurrence: req.recurrence }),
+    ...(req.recurrence && req.recurrenceUntil && { recurrenceUntil: req.recurrenceUntil.toISOString() }),
     createdAt: ctx.now.toISOString(),
   };
 
@@ -370,13 +377,14 @@ async function saveNew(userId: string, deps: SanoDeps, action: Extract<PendingAs
     allDay: action.allDay,
     remindBefore: action.remindBefore ?? null,
     recurrence: action.recurrence ?? null,
+    recurrenceUntil: action.type === 'create' && action.recurrenceUntil ? new Date(action.recurrenceUntil) : null,
   });
 }
 
 function createdResult(userId: string, saved: SanoAppointment, now: Date, assumedDate?: boolean): SanoResult {
   const when = whenText(saved, now);
   const extras = [
-    saved.recurrence ? `Vai se repetir ${RECURRENCE_LABEL[saved.recurrence as Recurrence]}.` : '',
+    saved.recurrence ? `Vai se repetir ${RECURRENCE_LABEL[saved.recurrence as Recurrence]}${untilText(saved, now)}.` : '',
     reminderText(saved.remindBefore) ? `Te aviso ${reminderText(saved.remindBefore)}.` : '',
     assumedDate ? `(Como você não disse o dia, considerei ${dayPhrase(new Date(saved.startsAt), now)}.)` : '',
   ].filter(Boolean).join(' ');

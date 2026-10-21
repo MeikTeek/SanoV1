@@ -194,3 +194,4 @@
   .reminders { left: 12px; right: 12px; max-width: none; }
 }
 .ag-editor .ag-row-dates { grid-template-columns: minmax(140px, 1.6fr) 1fr 1fr; }
+.ag-more { align-self: center; margin-top: 4px; }
