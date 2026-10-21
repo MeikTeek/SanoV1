@@ -44,7 +44,7 @@ export default function AccountPanel({ account, onClose, onSaved }: Props) {
   };
 
   return (
-    <section className="card fin-account-panel">
+    <section className="fin-card fin-account-panel">
       <h3>{account ? `Conta ${account.name}` : 'Nova conta'}</h3>
       <form className="fin-entry" onSubmit={submit}>
         <div className="fin-entry-grid">

@@ -5,6 +5,7 @@ import { handleCommand } from '../services/sano/router';
 import { logAudit } from '../services/audit.service';
 import * as agenda from '../services/agenda/service';
 import * as trainer from '../services/trainer/api';
+import { financeChat } from '../services/finance/chat';
 import { buildGreeting } from '../services/sano/greeting';
 
 const pingDb = async () => {
@@ -35,6 +36,7 @@ export async function command(req: Request, res: Response) {
       completeByName: (userId, name) => trainer.completeByName(userId, name),
       ask: async (userId, question) => (await trainer.askCall(userId, question)).answer,
     },
+    finance: financeChat,
   });
 
   // Privacidade: registra apenas a intenção, nunca o texto digitado.

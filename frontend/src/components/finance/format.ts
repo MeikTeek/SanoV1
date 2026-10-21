@@ -2,9 +2,9 @@ const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' 
 const plain = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /** Centavos → "R$ 1.234,56". */
-export const money = (cents: number) => brl.format(cents / 100);
+export const money = (cents: number) => brl.format((cents || 0) / 100); // `|| 0` evita "-R$ 0,00"
 /** Centavos → "1.234,56" (para campos editáveis). */
-export const moneyPlain = (cents: number) => plain.format(cents / 100);
+export const moneyPlain = (cents: number) => plain.format((cents || 0) / 100);
 
 /** "1.234,56", "12.5", "-3" → centavos. null quando não é número. */
 export function parseMoneyInput(raw: string): number | null {
@@ -94,3 +94,49 @@ export function guessColumns(headers: string[]): Record<CsvColumn, number> {
   const find = (key: CsvColumn) => normalized.findIndex((h) => (HEADER_ALIASES[key] as readonly string[]).includes(h));
   return { date: find('date'), payee: find('payee'), amount: find('amount'), category: find('category'), notes: find('notes') };
 }
+
+/** "Sáb, 25 de out." para cabeçalhos de dia na lista de transações. */
+export function dayHeading(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const text = new Intl.DateTimeFormat('pt-BR', { weekday: 'short', day: 'numeric', month: 'short' })
+    .format(new Date(year, month - 1, day));
+  const label = text.replace(/\./g, '');
+  const iso = today();
+  if (date === iso) return 'Hoje';
+  if (date === shiftDay(iso, -1)) return 'Ontem';
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+export function shiftDay(date: string, delta: number) {
+  const [year, month, day] = date.split('-').map(Number);
+  const d = new Date(year, month - 1, day + delta);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export interface OfxRow { date: string; amount: string; payee: string; notes?: string; externalId?: string }
+
+/**
+ * Lê extratos OFX (SGML 1.x ou XML 2.x — o formato que os bancos brasileiros
+ * exportam). Cada <STMTTRN> vira uma linha; o FITID garante dedupe exato.
+ */
+export function parseOfx(text: string): OfxRow[] {
+  const tag = (block: string, name: string) => {
+    const match = new RegExp(`<${name}>([^<\r\n]*)`, 'i').exec(block);
+    return match ? match[1].trim() : '';
+  };
+  const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
+  return text.split(/<STMTTRN>/i).slice(1).map((block) => {
+    const posted = tag(block, 'DTPOSTED');
+    const name = decode(tag(block, 'NAME'));
+    const memo = decode(tag(block, 'MEMO'));
+    return {
+      date: posted ? `${posted.slice(0, 4)}-${posted.slice(4, 6)}-${posted.slice(6, 8)}` : '',
+      amount: tag(block, 'TRNAMT'),
+      payee: name || memo,
+      notes: name && memo && memo !== name ? memo : undefined,
+      externalId: tag(block, 'FITID') || undefined,
+    };
+  }).filter((row) => row.date && row.amount);
+}
+
+export const FREQUENCY_LABEL = { WEEKLY: 'Semanal', MONTHLY: 'Mensal', YEARLY: 'Anual', ONCE: 'Uma vez' } as const;

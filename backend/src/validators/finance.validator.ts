@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { ACCOUNT_TYPES } from '../services/finance/service';
+import { FREQUENCIES } from '../services/finance/schedules';
 
 /** Valores trafegam em centavos inteiros: 12,50 → 1250. */
 const cents = z.number().int().min(-99_999_999_999).max(99_999_999_999);
@@ -73,5 +74,21 @@ export const importSchema = z.object({
     payee: z.string().max(200),
     notes: z.string().max(500).optional(),
     category: z.string().max(100).optional(),
+    /** FITID do OFX: identifica a transação no banco, dedupe exato. */
+    externalId: z.string().max(255).optional(),
   })).min(1, 'O arquivo não tem linhas.').max(5000, 'Importe no máximo 5.000 linhas por vez.'),
+});
+
+export const scheduleSchema = z.object({
+  name,
+  accountId: id,
+  payee: z.string().trim().max(200).nullish(),
+  categoryId: id.nullish(),
+  transferAccountId: id.nullish(),
+  amount: cents.refine((value) => value !== 0, 'O valor não pode ser zero.'),
+  frequency: z.enum(FREQUENCIES).default('MONTHLY'),
+  interval: z.number().int().min(1).max(52).default(1),
+  nextDate: daySchema,
+  autoPost: z.boolean().default(false),
+  active: z.boolean().optional(),
 });

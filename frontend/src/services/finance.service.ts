@@ -1,6 +1,7 @@
 import { api } from './api';
 import type {
-  AccountType, FinanceOverview, FinanceReports, FinanceTransaction, ImportResult, ImportRow, TransactionInput,
+  AccountType, FinanceOverview, FinanceReports, FinanceSchedule, FinanceTransaction, ImportResult, ImportRow,
+  ScheduleInput, TransactionInput,
 } from '../types/finance';
 
 const q = (params: Record<string, string | undefined>) => {
@@ -42,4 +43,11 @@ export const financeApi = {
 
   importRows: (accountId: string, rows: ImportRow[], commit: boolean) =>
     api.post<ImportResult>('/finance/import', { accountId, rows, commit }),
+
+  schedules: () => api.get<FinanceSchedule[]>('/finance/schedules'),
+  createSchedule: (input: ScheduleInput) => api.post('/finance/schedules', input),
+  updateSchedule: (id: string, input: ScheduleInput) => api.put(`/finance/schedules/${id}`, input),
+  deleteSchedule: (id: string) => api.delete(`/finance/schedules/${id}`),
+  postSchedule: (id: string) => api.post(`/finance/schedules/${id}/post`),
+  skipSchedule: (id: string) => api.post(`/finance/schedules/${id}/skip`),
 };

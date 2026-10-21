@@ -1,5 +1,6 @@
 import type { Intent } from './types';
 import { agendaIntent, trainerIntent, aiIntent } from './intents/agenda';
+import { financeIntent } from './intents/finance';
 import { localDayBounds } from '../assistant/dateTime';
 import { listLearningPhrases } from '../assistant/learning';
 import { variedReply } from '../assistant/recovery';
@@ -135,7 +136,8 @@ const briefing: Intent = {
   name: 'briefing',
   description: 'Resumo do seu dia',
   examples: ['briefing', 'como está meu dia?'],
-  patterns: [/^(briefing|resumo|panorama|situacao)\b/, /\b(como (esta|vai ser|foi) (meu|o) dia|briefing de hoje|meu dia|resumo do dia)\b/],
+  // "resumo financeiro" é do módulo de finanças, não do briefing do dia.
+  patterns: [/^(briefing|resumo|panorama|situacao)\b(?!.*\b(financ\w*|orcamento|dinheiro|gastos)\b)/,/\b(como (esta|vai ser|foi) (meu|o) dia|briefing de hoje|meu dia|resumo do dia)\b/],
   async handle(ctx) {
     const blocks: { title: string; lines: string[]; tone?: 'ok' | 'warn' | 'bad' }[] = [];
     const fmtTime = (d: Date) =>
@@ -315,6 +317,7 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
 // As intenções do módulo de mensagens vêm ANTES da IA: "abrir mensagens" é
 // comando de navegação, não pergunta.
 export const baseIntents: Intent[] = [
-  greeting, admin, whoami, status, briefing, time, version, agendaIntent, trainerIntent,
+  // Finanças antes da agenda: "paguei 120 de luz amanhã" é lançamento, não compromisso.
+  greeting, admin, whoami, status, briefing, time, version, financeIntent, agendaIntent, trainerIntent,
   messages, people, settings, learning, aiIntent, ...plannedIntents,
 ];

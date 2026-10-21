@@ -29,6 +29,7 @@ export interface ImportRowInput {
   payee: string;
   notes?: string;
   category?: string;
+  externalId?: string;
 }
 
 /* ───────────────────────── inicialização ───────────────────────── */
@@ -402,7 +403,7 @@ export async function listTransactions(
   });
 }
 
-async function insertTransaction(db: Tx, userId: string, input: TransactionInput) {
+export async function insertTransaction(db: Tx, userId: string, input: TransactionInput) {
   const account = await ownAccount(db, userId, input.accountId);
   if (account.closed) throw new AppError(400, 'Esta conta está fechada.');
 
@@ -545,7 +546,9 @@ export async function importTransactions(userId: string, accountId: string, rows
     }
     const categoryId = account.offBudget ? null : named?.id ?? payeeCategory.get(payee.toLocaleLowerCase('pt-BR')) ?? null;
 
-    const hash = fingerprint(accountId, date, amount, payee);
+    const hash = row.externalId
+      ? createHash('sha256').update(['ofx', accountId, row.externalId].join('|')).digest('hex')
+      : fingerprint(accountId, date, amount, payee);
     const occurrence = (seen.get(hash) ?? 0) + 1;
     seen.set(hash, occurrence);
     if (occurrence <= (known.get(hash) ?? 0)) {

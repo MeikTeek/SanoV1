@@ -20,6 +20,25 @@ export interface SanoDeps {
   agenda?: SanoAgendaDeps;
   /** Módulo de treino (Fase 4). */
   trainer?: SanoTrainerDeps;
+  /** Finanças (orçamento por envelopes). */
+  finance?: SanoFinanceDeps;
+}
+
+export interface SanoFinanceDeps {
+  summary: (userId: string) => Promise<{
+    hasAccounts: boolean;
+    toBudget: number;
+    income: number;
+    spent: number;
+    budgeted: number;
+    categories: { name: string; budgeted: number; spent: number; balance: number }[];
+    upcoming: { name: string; amount: number; nextDate: string }[];
+  }>;
+  /** Lança a transação; categoria e conta são resolvidas pelo nome. */
+  record: (userId: string, entry: { amount: number; description: string; accountHint?: string }) => Promise<
+    | { ok: true; accountName: string; payee: string; categoryName: string | null; categoryBalance?: number }
+    | { ok: false; message: string }
+  >;
 }
 
 export interface SanoTrainerDeps {

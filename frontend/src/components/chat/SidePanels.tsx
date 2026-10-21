@@ -108,6 +108,7 @@ export default function SidePanels({ refreshKey, side }: Props) {
         <div className="hud-actions">
           <button className="hud-btn" onClick={() => navigate('/agenda')}>Agenda</button>
           <button className="hud-btn" onClick={() => navigate('/treino')}>Treino</button>
+          <button className="hud-btn" onClick={() => navigate('/financas')}>Finanças</button>
           <button className="hud-btn" onClick={() => navigate('/config')}>Ajustes</button>
           {user?.role === 'ADMIN' && (
             <button className="hud-btn" onClick={() => navigate('/admin')}>Admin</button>

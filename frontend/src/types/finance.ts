@@ -92,6 +92,7 @@ export interface ImportRow {
   payee: string;
   notes?: string;
   category?: string;
+  externalId?: string;
 }
 
 export interface ImportResultRow {
@@ -115,4 +116,38 @@ export interface FinanceReports {
   cashflow: { month: string; income: number; spending: number; net: number }[];
   byCategory: { categoryId: string; name: string; group: string; spent: number }[];
   netWorth: { month: string; value: number }[];
+}
+
+export type Frequency = 'WEEKLY' | 'MONTHLY' | 'YEARLY' | 'ONCE';
+
+export interface FinanceSchedule {
+  id: string;
+  name: string;
+  accountId: string;
+  accountName: string;
+  payee: string | null;
+  categoryId: string | null;
+  transferAccountId: string | null;
+  transferAccountName: string | null;
+  amount: number;
+  frequency: Frequency;
+  interval: number;
+  nextDate: string;
+  autoPost: boolean;
+  active: boolean;
+  status: 'overdue' | 'due' | 'upcoming' | 'done';
+}
+
+export interface ScheduleInput {
+  name: string;
+  accountId: string;
+  payee?: string | null;
+  categoryId?: string | null;
+  transferAccountId?: string | null;
+  amount: number;
+  frequency: Frequency;
+  interval: number;
+  nextDate: string;
+  autoPost: boolean;
+  active?: boolean;
 }

@@ -31,4 +31,11 @@ r.delete('/transactions/:id', c.deleteTransaction);
 
 r.post('/import', c.importTransactions);
 
+r.get('/schedules', c.listSchedules);
+r.post('/schedules', c.createSchedule);
+r.put('/schedules/:id', c.updateSchedule);
+r.delete('/schedules/:id', c.deleteSchedule);
+r.post('/schedules/:id/post', c.postSchedule);
+r.post('/schedules/:id/skip', c.skipSchedule);
+
 export default r;

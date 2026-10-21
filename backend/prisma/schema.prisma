@@ -82,6 +82,7 @@ model User {
   financePayees         FinancePayee[]
   financeTransactions   FinanceTransaction[]
   financeBudgets        FinanceBudget[]
+  financeSchedules      FinanceSchedule[]
 }
 
 model MusicTrack {
@@ -493,6 +494,7 @@ model FinanceAccount {
 
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions FinanceTransaction[]
+  schedules    FinanceSchedule[]
 
   @@index([userId, sortOrder])
 }
@@ -587,4 +589,32 @@ model FinanceBudget {
 
   @@unique([categoryId, month])
   @@index([userId, month])
+}
+
+/// Conta recorrente (aluguel, salário, assinatura). Como os "schedules" do
+/// Actual: `nextDate` é o próximo vencimento; lançar cria a transação e avança.
+model FinanceSchedule {
+  id                String   @id @default(uuid())
+  userId            String
+  name              String   @db.VarChar(100)
+  accountId         String
+  payee             String?  @db.VarChar(200)
+  categoryId        String?
+  transferAccountId String?
+  amount            Int // centavos; negativo = saída
+  frequency         String   @default("MONTHLY") // WEEKLY | MONTHLY | YEARLY | ONCE
+  interval          Int      @default(1)
+  nextDate          String   @db.VarChar(10)
+  /// Dia original do vencimento: um "todo dia 31" volta a 31 depois de fevereiro.
+  anchorDay         Int      @default(1)
+  /// Lança sozinho quando vence (ao abrir o módulo); senão só avisa.
+  autoPost          Boolean  @default(false)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user    User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([userId, active, nextDate])
 }

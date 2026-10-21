@@ -1,12 +1,15 @@
 import type { Request, Response } from 'express';
 import * as finance from '../services/finance/service';
+import * as schedules from '../services/finance/schedules';
 import * as v from '../validators/finance.validator';
 
-const currentMonth = () => new Date().toISOString().slice(0, 7);
+const currentMonth = () => schedules.todayInBrazil().slice(0, 7);
 const monthOf = (req: Request) => v.monthSchema.catch(currentMonth).parse(req.query.month);
 const idOf = (req: Request) => v.idSchema.parse(req.params.id);
 
 export async function overview(req: Request, res: Response) {
+  // Contas recorrentes automáticas vencidas entram antes de montar a visão.
+  await schedules.runAutoPost(req.user!.id);
   res.json(await finance.getOverview(req.user!.id, monthOf(req)));
 }
 
@@ -81,4 +84,26 @@ export async function deleteTransaction(req: Request, res: Response) {
 export async function importTransactions(req: Request, res: Response) {
   const input = v.importSchema.parse(req.body);
   res.json(await finance.importTransactions(req.user!.id, input.accountId, input.rows, input.commit));
+}
+
+/* agendamentos */
+export async function listSchedules(req: Request, res: Response) {
+  res.json(await schedules.listSchedules(req.user!.id));
+}
+export async function createSchedule(req: Request, res: Response) {
+  res.status(201).json(await schedules.createSchedule(req.user!.id, v.scheduleSchema.parse(req.body)));
+}
+export async function updateSchedule(req: Request, res: Response) {
+  res.json(await schedules.updateSchedule(req.user!.id, idOf(req), v.scheduleSchema.parse(req.body)));
+}
+export async function deleteSchedule(req: Request, res: Response) {
+  await schedules.deleteSchedule(req.user!.id, idOf(req));
+  res.status(204).send();
+}
+export async function postSchedule(req: Request, res: Response) {
+  res.json(await schedules.postSchedule(req.user!.id, idOf(req)));
+}
+export async function skipSchedule(req: Request, res: Response) {
+  await schedules.skipSchedule(req.user!.id, idOf(req));
+  res.status(204).send();
 }

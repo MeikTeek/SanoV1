@@ -80,8 +80,15 @@ Página `/financas`: orçamento por envelopes no modelo do Actual Budget
   espelhado e só levam categoria quando cruzam o limite do orçamento.
 - **Transações**: beneficiários lembram a última categoria, marcação de "conferida",
   busca em todo o histórico e categorização direto na linha.
-- **Importação CSV**: `,` ou `;`, datas BR/ISO, valores `1.234,56`/`-12.50`, prévia
-  antes de gravar e deduplicação por ocorrência (reimportar o extrato não duplica).
+- **Importação OFX e CSV**: OFX usa o FITID do banco para deduplicar; CSV aceita `,`
+  ou `;`, datas BR/ISO, valores `1.234,56`/`-12.50`. Sempre há prévia antes de gravar,
+  e reimportar o mesmo extrato não duplica.
+- **Contas recorrentes** (aluguel, assinaturas, salário): semanal, mensal, anual ou única;
+  "Lançar"/"Pular" com um clique ou lançamento automático no vencimento. Mensais
+  respeitam o dia original (todo dia 31 → 28/02 → 31/03).
+- **Pelo chat do Sano**: `gastei 45,90 no mercado`, `paguei 120 de luz pelo nubank`,
+  `recebi 6500 de salário`, `quanto sobrou de lazer?`, `resumo financeiro`. A conta e a
+  categoria são resolvidas pelo nome (ou pela última categoria usada com aquele beneficiário).
 - **Relatórios**: receitas × gastos (6 meses), gastos por categoria e patrimônio.
 - **Dinheiro em centavos inteiros** em todo o caminho (banco, API e cálculo).
 - **Migração automática**: no primeiro acesso, o ledger antigo (JSON em `ToolData`)

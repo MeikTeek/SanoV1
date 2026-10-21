@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { financeApi } from '../../services/finance.service';
 import type { FinanceAccount, FinanceOverview, ImportResult, ImportRow } from '../../types/finance';
-import { dayLabel, guessColumns, money, parseCsv, type CsvColumn } from './format';
+import { dayLabel, guessColumns, money, parseCsv, parseOfx, type CsvColumn } from './format';
 
 interface Props {
   data: FinanceOverview;
@@ -21,6 +21,7 @@ const REQUIRED: CsvColumn[] = ['date', 'payee', 'amount'];
 export default function ImportPanel({ data, account, onDone }: Props) {
   const [cells, setCells] = useState<string[][]>([]);
   const [columns, setColumns] = useState<Record<CsvColumn, number> | null>(null);
+  const [ofx, setOfx] = useState<ImportRow[] | null>(null);
   const [invert, setInvert] = useState(false);
   const [preview, setPreview] = useState<ImportResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,13 +36,21 @@ export default function ImportPanel({ data, account, onDone }: Props) {
   const readFile = async (file: File) => {
     setError(''); setPreview(null);
     const text = await file.text();
+    // OFX já vem com sinal, data e FITID: dispensa o mapeamento de colunas.
+    if (/.ofx$/i.test(file.name) || /<OFX>/i.test(text)) {
+      const rows = parseOfx(text).map((row, index) => ({ ...row, line: index + 1 }));
+      if (!rows.length) { setError('Nenhuma transação encontrada no OFX.'); return; }
+      setCells([]); setColumns(null); setOfx(rows);
+      return;
+    }
+    setOfx(null);
     const parsed = parseCsv(text);
     if (parsed.length < 2) { setError('O arquivo precisa de um cabeçalho e ao menos uma linha.'); return; }
     setCells(parsed);
     setColumns(guessColumns(parsed[0]));
   };
 
-  const buildRows = (): ImportRow[] => cells.slice(1).map((values, index) => {
+  const buildRows = (): ImportRow[] => ofx ?? cells.slice(1).map((values, index) => {
     const get = (key: CsvColumn) => (columns && columns[key] >= 0 ? values[columns[key]] ?? '' : '');
     let amount = get('amount');
     // Alguns bancos exportam gastos como positivos: o usuário inverte o sinal.
@@ -56,7 +65,7 @@ export default function ImportPanel({ data, account, onDone }: Props) {
     };
   });
 
-  const ready = columns && REQUIRED.every((key) => columns[key] >= 0);
+  const ready = !!ofx || (!!columns && REQUIRED.every((key) => columns[key] >= 0));
 
   const send = async (commit: boolean) => {
     setBusy(true); setError('');
@@ -78,16 +87,17 @@ export default function ImportPanel({ data, account, onDone }: Props) {
   };
 
   return (
-    <section className="card fin-import">
+    <section className="fin-card fin-import">
       <h3>Importar extrato para {account.name}</h3>
       <p className="muted">
-        CSV separado por vírgula ou ponto e vírgula, com cabeçalho. Datas em DD/MM/AAAA ou AAAA-MM-DD; valores
-        como 1.234,56 ou -12.50. Linhas que já existem na conta são ignoradas.
+        <strong>OFX</strong> (exportado pelo banco) ou <strong>CSV</strong> com cabeçalho, separado por vírgula ou ponto e
+        vírgula. Datas em DD/MM/AAAA ou AAAA-MM-DD; valores como 1.234,56 ou -12.50. O que já existe na conta é ignorado.
       </p>
-      <input type="file" accept=".csv,text/csv" onChange={(e) => { const file = e.target.files?.[0]; if (file) void readFile(file); }} />
+      <input type="file" accept=".csv,.ofx,text/csv,application/x-ofx" onChange={(e) => { const file = e.target.files?.[0]; if (file) void readFile(file); }} />
 
-      {columns && (
+      {(columns || ofx) && (
         <>
+          {columns && (<>
           <div className="fin-import-map">
             {(Object.keys(COLUMN_LABEL) as CsvColumn[]).map((key) => (
               <label key={key}>{COLUMN_LABEL[key]}
@@ -102,8 +112,9 @@ export default function ImportPanel({ data, account, onDone }: Props) {
             <input type="checkbox" checked={invert} onChange={(e) => { setInvert(e.target.checked); setPreview(null); }} />
             Inverter sinal (o banco exporta gastos como valores positivos)
           </label>
+          </>)}
           <div className="fin-entry-actions">
-            <span className="muted">{cells.length - 1} linha(s) no arquivo</span>
+            <span className="muted">{ofx ? `${ofx.length} transação(ões) no OFX` : `${cells.length - 1} linha(s) no arquivo`}</span>
             <button type="button" className="ghost" disabled={!ready || busy} onClick={() => void send(false)}>Pré-visualizar</button>
             <button type="button" disabled={!preview || !counts?.ok || counts.error > 0 || busy} onClick={() => void send(true)}>
               Importar {counts?.ok ?? ''} transação(ões)

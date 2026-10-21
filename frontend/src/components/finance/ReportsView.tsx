@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { financeApi } from '../../services/finance.service';
 import type { FinanceReports } from '../../types/finance';
 import { money, monthLabel } from './format';
@@ -31,19 +31,34 @@ function barPath(x: number, y: number, w: number, h: number) {
   return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`;
 }
 
+/** Largura real do container: o SVG desenha em pixels 1:1, então o texto nunca encolhe. */
+function useWidth<T extends HTMLElement>(fallback: number) {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(fallback);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, Math.round(entry.contentRect.width))));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
 function CashflowChart({ data }: { data: FinanceReports['cashflow'] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 240, left = 64, right = 12, top = 12, bottom = 28;
+  const [ref, W] = useWidth<HTMLDivElement>(640);
+  const H = 260, left = 64, right = 8, top = 16, bottom = 30;
   const plotW = W - left - right, plotH = H - top - bottom;
   const max = niceMax(Math.max(...data.flatMap((d) => [d.income, d.spending])));
   const slot = plotW / data.length;
-  const barW = Math.min(28, (slot - 18) / 2);
+  const barW = Math.max(6, Math.min(18, (slot - 24) / 2));
   const y = (v: number) => top + plotH - (Math.max(v, 0) / max) * plotH;
   const active = hover !== null ? data[hover] : null;
 
   return (
-    <div className="fin-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Receitas e gastos dos últimos 6 meses" onMouseLeave={() => setHover(null)}>
+    <div className="fin-chart" ref={ref}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Receitas e gastos dos últimos 6 meses" onMouseLeave={() => setHover(null)}>
         {[0, 1, 2, 3, 4].map((i) => {
           const v = (max / 4) * i;
           return (
@@ -81,7 +96,8 @@ function CashflowChart({ data }: { data: FinanceReports['cashflow'] }) {
 
 function NetWorthChart({ data }: { data: FinanceReports['netWorth'] }) {
   const [hover, setHover] = useState<number | null>(null);
-  const W = 640, H = 180, left = 64, right = 16, top = 14, bottom = 28;
+  const [ref, W] = useWidth<HTMLDivElement>(480);
+  const H = 200, left = 64, right = 16, top = 16, bottom = 30;
   const plotW = W - left - right, plotH = H - top - bottom;
   const values = data.map((d) => d.value);
   const lo = Math.min(0, ...values);
@@ -92,8 +108,8 @@ function NetWorthChart({ data }: { data: FinanceReports['netWorth'] }) {
   const active = hover !== null ? data[hover] : null;
 
   return (
-    <div className="fin-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Patrimônio no fim de cada mês" onMouseLeave={() => setHover(null)}>
+    <div className="fin-chart" ref={ref}>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Patrimônio no fim de cada mês" onMouseLeave={() => setHover(null)}>
         {[lo, (lo + hi) / 2, hi].map((v, i) => (
           <g key={i}>
             <line x1={left} x2={W - right} y1={y(v)} y2={y(v)} className={v === 0 ? 'fin-axis' : 'fin-grid'} />
@@ -135,15 +151,15 @@ export default function ReportsView({ month, refreshKey, onError }: Props) {
   return (
     <div className="fin-reports">
       <div className="fin-stats">
-        <section className="card"><span>Receitas · {monthLabel(month)}</span><strong>{money(current.income)}</strong></section>
-        <section className="card"><span>Gastos · {monthLabel(month)}</span><strong>{money(current.spending)}</strong></section>
-        <section className="card">
+        <section className="fin-card"><span>Receitas · {monthLabel(month)}</span><strong>{money(current.income)}</strong></section>
+        <section className="fin-card"><span>Gastos · {monthLabel(month)}</span><strong>{money(current.spending)}</strong></section>
+        <section className="fin-card">
           <span>Resultado do mês</span>
           <strong className={current.net >= 0 ? 'fin-pos' : 'fin-neg'}>{current.net >= 0 ? '▲ ' : '▼ '}{money(current.net)}</strong>
         </section>
       </div>
 
-      <section className="card">
+      <section className="fin-card">
         <div className="fin-card-head">
           <h3>Receitas × gastos · últimos 6 meses</h3>
           <div className="fin-legend">
@@ -165,7 +181,7 @@ export default function ReportsView({ month, refreshKey, onError }: Props) {
       </section>
 
       <div className="fin-report-columns">
-        <section className="card">
+        <section className="fin-card">
           <h3>Gastos por categoria · {monthLabel(month)}</h3>
           {data.byCategory.length === 0 && <p className="muted">Nenhum gasto categorizado neste mês.</p>}
           <ul className="fin-hbars">
@@ -177,9 +193,9 @@ export default function ReportsView({ month, refreshKey, onError }: Props) {
             ))}
           </ul>
         </section>
-        <section className="card">
+        <section className="fin-card">
           <h3>Patrimônio</h3>
-          <p className="muted fin-networth">{money(data.netWorth[data.netWorth.length - 1]?.value ?? 0)} no fim de {monthLabel(month)}</p>
+          <p className="muted fin-networth-note">{money(data.netWorth[data.netWorth.length - 1]?.value ?? 0)} no fim de {monthLabel(month)}</p>
           <NetWorthChart data={data.netWorth} />
         </section>
       </div>

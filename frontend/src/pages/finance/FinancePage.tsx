@@ -3,25 +3,39 @@ import AppShell from '../../components/layout/AppShell';
 import BudgetView from '../../components/finance/BudgetView';
 import RegisterView from '../../components/finance/RegisterView';
 import ReportsView from '../../components/finance/ReportsView';
+import SchedulesView from '../../components/finance/SchedulesView';
 import AccountPanel from '../../components/finance/AccountPanel';
 import { currentMonth, money, monthLabel, shiftMonth } from '../../components/finance/format';
+import { AccountIcon, IconBudget, IconChart, IconLeft, IconList, IconPlus, IconRepeat, IconRight } from '../../components/finance/icons';
 import { financeApi } from '../../services/finance.service';
-import type { FinanceAccount, FinanceOverview } from '../../types/finance';
+import type { FinanceAccount, FinanceOverview, FinanceSchedule } from '../../types/finance';
 import '../../styles/finance.css';
 
 /**
- * Finanças com orçamento por envelopes (modelo do Actual Budget):
+ * Finanças com orçamento por envelopes (modelo do Actual Budget).
  *
- *   [ Orçamento | Relatórios | Contas ]   [ visão selecionada ]
+ *   ┌ contas ┐ ┌ abas · mês ───────────────────────────┐
+ *   │        │ │ Orçamento | Transações | Recorrentes |… │
+ *   │        │ │ visão selecionada                      │
+ *   └────────┘ └────────────────────────────────────────┘
  *
- * O mês escolhido no topo vale para todas as visões.
+ * O mês escolhido no topo vale para todas as abas.
  */
-type View = { kind: 'budget' } | { kind: 'reports' } | { kind: 'register'; accountId: string | null };
+type Tab = 'budget' | 'register' | 'schedules' | 'reports';
+
+const TABS: { id: Tab; label: string; icon: JSX.Element }[] = [
+  { id: 'budget', label: 'Orçamento', icon: <IconBudget size={16} /> },
+  { id: 'register', label: 'Transações', icon: <IconList size={16} /> },
+  { id: 'schedules', label: 'Recorrentes', icon: <IconRepeat size={16} /> },
+  { id: 'reports', label: 'Relatórios', icon: <IconChart size={16} /> },
+];
 
 export default function FinancePage() {
   const [month, setMonth] = useState(currentMonth());
   const [data, setData] = useState<FinanceOverview | null>(null);
-  const [view, setView] = useState<View>({ kind: 'budget' });
+  const [schedules, setSchedules] = useState<FinanceSchedule[]>([]);
+  const [tab, setTab] = useState<Tab>('budget');
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [panel, setPanel] = useState<'new' | FinanceAccount | null>(null);
   const [showClosed, setShowClosed] = useState(false);
@@ -30,7 +44,10 @@ export default function FinancePage() {
 
   const load = useCallback(async () => {
     try {
-      setData(await financeApi.overview(month));
+      // A visão geral lança os agendamentos automáticos vencidos; a lista vem depois.
+      const overview = await financeApi.overview(month);
+      setData(overview);
+      setSchedules(await financeApi.schedules());
       setRefreshKey((k) => k + 1);
       setError('');
     } catch (e) {
@@ -41,23 +58,28 @@ export default function FinancePage() {
   useEffect(() => { void load(); }, [load]);
   const onError = useCallback((message: string) => setError(message), []);
 
-  const openRegister = (accountId: string | null) => {
+  const openRegister = (id: string | null) => {
     setCategoryFilter(null);
     setPanel(null);
-    setView({ kind: 'register', accountId });
+    setAccountId(id);
+    setTab('register');
   };
 
-  const accountGroup = (title: string, accounts: FinanceAccount[]) => accounts.length > 0 && (
+  const accounts = data?.accounts ?? [];
+  const open = accounts.filter((a) => !a.closed);
+  const closed = accounts.filter((a) => a.closed);
+  const netWorth = open.reduce((sum, a) => sum + a.balance, 0);
+  const toBudget = data?.budget.toBudget ?? 0;
+
+  const accountGroup = (title: string, list: FinanceAccount[]) => list.length > 0 && (
     <div className="fin-side-group">
-      <div className="fin-side-title">
-        <span>{title}</span>
-        <span>{money(accounts.reduce((sum, a) => sum + a.balance, 0))}</span>
-      </div>
-      {accounts.map((account) => (
-        <div key={account.id} className={`fin-side-item ${view.kind === 'register' && view.accountId === account.id ? 'active' : ''} ${account.closed ? 'closed' : ''}`}>
+      <div className="fin-side-title"><span>{title}</span><span>{money(list.reduce((sum, a) => sum + a.balance, 0))}</span></div>
+      {list.map((account) => (
+        <div key={account.id} className={`fin-side-item ${tab === 'register' && accountId === account.id ? 'active' : ''} ${account.closed ? 'closed' : ''}`}>
           <button type="button" className="fin-side-link" onClick={() => openRegister(account.id)}>
-            <span>{account.name}</span>
-            <span className={account.balance < 0 ? 'fin-neg' : ''}>{money(account.balance)}</span>
+            <span className="fin-account-icon"><AccountIcon type={account.type} /></span>
+            <span className="fin-side-name">{account.name}</span>
+            <span className={`fin-side-balance ${account.balance < 0 ? 'fin-neg' : ''}`}>{money(account.balance)}</span>
           </button>
           <button type="button" className="fin-side-edit" title="Configurar conta" aria-label={`Configurar ${account.name}`}
             onClick={() => setPanel(account)}>⋯</button>
@@ -66,81 +88,91 @@ export default function FinancePage() {
     </div>
   );
 
-  const open = data?.accounts.filter((a) => !a.closed) ?? [];
-  const closed = data?.accounts.filter((a) => a.closed) ?? [];
-  const toBudget = data?.budget.toBudget ?? 0;
-
   return (
-    <AppShell title="Finanças" status={data ? `${monthLabel(month)} · a orçar ${money(toBudget)}` : 'carregando…'}>
+    <AppShell title="Finanças" status={data ? `${monthLabel(month)} · a orçar ${money(toBudget)}` : 'carregando…'} flush>
       <div className="fin-page">
         <aside className="fin-side">
-          <nav className="fin-side-nav">
-            <button type="button" className={view.kind === 'budget' ? 'active' : ''} onClick={() => { setPanel(null); setView({ kind: 'budget' }); }}>
-              <span>Orçamento</span>
-              <span className={`fin-side-badge ${toBudget < 0 ? 'neg' : toBudget > 0 ? 'pos' : ''}`}>{money(toBudget)}</span>
+          <div className="fin-networth">
+            <span className="fin-eyebrow">Patrimônio</span>
+            <strong className={netWorth < 0 ? 'fin-neg' : ''}>{money(netWorth)}</strong>
+            <button type="button" className={`fin-side-all ${tab === 'register' && accountId === null ? 'active' : ''}`} onClick={() => openRegister(null)}>
+              Todas as contas
             </button>
-            <button type="button" className={view.kind === 'reports' ? 'active' : ''} onClick={() => { setPanel(null); setView({ kind: 'reports' }); }}>
-              Relatórios
-            </button>
-            <button type="button" className={view.kind === 'register' && view.accountId === null ? 'active' : ''} onClick={() => openRegister(null)}>
-              <span>Todas as contas</span>
-              <span>{money(open.reduce((sum, a) => sum + a.balance, 0))}</span>
-            </button>
-          </nav>
+          </div>
           {accountGroup('No orçamento', open.filter((a) => !a.offBudget))}
           {accountGroup('Fora do orçamento', open.filter((a) => a.offBudget))}
           {closed.length > 0 && (
             <button type="button" className="fin-link fin-side-more" onClick={() => setShowClosed((v) => !v)}>
-              {showClosed ? 'Esconder' : 'Mostrar'} contas fechadas ({closed.length})
+              {showClosed ? 'Esconder' : 'Mostrar'} fechadas ({closed.length})
             </button>
           )}
           {showClosed && accountGroup('Fechadas', closed)}
-          <button type="button" className="ghost fin-side-add" onClick={() => setPanel('new')}>+ Nova conta</button>
+          <button type="button" className="fin-side-add" onClick={() => setPanel('new')}><IconPlus size={14} /> Nova conta</button>
         </aside>
 
         <main className="fin-main">
-          <div className="fin-month">
-            <button type="button" className="icon-btn" aria-label="Mês anterior" onClick={() => setMonth((m) => shiftMonth(m, -1))}>‹</button>
-            <strong>{monthLabel(month)}</strong>
-            <button type="button" className="icon-btn" aria-label="Próximo mês" onClick={() => setMonth((m) => shiftMonth(m, 1))}>›</button>
-            {month !== currentMonth() && <button type="button" className="fin-link" onClick={() => setMonth(currentMonth())}>hoje</button>}
+          <header className="fin-top">
+            <nav className="fin-tabs" aria-label="Seções de finanças">
+              {TABS.map((t) => (
+                <button key={t.id} type="button" className={tab === t.id ? 'active' : ''} aria-current={tab === t.id ? 'page' : undefined}
+                  onClick={() => { setPanel(null); if (t.id === 'register') { setAccountId(null); setCategoryFilter(null); } setTab(t.id); }}>
+                  {t.icon}<span>{t.label}</span>
+                  {t.id === 'budget' && toBudget !== 0 && <span className={`fin-tab-badge ${toBudget < 0 ? 'neg' : ''}`}>{money(toBudget)}</span>}
+                  {t.id === 'schedules' && schedules.some((s) => s.status === 'overdue' || s.status === 'due') && <span className="fin-tab-dot" aria-label="vencimentos pendentes" />}
+                </button>
+              ))}
+            </nav>
+            {tab !== 'schedules' && (
+              <div className="fin-month">
+                <button type="button" className="fin-icon-btn" aria-label="Mês anterior" onClick={() => setMonth((m) => shiftMonth(m, -1))}><IconLeft /></button>
+                <strong>{monthLabel(month)}</strong>
+                <button type="button" className="fin-icon-btn" aria-label="Próximo mês" onClick={() => setMonth((m) => shiftMonth(m, 1))}><IconRight /></button>
+                {month !== currentMonth() && <button type="button" className="ghost small" onClick={() => setMonth(currentMonth())}>Hoje</button>}
+              </div>
+            )}
+          </header>
+
+          <div className="fin-content">
+            {error && (
+              <p className="error" role="alert">{error} <button type="button" className="fin-link" onClick={() => setError('')}>fechar</button></p>
+            )}
+
+            {panel && (
+              <AccountPanel
+                key={panel === 'new' ? 'new' : panel.id}
+                account={panel === 'new' ? null : panel}
+                onClose={() => setPanel(null)}
+                onSaved={async (savedId) => {
+                  await load();
+                  if (!savedId && panel !== 'new' && accountId === panel.id) openRegister(null);
+                }}
+              />
+            )}
+
+            {data && data.accounts.length === 0 && !panel && (
+              <section className="fin-card fin-welcome">
+                <span className="fin-eyebrow">Primeiros passos</span>
+                <h2>Cadastre suas contas</h2>
+                <p className="muted">
+                  Informe o saldo atual de cada conta. Esse dinheiro vai para <strong>A orçar</strong> e você distribui entre
+                  as categorias até zerar. Cada gasto sai da categoria dele, então você sempre sabe quanto ainda pode gastar.
+                </p>
+                <button type="button" onClick={() => setPanel('new')}><IconPlus /> Criar primeira conta</button>
+              </section>
+            )}
+
+            {data && tab === 'budget' && (
+              <BudgetView data={data} month={month} schedules={schedules} onChanged={load} onError={onError}
+                onOpenSchedules={() => setTab('schedules')}
+                onShowCategory={(categoryId) => { setAccountId(null); setCategoryFilter(categoryId); setTab('register'); }} />
+            )}
+            {data && tab === 'register' && (
+              <RegisterView data={data} month={month} accountId={accountId} categoryFilter={categoryFilter}
+                onClearFilter={() => setCategoryFilter(null)} onChanged={load} onError={onError} />
+            )}
+            {data && tab === 'schedules' && <SchedulesView data={data} schedules={schedules} onChanged={load} onError={onError} />}
+            {tab === 'reports' && <ReportsView month={month} refreshKey={refreshKey} onError={onError} />}
           </div>
-
-          {error && <p className="error" role="alert">{error} <button type="button" className="fin-link" onClick={() => setError('')}>fechar</button></p>}
-
-          {panel && (
-            <AccountPanel
-              key={panel === 'new' ? 'new' : panel.id}
-              account={panel === 'new' ? null : panel}
-              onClose={() => setPanel(null)}
-              onSaved={async (accountId) => {
-                await load();
-                if (!accountId && view.kind === 'register' && panel !== 'new') setView({ kind: 'budget' });
-              }}
-            />
-          )}
-
-          {data && data.accounts.length === 0 && !panel && (
-            <section className="card fin-welcome">
-              <h2>Comece cadastrando suas contas</h2>
-              <p className="muted">
-                Informe o saldo atual de cada conta. Esse dinheiro vai para <strong>A orçar</strong>, e você distribui
-                entre as categorias (envelopes) até zerar. Cada gasto sai do envelope da categoria. Assim você sabe
-                quanto ainda pode gastar em cada coisa.
-              </p>
-              <button type="button" onClick={() => setPanel('new')}>Criar primeira conta</button>
-            </section>
-          )}
-
-          {data && view.kind === 'budget' && (
-            <BudgetView data={data} month={month} onChanged={load} onError={onError}
-              onShowCategory={(categoryId) => { setCategoryFilter(categoryId); setView({ kind: 'register', accountId: null }); }} />
-          )}
-          {data && view.kind === 'register' && (
-            <RegisterView data={data} month={month} accountId={view.accountId} categoryFilter={categoryFilter}
-              onClearFilter={() => setCategoryFilter(null)} onChanged={load} onError={onError} />
-          )}
-          {view.kind === 'reports' && <ReportsView month={month} refreshKey={refreshKey} onError={onError} />}
         </main>
       </div>
     </AppShell>
