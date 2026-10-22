@@ -1,11 +1,11 @@
 /* ── Finanças ───────────────────────────────────────────────
    Barra lateral fixa de contas + área principal com abas.
-   Mesma linguagem do app: fundo preto, superfícies #141414/#1a1a1a,
+   Mesma linguagem do app: fundo grafite, superfícies #2b2d31/#313338,
    acento ciano; verde/vermelho só para saldo positivo/negativo. */
 
 .fin-page {
-  --fin-card: #121212;
-  --fin-card-2: #171717;
+  --fin-card: #2b2d31;
+  --fin-card-2: #313338;
   --fin-line: #ffffff0f;
   --fin-line-2: #ffffff17;
   --fin-radius: 14px;
@@ -55,7 +55,7 @@ button.fin-link:hover:not(:disabled) { color: var(--text); filter: none; }
   display: flex; flex-direction: column; gap: 18px;
   padding: 22px 14px 28px; overflow-y: auto;
   border-right: 1px solid var(--fin-line);
-  background: linear-gradient(180deg, #0a0a0a, #050505);
+  background: linear-gradient(180deg, #232428, #232428);
 }
 .fin-networth { display: flex; flex-direction: column; gap: 4px; padding: 0 8px; }
 .fin-networth strong { font-size: 1.55rem; font-weight: 650; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -228,7 +228,7 @@ button.fin-link:hover:not(:disabled) { color: var(--text); filter: none; }
   background: transparent; border: 1px solid transparent; border-radius: 8px;
 }
 .fin-budget-input:hover { border-color: var(--fin-line-2); background: #ffffff05; }
-.fin-budget-input:focus { background: #000; border-color: #00e5ff66; }
+.fin-budget-input:focus { background: var(--bg); border-color: #00e5ff66; }
 
 button.fin-spent { background: none; border: 0; padding: 4px 0; color: var(--text-dim); font-weight: 400; font-size: .9rem; }
 button.fin-spent:hover { color: var(--accent); filter: none; }
@@ -265,7 +265,7 @@ button.fin-spent:hover { color: var(--accent); filter: none; }
 .fin-menu-pop {
   position: absolute; right: 0; top: calc(100% + 4px); z-index: 20; min-width: 220px;
   display: flex; flex-direction: column; padding: 5px;
-  background: #1c1c1c; border: 1px solid var(--fin-line-2); border-radius: 10px; box-shadow: 0 14px 40px #000c;
+  background: #313338; border: 1px solid var(--fin-line-2); border-radius: 10px; box-shadow: 0 14px 40px #000c;
 }
 .fin-menu-pop button {
   background: none; border: 0; color: var(--text); font-weight: 400; font-size: .84rem;
@@ -300,11 +300,11 @@ button.fin-spent:hover { color: var(--accent); filter: none; }
 .fin-entry { display: flex; flex-direction: column; gap: 14px; }
 .fin-entry-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
 .fin-entry-wide { grid-column: span 2; }
-.fin-entry-grid input, .fin-entry-grid select { padding: 9px 11px; font-size: .9rem; background: #0c0c0c; }
+.fin-entry-grid input, .fin-entry-grid select { padding: 9px 11px; font-size: .9rem; background: #232428; }
 .fin-entry-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; flex-wrap: wrap; }
 .fin-entry-actions .fin-check { margin-right: auto; }
 
-.fin-segment { display: inline-flex; align-self: flex-start; padding: 3px; gap: 3px; border-radius: 10px; background: #0c0c0c; border: 1px solid var(--fin-line); }
+.fin-segment { display: inline-flex; align-self: flex-start; padding: 3px; gap: 3px; border-radius: 10px; background: #232428; border: 1px solid var(--fin-line); }
 .fin-segment button { background: transparent; color: var(--text-dim); border: 0; padding: 6px 14px; font-weight: 500; font-size: .84rem; border-radius: 8px; }
 .fin-segment button.on { background: var(--surface-3); color: var(--text); }
 .fin-segment button:hover { filter: none; color: var(--text); }
@@ -363,7 +363,7 @@ button.fin-spent:hover { color: var(--accent); filter: none; }
 .fin-import { display: flex; flex-direction: column; gap: 12px; }
 .fin-import h3 { margin: 0 !important; }
 .fin-import p { margin: 0; font-size: .84rem; }
-.fin-import input[type="file"] { padding: 10px; background: #0c0c0c; border-style: dashed; }
+.fin-import input[type="file"] { padding: 10px; background: #232428; border-style: dashed; }
 .fin-import-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
 .fin-import-map select { padding: 8px 10px; font-size: .86rem; }
 .fin-import-preview { max-height: 360px; overflow: auto; margin-top: 0; }
@@ -422,7 +422,7 @@ button.fin-spent:hover { color: var(--accent); filter: none; }
 .fin-tooltip {
   position: absolute; top: 0; transform: translateX(-50%); pointer-events: none; z-index: 2;
   display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border-radius: 10px;
-  background: #1c1c1c; border: 1px solid var(--fin-line-2); box-shadow: 0 10px 30px #000a;
+  background: #313338; border: 1px solid var(--fin-line-2); box-shadow: 0 10px 30px #000a;
   font-size: .78rem; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 

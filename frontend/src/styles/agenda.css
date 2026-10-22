@@ -3,7 +3,7 @@
    editor em painel à direita quando aberto. */
 
 .ag-page {
-  --ag-card: #121212;
+  --ag-card: #2b2d31;
   --ag-line: #ffffff0f;
   --ag-line-2: #ffffff17;
   display: grid;
@@ -25,7 +25,7 @@
 /* ── Coluna lateral ── */
 .ag-side {
   display: flex; flex-direction: column; gap: 22px; padding: 20px 16px 28px; overflow-y: auto;
-  border-right: 1px solid var(--ag-line); background: linear-gradient(180deg, #0a0a0a, #050505);
+  border-right: 1px solid var(--ag-line); background: linear-gradient(180deg, #232428, #232428);
 }
 .ag-cal header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .ag-cal header strong { font-size: .92rem; }
@@ -150,12 +150,12 @@
 .ag-week-add:hover { color: var(--accent); filter: none; }
 
 /* ── Editor ── */
-.ag-editor { border-left: 1px solid var(--ag-line); background: #0b0b0b; overflow-y: auto; padding: 18px 20px 28px; animation: agslide .18s ease-out; }
+.ag-editor { border-left: 1px solid var(--ag-line); background: #232428; overflow-y: auto; padding: 18px 20px 28px; animation: agslide .18s ease-out; }
 @keyframes agslide { from { opacity: 0; transform: translateX(12px); } }
 .ag-editor > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .ag-editor h2 { margin: 0; font-size: 1rem; }
 .ag-editor form { display: flex; flex-direction: column; gap: 12px; }
-.ag-editor input, .ag-editor select, .ag-editor textarea { padding: 9px 11px; font-size: .9rem; background: #121212; }
+.ag-editor input, .ag-editor select, .ag-editor textarea { padding: 9px 11px; font-size: .9rem; background: #2b2d31; }
 .ag-editor .ag-title-input { font-size: 1.1rem; font-weight: 600; padding: 12px; }
 .ag-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 10px; }
 .ag-scope { border: 1px solid var(--ag-line-2); border-radius: 10px; padding: 8px 12px; display: flex; gap: 16px; }

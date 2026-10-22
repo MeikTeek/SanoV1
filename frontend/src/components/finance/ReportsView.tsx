@@ -9,7 +9,7 @@ interface Props {
   onError: (message: string) => void;
 }
 
-/** Paleta validada (CVD e contraste) contra a superfície escura #1a1a1a. */
+/** Paleta validada (CVD e contraste) contra a superfície escura #313338. */
 const INCOME = '#00a4b8';
 const SPENDING = '#d9733a';
 
@@ -120,7 +120,7 @@ function NetWorthChart({ data }: { data: FinanceReports['netWorth'] }) {
         <path d={line} fill="none" stroke={INCOME} strokeWidth={2} strokeLinejoin="round" />
         {data.map((d, i) => (
           <g key={d.month}>
-            <circle cx={x(i)} cy={y(d.value)} r={hover === i ? 5 : 4} fill={INCOME} stroke="#1a1a1a" strokeWidth={2} />
+            <circle cx={x(i)} cy={y(d.value)} r={hover === i ? 5 : 4} fill={INCOME} stroke="#313338" strokeWidth={2} />
             <text x={x(i)} y={H - 8} textAnchor="middle" className="fin-tick">{monthLabel(d.month, 'short')}</text>
             <rect x={x(i) - plotW / data.length / 2} y={top} width={plotW / data.length} height={plotH + bottom} fill="transparent" onMouseEnter={() => setHover(i)} />
           </g>

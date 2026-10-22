@@ -1,15 +1,15 @@
 /* ============================================================
    Sano — design system
-   Fundo preto OLED (#000) + superfícies em camadas (#121212,
-   #1a1a1a) e bordas finas (#262626). Ciano só como acento.
+   Fundo grafite (#1e1f22, estilo Discord) + superfícies em camadas
+   (#2b2d31, #313338) e bordas finas (#404249). Ciano só como acento.
    ============================================================ */
 :root {
-  --bg: #000000;
-  --surface: #141414;
-  --surface-2: #1a1a1a;
-  --surface-3: #222222;
-  --line: #2a2a2a;
-  --line-soft: #1f1f1f;
+  --bg: #1e1f22;
+  --surface: #2b2d31;
+  --surface-2: #313338;
+  --surface-3: #383a40;
+  --line: #404249;
+  --line-soft: #34363c;
 
   --text: #f2f2f2;
   /* Texto secundário com contraste legível sobre as superfícies escuras. */
@@ -101,7 +101,7 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 input:focus, select:focus, textarea:focus {
   /* Sem contorno ciano: foco discreto, só a borda clareia. */
   outline: none;
-  border-color: #3a3a3a;
+  border-color: #4e5058;
   box-shadow: none;
 }
 
@@ -126,7 +126,7 @@ button.ghost {
   padding: 8px 12px;
   font-weight: 500;
 }
-button.ghost:hover:not(:disabled) { background: var(--surface-3); color: var(--text); border-color: #333; }
+button.ghost:hover:not(:disabled) { background: var(--surface-3); color: var(--text); border-color: #4e5058; }
 /* Botão só de ícone (sino, fechar, enviar) */
 .icon-btn {
   display: grid;
@@ -407,11 +407,11 @@ td.actions { display: flex; gap: 6px; }
 :root {
   --sp-green: var(--accent);
   --sp-green-hover: #67efff;
-  --sp-bg: #000;
+  --sp-bg: var(--bg);
   --sp-accent: var(--accent);
   --sp-border: var(--line);
-  --sp-panel: #121212;
-  --sp-elevated: #1a1a1a;
+  --sp-panel: #2b2d31;
+  --sp-elevated: #313338;
   --sp-hover: #ffffff1a;
   --sp-active: #00e5ff1a;
   --sp-text: #fff;
@@ -472,13 +472,13 @@ td.actions { display: flex; gap: 6px; }
   border-radius: 2px;
   cursor: pointer;
   outline: none;
-  background: linear-gradient(to right, #fff var(--progress, 0%), #4d4d4d var(--progress, 0%));
+  background: linear-gradient(to right, #fff var(--progress, 0%), #5c5e66 var(--progress, 0%));
   accent-color: #fff;
 }
 .music-volume input { max-width: 100px; }
 .music-progress input:hover,
 .music-volume input:hover {
-  background: linear-gradient(to right, var(--sp-green) var(--progress, 0%), #4d4d4d var(--progress, 0%));
+  background: linear-gradient(to right, var(--sp-green) var(--progress, 0%), #5c5e66 var(--progress, 0%));
   accent-color: var(--sp-green);
 }
 .music-progress input::-webkit-slider-thumb,
@@ -588,7 +588,7 @@ td.actions { display: flex; gap: 6px; }
 .music-create-playlist { margin-top: 8px; color: var(--sp-sub); }
 
 /* Painel lateral (tocando agora) */
-.music-side-panel { background: linear-gradient(180deg, #2a2a2a, var(--sp-panel) 45%); padding: 16px; }
+.music-side-panel { background: linear-gradient(180deg, #404249, var(--sp-panel) 45%); padding: 16px; }
 .music-side-panel h3 { margin: 18px 0 2px; font-size: 1.5rem; font-weight: 700; letter-spacing: -.02em; }
 .music-side-panel p { color: var(--sp-sub); font-size: .875rem; margin: 0 0 18px; }
 .music-side-art {
@@ -639,28 +639,28 @@ td.actions { display: flex; gap: 6px; }
 /* ── Campos, busca, seções ───────────────────────────────── */
 .music-upload-fields { display: grid; grid-template-columns: 1.3fr 1.3fr .8fr; gap: 12px; padding: 20px 32px; }
 .music-upload-fields input {
-  background: #242424;
+  background: #383a40;
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--sp-text);
   padding: 12px 14px;
   transition: border-color var(--sp-ease), background var(--sp-ease);
 }
-.music-upload-fields input:hover { background: #2a2a2a; }
-.music-upload-fields input:focus { outline: none; border-color: #fff; background: #2a2a2a; }
+.music-upload-fields input:hover { background: #404249; }
+.music-upload-fields input:focus { outline: none; border-color: #fff; background: #404249; }
 
 .music-search {
   gap: 10px;
   margin: 0 32px;
   padding: 2px 16px;
-  background: #242424;
+  background: #383a40;
   border: 2px solid transparent;
   border-radius: 999px;
   color: var(--sp-sub);
   transition: background var(--sp-ease), border-color var(--sp-ease);
 }
-.music-search:hover { background: #2a2a2a; }
-.music-search:focus-within { border-color: #fff; background: #2a2a2a; }
+.music-search:hover { background: #404249; }
+.music-search:focus-within { border-color: #fff; background: #404249; }
 .music-search input { border: 0; background: transparent; padding-left: 0; color: var(--sp-text); outline: none; }
 .music-search input::placeholder { color: var(--sp-sub); }
 .music-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
@@ -687,7 +687,7 @@ td.actions { display: flex; gap: 6px; }
 .music-share-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
 .share-back-button { width: 100%; margin-top: 12px; }
 .music-share-modal > label { display: flex; flex-direction: column; gap: 6px; margin: 16px 0; font-size: .8rem; font-weight: 700; }
-.music-share-modal > label input { border: 1px solid var(--sp-border); border-radius: 6px; padding: 10px; background: #3e3e3e; color: var(--sp-text); }
+.music-share-modal > label input { border: 1px solid var(--sp-border); border-radius: 6px; padding: 10px; background: #4e5058; color: var(--sp-text); }
 .music-share-code { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 16px 0; padding: 16px; border: 1px dashed var(--sp-accent); border-radius: 8px; }
 .music-share-code strong { font-size: 1.8rem; letter-spacing: .18em; color: var(--sp-accent); }
 .music-share-code button { display: inline-flex; align-items: center; gap: 6px; }
@@ -735,7 +735,7 @@ td.actions { display: flex; gap: 6px; }
   padding: 5px;
   border: 1px solid #ffffff26;
   border-radius: 8px;
-  background: #282828;
+  background: #404249;
   box-shadow: 0 12px 30px #000b;
 }
 .track-menu button {
@@ -767,7 +767,7 @@ td.actions { display: flex; gap: 6px; }
   padding: 28px;
   border: 0;
   border-radius: 12px;
-  background: #282828;
+  background: #404249;
   box-shadow: 0 24px 60px #000c;
   max-height: calc(100dvh - 40px);
   overflow-y: auto;
@@ -775,8 +775,8 @@ td.actions { display: flex; gap: 6px; }
 .music-modal-head { display: flex; justify-content: space-between; align-items: flex-start; }
 .music-modal h2 { margin: 6px 0 0; font-size: 1.5rem; font-weight: 700; }
 .music-modal .music-upload-fields { padding: 22px 0 16px; }
-.music-modal .music-upload-fields input { background: #3e3e3e; }
-.music-modal .music-upload-fields input:focus { background: #3e3e3e; }
+.music-modal .music-upload-fields input { background: #4e5058; }
+.music-modal .music-upload-fields input:focus { background: #4e5058; }
 
 .music-dropzone {
   display: flex;
@@ -818,7 +818,7 @@ td.actions { display: flex; gap: 6px; }
   .music-library-nav, .music-side-panel { min-height: auto; }
   .music-library-nav { display: flex; gap: 6px; align-items: center; overflow-x: auto; border-radius: 0; padding: 8px; }
   .music-library-title { padding: 4px 8px; min-width: 150px; }
-  .music-library-item { white-space: nowrap; width: auto; border-radius: 999px; background: #232323; }
+  .music-library-item { white-space: nowrap; width: auto; border-radius: 999px; background: #383a40; }
   .music-library-item.active { background: var(--sp-green); color: var(--accent-ink); }
   .music-main-column { border-radius: 0; }
   .music-side-panel { display: none; }
@@ -841,7 +841,7 @@ td.actions { display: flex; gap: 6px; }
 .music-time { font-size: .6875rem; color: var(--sp-sub); font-variant-numeric: tabular-nums; }
 .music-time:first-child { text-align: right; }
 .music-progress input:disabled { cursor: default; opacity: .5; }
-.music-progress input:disabled:hover { background: linear-gradient(to right, #fff var(--progress, 0%), #4d4d4d var(--progress, 0%)); }
+.music-progress input:disabled:hover { background: linear-gradient(to right, #fff var(--progress, 0%), #5c5e66 var(--progress, 0%)); }
 .music-volume .player-btn { width: 28px; height: 28px; }
 .music-volume input { min-width: 70px; }
 .music-cover-fallback.is-playing { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px #0008; }
@@ -849,7 +849,7 @@ td.actions { display: flex; gap: 6px; }
 /* ── Página: ajustes do componente MusicPage ─────────────── */
 .music-upload-fields label { display: flex; flex-direction: column; gap: 6px; font-size: .8rem; font-weight: 700; color: var(--sp-text); }
 .music-upload-fields select {
-  background: #242424;
+  background: #383a40;
   border: 1px solid transparent;
   border-radius: 4px;
   color: var(--sp-text);
@@ -858,9 +858,9 @@ td.actions { display: flex; gap: 6px; }
   font-weight: 400;
   cursor: pointer;
 }
-.music-upload-fields select:hover { background: #2a2a2a; }
+.music-upload-fields select:hover { background: #404249; }
 .music-upload-fields select:focus { outline: none; border-color: #fff; }
-.music-modal .music-upload-fields select { background: #3e3e3e; }
+.music-modal .music-upload-fields select { background: #4e5058; }
 .music-modal .muted { color: var(--sp-sub); margin: 8px 0 0; font-size: .875rem; }
 .music-modal-head .track-remove { font-size: 1.6rem; }
 
