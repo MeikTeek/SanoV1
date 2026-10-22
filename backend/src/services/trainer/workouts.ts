@@ -11,6 +11,7 @@ import { AppError } from '../../utils/errors';
 import { EXERCISES, GOAL_LABELS } from './exercises';
 import { fullDetail } from './exerciseDetails';
 import { musclesFor } from './muscles';
+import { prescribeSet, type Athlete } from './prescription';
 import { availableEquipment, screenOut } from './rules';
 import { todayKey } from './service';
 import {
@@ -127,23 +128,47 @@ export async function workoutForDay(userId: string, weekday: number) {
   const day = plan.days.find((item) => item.weekday === weekday);
   if (!day) throw new AppError(404, 'Dia inválido.');
 
-  const previous = await Promise.all(day.exercises.map((exercise) => prisma.workoutLog.findFirst({
-    where: { userId, exerciseKey: exercise.key },
-    orderBy: { createdAt: 'desc' },
-    include: logInclude,
-  })));
+  const [previous, latest] = await Promise.all([
+    Promise.all(day.exercises.map((exercise) => prisma.workoutLog.findFirst({
+      where: { userId, exerciseKey: exercise.key },
+      orderBy: { createdAt: 'desc' },
+      include: logInclude,
+    }))),
+    prisma.bodyAssessment.findFirst({ where: { userId }, orderBy: { day: 'desc' }, select: { weightKg: true } }),
+  ]);
+  const athlete = athleteOf(profile, latest?.weightKg);
 
   return {
     ...day,
     exercises: day.exercises.map((exercise, index) => {
       const last = previous[index];
       const sets = last ? setsOfLog(last as LogWithSets) : [];
+      const definition = EXERCISE_BY_KEY.get(exercise.key)!;
+      const { suggestion, prescription } = prescribeSet(
+        definition, exercise,
+        suggestNext(sets, { min: exercise.repsMin, max: exercise.repsMax }, exercise.lowerBody),
+        athlete,
+      );
       return {
         ...exercise,
         previous: last ? { day: last.day, sets } : null,
-        suggestion: suggestNext(sets, { min: exercise.repsMin, max: exercise.repsMax }, exercise.lowerBody),
+        suggestion,
+        prescription,
       };
     }),
+  };
+}
+
+/** Dados do corpo que a estimativa de carga usa (peso da avaliação mais recente, se houver). */
+function athleteOf(profile: Profile, latestWeightKg?: number): Athlete {
+  return {
+    weightKg: latestWeightKg ?? profile.weightKg,
+    heightCm: profile.heightCm,
+    sex: profile.sex,
+    age: new Date().getFullYear() - profile.birthYear,
+    experience: profile.experience,
+    goal: profile.goal,
+    hasGym: effectiveEquipment(profile.trainingLocation, profile.equipment).includes('academia'),
   };
 }
 

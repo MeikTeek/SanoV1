@@ -232,6 +232,43 @@ const chooseExerciseCount = (experience: string, sessionsPerWeek: number) => {
   return experience === 'ADVANCED' && sessionsPerWeek >= 3 ? 1 : 2;
 };
 
+/** Tempo médio de um exercício (3 séries + descansos), para caber no tempo do dia. */
+const AVERAGE_EXERCISE_MINUTES = 6;
+
+/**
+ * Faixa de exercícios por sessão. Sem ela, o volume por músculo sozinho deixava
+ * dias de dois grupos (ex.: costas + bíceps em calistenia) com 1 ou 2 exercícios.
+ * O mínimo respeita o tempo disponível; o máximo nunca tira um músculo do dia.
+ */
+function sessionSize(experience: string, minutesPerDay: number, muscles: number) {
+  const fitsInTime = Math.max(3, Math.floor((minutesPerDay - WARMUP_MINUTES) / AVERAGE_EXERCISE_MINUTES));
+  const min = Math.min(experience === 'BEGINNER' ? 5 : 6, fitsInTime);
+  const max = Math.max(muscles, experience === 'BEGINNER' ? 7 : experience === 'ADVANCED' ? 9 : 8, min);
+  return { min, max };
+}
+
+/**
+ * Ajusta a quantidade por músculo para a sessão ficar entre `min` e `max`:
+ * corta primeiro dos músculos com mais exercícios (os do fim da lista, menos
+ * prioritários, em caso de empate) e completa na ordem do dia.
+ */
+export function balanceCounts(counts: number[], available: number[], min: number, max: number) {
+  const result = counts.map((count, index) => Math.min(count, available[index]));
+  const total = () => result.reduce((sum, count) => sum + count, 0);
+  while (total() > max) {
+    let index = -1;
+    result.forEach((count, i) => { if (count > 1 && (index < 0 || count >= result[index])) index = i; });
+    if (index < 0) break;
+    result[index] -= 1;
+  }
+  for (let round = 0; total() < min && round < 10; round += 1) {
+    for (let i = 0; i < result.length && total() < min; i += 1) {
+      if (result[i] < available[i]) result[i] += 1;
+    }
+  }
+  return result;
+}
+
 /** Dias padrão da semana quando o usuário não escolheu quais treina. */
 const DEFAULT_WEEKDAYS: Record<number, number[]> = {
   1: [3],
@@ -366,20 +403,28 @@ export function generateWeeklyPlan(profile: WeeklyPlanProfile, now = new Date(),
     const usedKeys = new Set<string>();
     const missing: string[] = [];
 
-    for (const muscle of template.muscles) {
-      const options = safeByMuscle[muscle].filter((exercise) => !usedKeys.has(exercise.key));
-      if (!options.length) {
-        missing.push(MUSCLE_LABEL[muscle]);
-        continue;
-      }
-
+    // Quantos exercícios cada músculo pede pelo volume semanal…
+    const wanted = template.muscles.map((muscle) => {
       const sessionsPerWeek = frequency.get(muscle) ?? 1;
       // Em grupos treinados uma vez, usamos dois slots de movimento como no
       // wger. Quando o grupo se repete na semana, a frequência distribui o
       // mesmo volume entre as sessões.
       const minimumExercises = sessionsPerWeek === 1 ? 2 : 1;
       const neededExercises = Math.max(minimumExercises, Math.ceil(targetMin / (sets * sessionsPerWeek)));
-      const count = Math.min(options.length, Math.max(chooseExerciseCount(profile.experience, sessionsPerWeek), neededExercises));
+      return Math.max(chooseExerciseCount(profile.experience, sessionsPerWeek), neededExercises);
+    });
+    // …ajustado para a sessão inteira ter um tamanho razoável.
+    const { min: minSession, max: maxSession } = sessionSize(profile.experience, profile.minutesPerDay, template.muscles.length);
+    const counts = balanceCounts(wanted, template.muscles.map((muscle) => safeByMuscle[muscle].length), minSession, maxSession);
+
+    for (const [muscleIndex, muscle] of template.muscles.entries()) {
+      const options = safeByMuscle[muscle].filter((exercise) => !usedKeys.has(exercise.key));
+      if (!options.length) {
+        missing.push(MUSCLE_LABEL[muscle]);
+        continue;
+      }
+
+      const count = Math.min(options.length, counts[muscleIndex]);
       // Em sessões seguintes do mesmo músculo, gira a lista para variar os exercícios.
       const rotation = templates.slice(0, sessionIndex).filter((previous) => previous.muscles.includes(muscle)).length;
 

@@ -89,3 +89,24 @@ test('calistenia não escolhe exercícios que só exigem academia ou halteres', 
     assert.ok(exercise.equipment.some((item) => !['academia', 'halteres'].includes(item)));
   }
 });
+
+test('calistenia monta sessões com pelo menos 5 exercícios em qualquer divisão', () => {
+  for (const equipment of [['peso-corporal'], ['nenhum'], ['peso-corporal', 'barra-fixa']]) {
+    for (const days of [3, 4, 5, 6]) {
+      const plan = generateWeeklyPlan({
+        ...base, equipment, trainingLocation: 'CALISTHENICS',
+        trainingDays: days, trainingWeekdays: [1, 2, 3, 4, 5, 6].slice(0, days),
+      });
+      for (const day of plan.days.filter((item) => item.isTrainingDay)) {
+        assert.ok(day.exercises.length >= 5, `${equipment.join('+')} ${days}x: ${day.title} com ${day.exercises.length}`);
+        assert.equal(new Set(day.exercises.map((exercise) => exercise.key)).size, day.exercises.length);
+      }
+    }
+  }
+});
+
+test('pouco tempo disponível reduz o mínimo de exercícios da sessão', () => {
+  const plan = generateWeeklyPlan({ ...base, trainingDays: 5, trainingWeekdays: [1, 2, 3, 4, 5], minutesPerDay: 25 });
+  const tuesday = plan.days.find((day) => day.weekday === 2)!;
+  assert.ok(tuesday.exercises.length <= 4, `com 25 min: ${tuesday.exercises.length} exercícios`);
+});

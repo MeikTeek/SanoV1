@@ -59,6 +59,9 @@ const MIN_FAT_PER_KG = 0.6;
 const MIN_FAT_KCAL_SHARE = 0.25;
 const KCAL_FLOOR = { F: 1200, M: 1500, OTHER: 1500 } as const;
 const ADULT_AGE = 18;
+const UNDERWEIGHT_BMI = 18.5;
+const OBESE_BMI = 30;
+const REFERENCE_BMI = 25;
 
 /* ── Helpers exportados (fonte única para o resto do módulo) ────────────── */
 
@@ -99,11 +102,18 @@ export function computeDiet(p: DietProfile, now = new Date()): DietPlanNumbers {
   const tdee = Math.round(bmr * activityFactor(p.trainingDays));
   rationale.push(`Gasto calórico estimado (BMR × atividade de ${p.trainingDays}x/semana): ${tdee} kcal.`);
 
-  // Ajuste do objetivo. Menores de idade não entram em déficit.
+  // Ajuste do objetivo. Menores de idade e quem está abaixo do peso não entram em déficit.
   let delta = GOAL_DELTA_KCAL[p.goal] ?? 0;
+  const bmi = p.weightKg / ((p.heightCm / 100) ** 2);
   if (age < ADULT_AGE && delta < 0) {
     delta = 0;
     rationale.push('Menor de 18 anos: sem déficit calórico. Procure acompanhamento de nutricionista ou pediatra.');
+  } else if (bmi < UNDERWEIGHT_BMI && delta < 0) {
+    delta = 0;
+    rationale.push('IMC abaixo de 18,5: o objetivo de emagrecer não gera déficit. Converse com um nutricionista.');
+  } else if (bmi >= OBESE_BMI && delta > 0) {
+    delta = 0;
+    rationale.push('IMC de 30 ou mais: sem superávit calórico. Em manutenção o treino ainda constrói músculo; um nutricionista pode ajustar.');
   }
 
   // Biótipo: endomorfo tem menor gasto, ectomorfo precisa de mais energia.
@@ -129,13 +139,18 @@ export function computeDiet(p: DietProfile, now = new Date()): DietPlanNumbers {
   }
 
   // Proteína: sobe com treino de força, e é mais alta em déficit.
+  // Com obesidade, g/kg sobre o peso total superestima a necessidade: usa o
+  // peso que corresponderia a IMC 25.
   const proteinPerKg = GOAL_PROTEIN_PER_KG[p.goal] ?? DEFAULT_PROTEIN_PER_KG;
-  const proteinG = Math.round(p.weightKg * proteinPerKg);
-  rationale.push(`Proteína: ${proteinPerKg} g/kg (${proteinG} g/dia) para preservar e construir massa.`);
+  const referenceKg = bmi >= OBESE_BMI ? Math.round(REFERENCE_BMI * (p.heightCm / 100) ** 2) : p.weightKg;
+  const proteinG = Math.round(referenceKg * proteinPerKg);
+  rationale.push(referenceKg !== p.weightKg
+    ? `Proteína: ${proteinPerKg} g/kg sobre o peso de referência de ${referenceKg} kg (${proteinG} g/dia).`
+    : `Proteína: ${proteinPerKg} g/kg (${proteinG} g/dia) para preservar e construir massa.`);
 
   // Gordura: o maior entre o mínimo funcional (0,6 g/kg) e 25% das calorias.
   const fatG = Math.max(
-    Math.round(p.weightKg * MIN_FAT_PER_KG),
+    Math.round(referenceKg * MIN_FAT_PER_KG),
     Math.round((kcal * MIN_FAT_KCAL_SHARE) / 9),
   );
 

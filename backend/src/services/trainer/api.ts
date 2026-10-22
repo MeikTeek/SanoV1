@@ -10,6 +10,8 @@ import { getProfile, getStats, weeklyRawData, toRuleProfile, todayKey } from './
 import { screenOut } from './rules';
 import { narrateMission, weeklyReport, biomechanicsAnswer, mealPlan, reviewTraining, aiEnabled } from './ai';
 import { computeDiet, isPlantBased, type DietProfile } from './diet';
+import { FOODS, FOOD_GROUP_LABELS } from './foods';
+import { DIET_DISCLAIMER, buildMealPlan, screenDiet } from './mealPlan';
 import { fullDetail } from './exerciseDetails';
 import { EXERCISES, GOALS, GOAL_LABELS, EQUIPMENT_LABELS, INJURY_LABELS } from './exercises';
 import { musclesFor } from './muscles';
@@ -574,11 +576,39 @@ export async function completeByName(userId: string, nameWanted: string) {
 
 /* ── Dieta ──────────────────────────────────────────────────────────────── */
 
-/** Números + refeições do dia. Calculado pelo código; a IA só escreve os pratos. */
+/** Tabela de alimentos exibida na tela de nutrição (por 100 g). */
+const FOOD_TABLE = {
+  groups: FOOD_GROUP_LABELS,
+  items: FOODS.map(({ key, name, group, kcal, proteinG, carbG, fatG, fiberG, unit, tags }) => ({ key, name, group, kcal, proteinG, carbG, fatG, fiberG, unit, tags })),
+};
+
+/** Dia do ano: o cardápio por regras varia de um dia para o outro. */
+const dayOfYear = (day: string) => Math.floor((Date.parse(`${day}T12:00:00Z`) - Date.parse(`${day.slice(0, 4)}-01-01T12:00:00Z`)) / DAY_MS);
+
+/**
+ * Nutrição do dia, sem depender de IA: metas (diet.ts) + cardápio montado por
+ * regras com a tabela de alimentos (mealPlan.ts). Antes de tudo, a triagem de
+ * IMC e saúde: em casos extremos não há metas nem cardápio, só o aviso.
+ * A IA, se configurada, só acrescenta ideias de pratos em texto.
+ */
 export async function dietCall(userId: string, username: string) {
   const profile = await requireProfile(userId);
   const day = todayKey();
-  const n = computeDiet(toDietProfile(profile));
+  const latest = await prisma.bodyAssessment.findFirst({ where: { userId }, orderBy: { day: 'desc' }, select: { weightKg: true } });
+  const weightKg = latest?.weightKg ?? profile.weightKg;
+  const assessment = screenDiet({
+    weightKg, heightCm: profile.heightCm, age: ageFromBirthYear(profile.birthYear),
+    pregnancy: profile.pregnancy, heartCondition: profile.heartCondition, medicationUse: profile.medicationUse,
+  });
+  const base = { assessment, disclaimer: DIET_DISCLAIMER, foods: FOOD_TABLE, aiEnabled: aiEnabled() };
+  if (assessment.level === 'blocked') return { ...base, numbers: null, plan: null, meals: '' };
+
+  const n = computeDiet({ ...toDietProfile(profile), weightKg });
+  const plan = buildMealPlan({
+    kcal: n.kcal, proteinG: n.proteinG, carbG: n.carbG, fatG: n.fatG,
+    mealsPerDay: profile.mealsPerDay, restrictions: profile.dietRestrictions, seed: dayOfYear(day),
+  });
+  if (!aiEnabled()) return { ...base, numbers: n, plan, meals: '' };
 
   // O cache só vale se as entradas do cardápio não mudaram desde que ele foi gerado.
   // Sem isso, trocar peso, refeições/dia ou restrições mostrava números novos
@@ -594,7 +624,7 @@ export async function dietCall(userId: string, username: string) {
   });
   const existingHash = (existing?.rationale as { inputHash?: string } | null)?.inputHash;
   if (existing?.meals && existingHash === inputHash) {
-    return { numbers: n, meals: existing.meals, aiEnabled: aiEnabled(), cached: true };
+    return { ...base, numbers: n, plan, meals: existing.meals, cached: true };
   }
 
   const meals = await mealPlan({
@@ -617,7 +647,7 @@ export async function dietCall(userId: string, username: string) {
     update: fields,
   });
 
-  return { numbers: n, meals, aiEnabled: aiEnabled(), cached: false };
+  return { ...base, numbers: n, plan, meals, cached: false };
 }
 
 /** Detalhe de um exercício: como fazer, músculo, erro comum e tempos do cronômetro. */

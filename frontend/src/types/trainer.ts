@@ -29,6 +29,44 @@ export interface DietNumbers {
   waterTarget: number;
   rationale: string[];
 }
+export interface Macros { kcal: number; proteinG: number; carbG: number; fatG: number; fiberG: number }
+
+export interface DietAssessment {
+  bmi: number;
+  category: string;
+  level: 'ok' | 'attention' | 'caution' | 'blocked';
+  title: string;
+  messages: string[];
+}
+
+export interface PlannedFood extends Macros {
+  key: string;
+  name: string;
+  role: string;
+  grams: number;
+  measure: string;
+  alternatives: (Macros & { key: string; name: string; grams: number; measure: string })[];
+}
+
+export interface PlannedMeal { slot: string; title: string; time: string; target: Macros; items: PlannedFood[]; totals: Macros }
+
+export interface FoodRow {
+  key: string; name: string; group: string;
+  kcal: number; proteinG: number; carbG: number; fatG: number; fiberG: number;
+  unit: { grams: number; label: string; plural: string };
+  tags: string[];
+}
+
+export interface DietResponse {
+  assessment: DietAssessment;
+  disclaimer: string;
+  numbers: DietNumbers | null;
+  plan: { meals: PlannedMeal[]; totals: Macros; notes: string[] } | null;
+  foods: { groups: Record<string, string>; items: FoodRow[] };
+  meals: string;
+  aiEnabled: boolean;
+}
+
 export type Equipment = 'academia' | 'peso-corporal' | 'elastico' | 'barra-fixa' | 'halteres' | 'nenhum';
 export type Injury = 'joelho' | 'lombar' | 'ombro' | 'cotovelo' | 'quadril' | 'pescoco';
 
@@ -189,9 +227,23 @@ export interface SetEntry { reps: number; loadKg: number | null; rir: number | n
 
 export interface Suggestion { loadKg: number | null; reps: number; note: string; trend: 'up' | 'hold' | 'down' | 'new' }
 
+/** Série pronta, calculada pelo servidor: o usuário só confirma. */
+export interface SetPrescription {
+  loadKg: number | null;
+  loadLabel: string;
+  reps: number;
+  setSeconds: number;
+  restSeconds: number;
+  tempo: string | null;
+  bodyweightKg: number | null;
+  perSide: boolean;
+  estimated: boolean;
+}
+
 export interface DayExercise extends PlannedExercise {
   previous: { day: string; sets: SetEntry[] } | null;
   suggestion: Suggestion;
+  prescription: SetPrescription;
 }
 
 export interface WorkoutDay extends Omit<WeeklyWorkout, 'exercises'> {

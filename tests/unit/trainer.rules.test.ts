@@ -141,11 +141,11 @@ test('fullDetail nunca devolve placeholder para exercício do catálogo', () => 
   }
 });
 
-test('catálogo enviado inclui os 60 exercícios com dados de detalhe e prescrição', () => {
+test('catálogo enviado inclui todos os exercícios com dados de detalhe e prescrição', () => {
   const imported = EXERCISES.filter((exercise) => exercise.sourceId !== undefined);
-  assert.equal(imported.length, 60);
-  assert.equal(new Set(imported.map((exercise) => exercise.sourceId)).size, 60);
-  assert.equal(new Set(imported.map((exercise) => exercise.key)).size, 60);
+  assert.ok(imported.length >= 160, `catálogo com ${imported.length} exercícios`);
+  assert.equal(new Set(imported.map((exercise) => exercise.sourceId)).size, imported.length);
+  assert.equal(new Set(imported.map((exercise) => exercise.key)).size, imported.length);
 
   for (const exercise of imported) {
     const detail = fullDetail(exercise);

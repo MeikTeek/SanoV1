@@ -1,7 +1,7 @@
 import { api } from './api';
 import type {
   TrainerDashboard, LibraryResponse, TrainingProfile, TrainerMeta,
-  Equipment, Injury, Goal, Somatotype, ExerciseDetail, DietNumbers,
+  Equipment, Injury, Goal, Somatotype, ExerciseDetail, DietResponse,
   WeeklyPlan, TrainerData, BodyAssessmentPayload, TrainerOverview, WorkoutDay,
   SessionResult, SwapOption, ExerciseStats,
 } from '../types/trainer';
@@ -45,7 +45,7 @@ export const getExerciseDetail = (key: string) =>
   api.get<ExerciseDetail>(`/trainer/exercises/${key}`);
 
 export const getDiet = () =>
-  api.get<{ numbers: DietNumbers; meals: string; aiEnabled: boolean }>('/trainer/diet');
+  api.get<DietResponse>('/trainer/diet');
 
 export const getReview = () =>
   api.get<{ review: string; aiEnabled: boolean }>('/trainer/review');

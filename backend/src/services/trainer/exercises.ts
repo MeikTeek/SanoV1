@@ -8,7 +8,37 @@
  * contraindicações normalizados para este motor.
  */
 
-import sourceExercises from './exercise-catalog.json';
+import catalog from './exercise-catalog.json';
+
+/**
+ * Registro do catálogo. Os 60 primeiros usam os mapas por id abaixo; os
+ * adicionados depois trazem `chave`, `lesoes` e `impacto` no próprio registro,
+ * para não espalhar cada exercício novo por três tabelas.
+ */
+interface SourceExercise {
+  id: number;
+  nome: string;
+  grupo_principal: string;
+  grupos_secundarios: string[];
+  equipamento: string[];
+  nivel: string;
+  mecanica: string;
+  unilateral: boolean;
+  series_sugeridas: number;
+  reps_min: number;
+  reps_max: number;
+  unidade: string;
+  descanso_s: number;
+  fator_peso_corporal: number | null;
+  instrucao: string;
+  progressao: string;
+  regressao: string;
+  chave?: string;
+  lesoes?: string[];
+  impacto?: string;
+}
+
+const sourceExercises = catalog as SourceExercise[];
 
 export type Equipment = 'academia' | 'peso-corporal' | 'elastico' | 'barra-fixa' | 'halteres' | 'nenhum';
 export type MuscleGroup = 'peito' | 'costas' | 'pernas' | 'ombros' | 'bracos' | 'core' | 'cardio' | 'mobilidade';
@@ -47,6 +77,10 @@ export interface Exercise {
   repsMin?: number;
   repsMax?: number;
   unit?: 'reps' | 'segundos' | 'minutos';
+  /** Fração do peso corporal deslocada (calistenia), usada para mostrar a carga real. */
+  bodyweightFactor?: number;
+  /** Feito um lado por vez: as repetições valem para cada lado. */
+  unilateral?: boolean;
 }
 
 export const INJURY_LABELS: Record<Injury, string> = {
@@ -251,6 +285,7 @@ const SOURCE_EQUIPMENT: Record<string, Equipment> = {
   barra_baixa_ou_mesa: 'peso-corporal',
   degrau: 'peso-corporal',
   parede: 'peso-corporal',
+  paralelas: 'peso-corporal',
 };
 
 const SOURCE_INJURIES: Partial<Record<number, Injury[]>> = {
@@ -320,10 +355,17 @@ function isExerciseUnit(unit: string): unit is NonNullable<Exercise['unit']> {
   return unit === 'reps' || unit === 'segundos' || unit === 'minutos';
 }
 
-function fromSource(
-  source: (typeof sourceExercises)[number],
-): Exercise {
-  const key = SOURCE_KEYS[source.id];
+const INJURIES = new Set<string>(Object.keys(INJURY_LABELS));
+
+function sourceInjuries(source: SourceExercise): Injury[] {
+  if (!source.lesoes) return SOURCE_INJURIES[source.id] ?? [];
+  const unknown = source.lesoes.filter((injury) => !INJURIES.has(injury));
+  if (unknown.length) throw new Error(`Lesão não mapeada no exercício ${source.id}: ${unknown.join(', ')}.`);
+  return source.lesoes as Injury[];
+}
+
+function fromSource(source: SourceExercise): Exercise {
+  const key = source.chave ?? SOURCE_KEYS[source.id];
   const mainGroup = SOURCE_GROUPS[source.grupo_principal];
   if (!isExerciseUnit(source.unidade)) {
     throw new Error(`Unidade não mapeada no exercício ${source.id}: ${source.unidade}.`);
@@ -342,7 +384,7 @@ function fromSource(
   const muscles = sourceMuscles
     .map((muscle) => SOURCE_MUSCLE_LABELS[muscle] ?? muscle.replaceAll('_', ' '))
     .join(', ');
-  const impact: Exercise['impact'] = [35, 58, 59].includes(source.id) ? 'alto' : 'baixo';
+  const impact: Exercise['impact'] = source.impacto === 'alto' || [35, 58, 59].includes(source.id) ? 'alto' : 'baixo';
   const workSeconds = sourceDurationSeconds(unit, source.reps_min, source.reps_max);
   const name = source.nome;
 
@@ -351,7 +393,7 @@ function fromSource(
     name,
     group: mainGroup,
     equipment: Array.from(new Set(equipment)),
-    contraindicated: SOURCE_INJURIES[source.id] ?? [],
+    contraindicated: sourceInjuries(source),
     impact,
     difficulty,
     xp: source.mecanica === 'composto' ? 15 : 10,
@@ -370,6 +412,8 @@ function fromSource(
     repsMin: source.reps_min,
     repsMax: source.reps_max,
     unit,
+    bodyweightFactor: source.fator_peso_corporal ?? undefined,
+    unilateral: source.unilateral,
   };
 }
 

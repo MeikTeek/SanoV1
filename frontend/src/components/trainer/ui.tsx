@@ -83,6 +83,11 @@ export const I = {
   down: (s?: number) => icon(<path d="M6 9l6 6 6-6" />, s),
   search: (s?: number) => icon(<><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></>, s),
   spark: (s?: number) => icon(<path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" />, s),
+  menu: (s?: number) => icon(<path d="M4 7h16M4 12h16M4 17h10" />, s),
+  next: (s?: number) => icon(<><path d="M6 5l9 7-9 7z" /><path d="M18 5v14" /></>, s),
+  weight: (s?: number) => icon(<><path d="M6.5 8v8M17.5 8v8M3.5 10v4M20.5 10v4M6.5 12h11" /></>, s),
+  repeat: (s?: number) => icon(<><path d="M17 3l3 3-3 3" /><path d="M4 11V9a3 3 0 0 1 3-3h13M7 21l-3-3 3-3" /><path d="M20 13v2a3 3 0 0 1-3 3H4" /></>, s),
+  pause: (s?: number) => icon(<><path d="M9 5v14M15 5v14" /></>, s),
 };
 
 /* ── Peças visuais ──────────────────────────────────────────────────────── */
