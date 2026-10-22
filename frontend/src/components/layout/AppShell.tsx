@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet, IconRadar } from '../ui/icons';
 import MusicPlayer from '../music/MusicPlayer';
 import { updatePresence } from '../../services/chat.service';
 
@@ -61,6 +61,8 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
             ? 'No chat'
             : pathname.startsWith('/config')
               ? 'Nas configurações'
+              : pathname.startsWith('/osint')
+                ? 'No painel OSINT'
               : pathname.startsWith('/admin')
                 ? 'Na administração'
                 : 'Lendo informações';
@@ -100,6 +102,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
           <>
             <span className="rail-sep" />
             <Link to="/admin" className={`rail-link ${is('/admin') ? 'active' : ''}`} title="Painel administrativo"><IconShield /></Link>
+            <Link to="/osint" className={`rail-link ${is('/osint') ? 'active' : ''}`} title="OSINT"><IconRadar /></Link>
           </>
         )}
       </nav>

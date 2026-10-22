@@ -85,3 +85,13 @@ export const numberLookupLimiter = rateLimit({
   message: { error: 'Muitas buscas de código. Tente novamente em alguns minutos.' },
   skip: () => isTest,
 });
+
+/** Varreduras OSINT (domínio/username): cada uma dispara dezenas a centenas de requisições externas. */
+export const osintLimiter = rateLimit({
+  windowMs: 10 * 60_000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas varreduras OSINT. Aguarde alguns minutos.' },
+  skip: () => isTest,
+});

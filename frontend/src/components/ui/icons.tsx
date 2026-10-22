@@ -117,3 +117,7 @@ export const IconChevron = ({ size = 16 }: P) =>
 /** Marcador de não lida: bolinha ciano cheia, sem número. */
 export const IconUnread = ({ size = 10 }: P) =>
   svg(size, <><circle cx="12" cy="12" r="9" fill="currentColor" stroke="none" /></>);
+/* ------------------------------ OSINT ------------------------------ */
+
+export const IconRadar = ({ size = 22 }: P) =>
+  svg(size, <><circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><path d="M12 12l6.4-6.4" /><circle cx="12" cy="12" r="1" fill="currentColor" /></>);

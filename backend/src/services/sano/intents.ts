@@ -277,8 +277,28 @@ const plannedIntents: Intent[] = [
       },
     }),
   },
-  planned('osint', 'terminal OSINT', '4', 'abrir terminal osint', [/\b(osint|varredura|scan)\b/], true),
 ];
+
+/**
+ * OSINT (só ADMIN). Se o pedido já traz um alvo ("osint exemplo.com",
+ * "osint username fulano"), a tela abre com ele preenchido.
+ */
+const osint: Intent = {
+  name: 'osint',
+  description: 'Painel OSINT: domínio/IP e username',
+  examples: ['abrir terminal osint'],
+  adminOnly: true,
+  patterns: [/\b(osint|varredura|scan)\b/],
+  handle: ({ text }) => {
+    const user = text.match(/\b(?:username|usuario|usuário|user|perfil)\s+@?([A-Za-z0-9._-]{1,64})\b/i)?.[1];
+    const domain = user ? undefined : text.match(/\b((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?|\d{1,3}(?:\.\d{1,3}){3})\b/i)?.[1];
+    const query = user ? `?username=${encodeURIComponent(user)}` : domain ? `?alvo=${encodeURIComponent(domain)}` : '';
+    return {
+      reply: user ? `Abrindo o OSINT e procurando "${user}"…` : domain ? `Abrindo o OSINT para analisar ${domain}…` : 'Abrindo o painel OSINT…',
+      actions: [{ type: 'navigate', to: `/osint${query}` }],
+    };
+  },
+};
 
 /* ------------------------------------- Ajuda ------------------------------------- */
 
@@ -319,5 +339,5 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
 export const baseIntents: Intent[] = [
   // Finanças antes da agenda: "paguei 120 de luz amanhã" é lançamento, não compromisso.
   greeting, admin, whoami, status, briefing, time, version, financeIntent, agendaIntent, trainerIntent,
-  messages, people, settings, learning, aiIntent, ...plannedIntents,
+  messages, people, settings, learning, osint, aiIntent, ...plannedIntents,
 ];

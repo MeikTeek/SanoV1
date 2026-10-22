@@ -118,6 +118,9 @@ npm run build        # compila backend (tsc) e frontend (vite build)
 | POST | `/api/appointments` | sessão | Cria um compromisso |
 | PATCH/DELETE | `/api/appointments/:id` | dono | Atualiza ou apaga |
 | —    | `/api/admin/*` | admin | Gestão de usuários e logs de auditoria |
+| GET  | `/api/osint` | admin | Catálogo de verificações e categorias de sites |
+| POST | `/api/osint/domain` | admin | Varredura de domínio/IP (stream NDJSON) |
+| POST | `/api/osint/username` | admin | Busca de username (stream NDJSON) |
 
 ## O Sano (Fase 2)
 
@@ -263,6 +266,27 @@ AI_MODEL=openai/gpt-4o-mini
 ```
 
 Os prompts de sistema fixos proíbem a IA de inventar exercício, série ou repetição, e de responder sobre equipamento ou lesão que o perfil não tem.
+
+## OSINT (Fase 4 — módulo 7)
+
+Página `/osint`, **só ADMIN** (rota, API e comando do Sano). Duas abas:
+
+- **Domínio / IP**: 13 verificações em paralelo — IPs e PTR, geolocalização, DNS, WHOIS (RDAP),
+  certificado TLS, servidor HTTP, cabeçalhos de segurança/HSTS/cookies, e-mail (MX, SPF, DMARC, DKIM),
+  subdomínios (Certificate Transparency), meta tags e perfis sociais da página, DNSSEC, `robots.txt`
+  e `security.txt`. Adaptado de `Integracoes/web-check-2.3.0` (MIT) em `backend/src/services/osint/domain.ts`,
+  sem puppeteer/cheerio/whoiser; registros DNS vão por DNS-over-HTTPS (Google/Cloudflare).
+- **Username**: ~690 sites da base `wmn-data.json` do WhatsMyName (CC BY-SA 4.0, cópia sem alterações;
+  para atualizar, substitua o arquivo). Sites adultos ficam de fora salvo opt-in.
+
+Os resultados chegam em NDJSON (`POST /api/osint/domain` e `/api/osint/username`), então a tela enche
+conforme cada verificação termina. Do Sano: `abrir terminal osint`, `osint exemplo.com.br`,
+`osint username fulano`.
+
+Segurança: toda conexão ao alvo passa por `services/osint/net.ts`, que recusa localhost, redes privadas,
+link-local/metadados de nuvem e domínios que resolvem para elas (inclusive a cada redirecionamento);
+limite de 20 varreduras a cada 10 min; uma busca de username por vez; cada varredura vai para o audit log
+(`OSINT_DOMAIN_SCAN`, `OSINT_USERNAME_SCAN`).
 
 ## Segurança — decisões de projeto
 

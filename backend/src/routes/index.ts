@@ -9,6 +9,7 @@ import chatRoutes from './chat.routes';
 import musicRoutes from './music.routes';
 import financeRoutes from './finance.routes';
 import discordRoutes from './discord.routes';
+import osintRoutes from './osint.routes';
 
 const r = Router();
 
@@ -23,5 +24,6 @@ r.use('/chat', chatRoutes);
 r.use('/music', musicRoutes);
 r.use('/finance', financeRoutes);
 r.use('/integrations/discord', discordRoutes);
+r.use('/osint', osintRoutes);
 
 export default r;

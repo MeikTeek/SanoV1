@@ -11,6 +11,7 @@ import SettingsPage from './pages/settings/SettingsPage';
 import AboutPage from './pages/about/AboutPage';
 import MusicPage from './pages/music/MusicPage';
 import FinancePage from './pages/finance/FinancePage';
+import OsintPage from './pages/osint/OsintPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
       <Route path="/musica" element={<ProtectedRoute><MusicPage /></ProtectedRoute>} />
       <Route path="/financas" element={<ProtectedRoute><FinancePage /></ProtectedRoute>} />
       <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
+      <Route path="/osint" element={<ProtectedRoute adminOnly><OsintPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
