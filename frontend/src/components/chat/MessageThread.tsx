@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AudioPlayer from './AudioPlayer';
 import AudioRecorder, { type Recording } from './AudioRecorder';
@@ -27,11 +27,17 @@ const fmtDay = (iso: string) => {
 /** Só o dia, para agrupar mensagens vizinhas sem considerar o horário. */
 const dayKey = (iso: string) => new Date(iso).toDateString();
 
-/** Emoji rápido: escreve direto no campo, sem painel sobreposto. */
+/** Emoji rápido: painel pequeno que escreve no campo sem roubar o foco. */
 const EMOJI_SHORTCUTS: [string, string][] = [
-  ['🙂', 'risonho'], ['😂', 'risada'], ['❤️', 'coração'], ['👍', 'joia'],
-  ['🔥', 'fogo'], ['😴', 'sono'], ['🙏', 'obrigado'], ['💪', 'força'],
+  ['🙂', 'risonho'], ['😂', 'risada'], ['😍', 'apaixonado'], ['😅', 'sem graça'],
+  ['😎', 'descolado'], ['🤔', 'pensativo'], ['😢', 'triste'], ['😡', 'bravo'],
+  ['❤️', 'coração'], ['👍', 'joia'], ['👏', 'palmas'], ['🙏', 'obrigado'],
+  ['🔥', 'fogo'], ['🎉', 'festa'], ['💪', 'força'], ['😴', 'sono'],
+  ['✅', 'feito'], ['👀', 'olhando'], ['☕', 'café'], ['🎵', 'música'],
 ];
+
+/** Distância do fim (px) em que ainda consideramos a pessoa "lendo o fim". */
+const NEAR_BOTTOM = 120;
 
 interface Props {
   conversation: Conversation;
@@ -56,6 +62,11 @@ export default function MessageThread({
   const inputRef = useRef<HTMLInputElement>(null);
   const typingPresenceTimeout = useRef<number | null>(null);
   const [draft, setDraft] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  /** Mensagens que chegaram enquanto a pessoa lia o histórico mais acima. */
+  const [unseen, setUnseen] = useState(0);
+  const atBottom = useRef(true);
+  const lastCount = useRef(0);
 
   useEffect(() => {
     if (!draft.trim()) return;
@@ -67,8 +78,53 @@ export default function MessageThread({
     return () => window.clearTimeout(timer);
   }, [draft]);
 
-  // Rola até o fim quando chega mensagem nova.
-  if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  // Troca de conversa: volta ao estado "no fim". Declarado antes do efeito de
+  // rolagem para rodar primeiro quando os dois disparam juntos.
+  useLayoutEffect(() => {
+    atBottom.current = true;
+    lastCount.current = 0;
+    setUnseen(0);
+    setEmojiOpen(false);
+  }, [conversation.id]);
+
+  // Rola até o fim quando chega mensagem nova — mas só se a pessoa já estava
+  // no fim (ou se a mensagem é dela). Lendo o histórico, aparece o aviso.
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    const added = messages.length - lastCount.current;
+    lastCount.current = messages.length;
+    if (!el || added <= 0) return;
+    const mineLast = messages[messages.length - 1]?.mine;
+    const firstLoad = added === messages.length;
+    if (atBottom.current || mineLast || firstLoad) {
+      el.scrollTo({ top: el.scrollHeight, behavior: firstLoad ? 'auto' : 'smooth' });
+      setUnseen(0);
+    } else {
+      setUnseen((n) => n + added);
+    }
+  }, [messages]);
+
+  // Clique fora do campo fecha o painel de emojis.
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.msg-input-wrap')) setEmojiOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [emojiOpen]);
+
+  const onScroll = () => {
+    const el = logRef.current;
+    if (!el) return;
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM;
+    if (atBottom.current && unseen) setUnseen(0);
+  };
+
+  const scrollToEnd = () => {
+    logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' });
+    setUnseen(0);
+  };
 
   const other = conversation.members.find((m) => m.id !== myId);
 
@@ -76,6 +132,7 @@ export default function MessageThread({
     const text = draft.trim();
     if (!text || busy) return;
     setDraft('');
+    setEmojiOpen(false);
     updatePresence('No chat').catch((e) => console.warn('Não foi possível atualizar a atividade:', e));
     onSendText(text);
   };
@@ -138,28 +195,38 @@ export default function MessageThread({
         </div>
       </header>
 
-      <div className="msg-log" ref={logRef}>
+      <div className="msg-log" ref={logRef} onScroll={onScroll}>
         {messages.length === 0 && (
-          <p className="muted small pad center-txt">
-            Ainda não há mensagens. O que você enviar sai cifrado do seu navegador.
-          </p>
+          <div className="msg-log-empty">
+            <span className="msg-log-empty-icon"><IconLock size={22} /></span>
+            <b>Diga oi 👋</b>
+            <p className="muted small">
+              Ainda não há mensagens. O que você enviar sai cifrado do seu navegador.
+            </p>
+          </div>
         )}
 
         {messages.map((m, i) => {
           const prev = messages[i - 1];
-          // Agrupa mensagens seguidas da mesma pessoa (evita repetir o avatar).
-          const firstOfGroup = !prev || prev.senderId !== m.senderId;
+          const next = messages[i + 1];
           const newDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt);
+          // Agrupa mensagens seguidas da mesma pessoa no mesmo dia: o avatar e o
+          // horário ficam só na última, e os cantos das bolhas se encaixam.
+          const firstOfGroup = newDay || prev.senderId !== m.senderId;
+          const lastOfGroup = !next || next.senderId !== m.senderId || dayKey(next.createdAt) !== dayKey(m.createdAt);
+          const media = m.kind === 'IMAGE' && m.mediaUrl && !m.failed;
           return (
-            <div key={m.id}>
+            <div key={m.id} className="msg-item-wrap">
               {newDay && <div className="msg-day"><span>{fmtDay(m.createdAt)}</span></div>}
-              <div className={`msg-row ${m.mine ? 'mine' : ''} ${firstOfGroup ? 'first' : ''}`}>
-                {!m.mine && firstOfGroup && <Avatar url={m.senderAvatar} name={m.senderName} size={28} />}
+              <div className={`msg-row ${m.mine ? 'mine' : ''} ${firstOfGroup ? 'first' : ''} ${lastOfGroup ? 'last' : ''}`}>
+                {!m.mine && (lastOfGroup
+                  ? <Avatar url={m.senderAvatar} name={m.senderName} size={28} />
+                  : <span className="msg-avatar-gap" aria-hidden="true" />)}
                 <div className="msg-bubble-wrap">
                   {!m.mine && conversation.kind === 'GROUP' && firstOfGroup && (
                     <span className="msg-sender">{m.senderName}</span>
                   )}
-                  <div className="msg-bubble">
+                  <div className={`msg-bubble${media ? ' media' : ''}`} title={lastOfGroup ? undefined : fmtTime(m.createdAt)}>
                     {m.failed ? (
                       <span className="msg-failed">não consegui decifrar esta mensagem</span>
                     ) : m.kind === 'TEXT' ? (
@@ -177,7 +244,7 @@ export default function MessageThread({
                       <span className="msg-decrypting">decifrando áudio…</span>
                     )}
                   </div>
-                  <span className="msg-time">{fmtTime(m.createdAt)}</span>
+                  {lastOfGroup && <span className="msg-time">{fmtTime(m.createdAt)}</span>}
                 </div>
               </div>
             </div>
@@ -189,10 +256,16 @@ export default function MessageThread({
         {busy && (
           <p className="msg-sending">
             <span className="msg-spinner" aria-hidden="true" />
-            decifrando mensagem, aguarde até que ela seja enviada…
+            cifrando e enviando…
           </p>
         )}
       </div>
+
+      {unseen > 0 && (
+        <button className="msg-jump" onClick={scrollToEnd}>
+          ↓ {unseen} {unseen === 1 ? 'nova mensagem' : 'novas mensagens'}
+        </button>
+      )}
 
       <footer className="msg-compose">
         <input
@@ -232,6 +305,7 @@ export default function MessageThread({
               updatePresence('No chat').catch((e) => console.warn('Não foi possível atualizar a atividade:', e));
             }}
             onKeyDown={(e) => {
+              if (e.key === 'Escape') setEmojiOpen(false);
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 submit();
@@ -242,25 +316,38 @@ export default function MessageThread({
             aria-label="Escrever mensagem"
           />
           {/* Emoji rápido: escreve no campo sem roubar o foco do teclado. */}
-          <div className="msg-emoji-bar">
-            {EMOJI_SHORTCUTS.map(([emoji, nome]) => (
-              <button
-                key={emoji}
-                className="msg-emoji"
-                onClick={() => {
-                  setDraft((d) => d + emoji);
-                  inputRef.current?.focus();
-                }}
-                title={nome}
-                aria-label={`Inserir ${nome}`}
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
+          <button
+            className={`msg-emoji-toggle${emojiOpen ? ' active' : ''}`}
+            onClick={() => setEmojiOpen((v) => !v)}
+            aria-expanded={emojiOpen}
+            aria-label="Emojis"
+            title="Emojis"
+          >
+            <IconSmile />
+          </button>
+          {emojiOpen && (
+            <div className="msg-emoji-pop" role="menu" aria-label="Emojis">
+              {EMOJI_SHORTCUTS.map(([emoji, nome]) => (
+                <button
+                  key={emoji}
+                  className="msg-emoji"
+                  role="menuitem"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    setDraft((d) => d + emoji);
+                    inputRef.current?.focus();
+                  }}
+                  title={nome}
+                  aria-label={`Inserir ${nome}`}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <button
-          className="icon-btn send"
+          className={`icon-btn send${draft.trim() ? ' ready' : ''}`}
           onClick={submit}
           disabled={busy || !draft.trim()}
           title="Enviar"
@@ -278,7 +365,7 @@ export function ThreadEmpty({ onNew, onJoin }: { onNew: () => void; onJoin: () =
   return (
     <section className="msg-thread">
       <div className="msg-empty">
-        <IconLock size={32} />
+        <span className="msg-empty-orb"><IconLock size={30} /></span>
         <h3>Escolha uma conversa</h3>
         <p className="muted">Ou comece uma agora:</p>
         <div className="msg-empty-actions">

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { IconSearch, IconUnread, IconUsers } from '../ui/icons';
+import { IconSearch, IconUsers } from '../ui/icons';
 import NumberPanel from './NumberPanel';
 import { previewOrPlaceholder, type Conversation } from '../../services/chat.service';
 
@@ -66,8 +66,15 @@ export default function ConversationList({ conversations, activeId, myId }: Prop
     });
   }, [conversations, search, myId]);
 
+  const unreadTotal = conversations.reduce((n, c) => n + (c.unread > 0 ? 1 : 0), 0);
+
   return (
     <aside className="msg-side">
+      <div className="msg-side-head">
+        <b>Conversas</b>
+        {conversations.length > 0 && <span className="msg-side-count">{conversations.length}</span>}
+        {unreadTotal > 0 && <span className="msg-side-unread">{unreadTotal} não lida{unreadTotal > 1 ? 's' : ''}</span>}
+      </div>
       <div className="msg-search">
         <IconSearch size={16} />
         <input
@@ -79,7 +86,7 @@ export default function ConversationList({ conversations, activeId, myId }: Prop
         />
       </div>
 
-      <div className="msg-list">
+      <div className="msg-list stagger">
         {visible.length === 0 && (
           <p className="muted small pad">
             {conversations.length === 0
@@ -88,13 +95,14 @@ export default function ConversationList({ conversations, activeId, myId }: Prop
           </p>
         )}
 
-        {visible.map((c) => {
+        {visible.map((c, i) => {
           const other = c.members.find((m) => m.id !== myId);
           return (
             <Link
               key={c.id}
               to={`/mensagens/${c.id}`}
-              className={`msg-item ${c.id === activeId ? 'active' : ''}`}
+              className={`msg-item ${c.id === activeId ? 'active' : ''} ${c.unread > 0 ? 'unread' : ''}`}
+              style={{ '--i': i } as React.CSSProperties}
             >
               {c.kind === 'GROUP'
                 ? <span className="mini-avatar group"><IconUsers size={20} /></span>
@@ -107,8 +115,8 @@ export default function ConversationList({ conversations, activeId, myId }: Prop
                 <div className="msg-item-bottom">
                   <small className="msg-item-preview">{previewOrPlaceholder(c)}</small>
                   {c.unread > 0 && (
-                    <span className="dot-unread" title={`${c.unread} não lida(s)`}>
-                      <IconUnread size={9} />
+                    <span className="badge-unread" title={`${c.unread} não lida(s)`}>
+                      {c.unread > 99 ? '99+' : c.unread}
                     </span>
                   )}
                 </div>

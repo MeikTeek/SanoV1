@@ -25,6 +25,7 @@ export interface AuditLog {
   id: string;
   action: string;
   ip: string | null;
+  userAgent?: string | null;
   createdAt: string;
   user: { username: string } | null;
 }

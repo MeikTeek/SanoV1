@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import AppShell from '../../components/layout/AppShell';
 import ConversationList, { Avatar } from '../../components/chat/ConversationList';
 import MessageThread, { ThreadEmpty } from '../../components/chat/MessageThread';
-import { IconHash, IconInfo, IconLock, IconPlus, IconSend } from '../../components/ui/icons';
+import { IconHash, IconInfo, IconLock, IconPlus, IconSend, IconUsers } from '../../components/ui/icons';
 import { useAuth } from '../../context/AuthContext';
 import {
   createGroup, getIncomingFriendRequests, listConversations, listMessages, markRead,
@@ -76,6 +76,13 @@ export default function ChatPage() {
       return { ...m, text };
     });
   }, []);
+
+  // Avisos somem sozinhos depois de alguns segundos.
+  useEffect(() => {
+    if (!error && !notice) return;
+    const timer = window.setTimeout(() => { setError(''); setNotice(''); }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [error, notice]);
 
   /* --------------------------- identidade E2EE ---------------------------- */
 
@@ -322,8 +329,9 @@ export default function ChatPage() {
           <button className="ghost" onClick={() => setShowJoin(true)} title="Entrar com o código de alguém">
             <IconHash size={16} /> Entrar com código
           </button>
-          <button className="ghost" onClick={() => setShowRequests(true)} title="Pedidos de amizade">
-            Pedidos{friendRequests.length ? ` (${friendRequests.length})` : ''}
+          <button className="ghost has-badge" onClick={() => setShowRequests(true)} title="Pedidos de amizade">
+            <IconUsers size={16} /> Pedidos
+            {friendRequests.length > 0 && <span className="btn-badge">{friendRequests.length}</span>}
           </button>
           <button className="ghost" onClick={() => setShowNew(true)} title="Nova conversa">
             <IconPlus size={16} /> Nova
@@ -357,8 +365,18 @@ export default function ChatPage() {
 
       {(error || notice) && (
         <div className="msg-toast-area">
-          {error && <div className="error">{error}</div>}
-          {notice && <div className="notice">{notice}</div>}
+          {error && (
+            <div className="error msg-toast" role="alert">
+              <span>{error}</span>
+              <button className="msg-toast-close" onClick={() => setError('')} aria-label="Fechar aviso">×</button>
+            </div>
+          )}
+          {notice && (
+            <div className="notice msg-toast" role="status">
+              <span>{notice}</span>
+              <button className="msg-toast-close" onClick={() => setNotice('')} aria-label="Fechar aviso">×</button>
+            </div>
+          )}
         </div>
       )}
 

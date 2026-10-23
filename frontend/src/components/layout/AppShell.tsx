@@ -1,9 +1,30 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useState, type ComponentType, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet, IconRadar } from '../ui/icons';
 import MusicPlayer from '../music/MusicPlayer';
 import { updatePresence } from '../../services/chat.service';
+
+interface NavItem {
+  to: string;
+  label: string;
+  Icon: ComponentType<{ size?: number }>;
+  /** Ativo também nas sub-rotas (ex.: /mensagens/:id). */
+  prefix?: boolean;
+  admin?: boolean;
+}
+
+const NAV: NavItem[] = [
+  { to: '/', label: 'Chat com o Sano', Icon: IconChat },
+  { to: '/agenda', label: 'Agenda', Icon: IconCalendar },
+  { to: '/treino', label: 'Treino', Icon: IconDumbbell },
+  { to: '/musica', label: 'Música', Icon: IconMusic },
+  { to: '/financas', label: 'Finanças', Icon: IconWallet },
+  { to: '/mensagens', label: 'Mensagens', Icon: IconBubble, prefix: true },
+  { to: '/sobre', label: 'Sobre o Sano', Icon: IconInfo },
+  { to: '/admin', label: 'Administração', Icon: IconShield, admin: true },
+  { to: '/osint', label: 'OSINT', Icon: IconRadar, admin: true },
+];
 
 interface Props {
   /** Título da tela e linha de status ao lado. */
@@ -35,14 +56,35 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
 
   useEffect(() => {
     setMenuOpen(false);
+    setTip(null);
   }, [pathname]);
+
+  // Esc fecha o menu da conta.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menuOpen]);
 
   const askPermission = async () => {
     const p = await Notification.requestPermission();
     setNotify(p === 'granted');
   };
 
-  const is = (path: string) => pathname === path;
+  const isActive = (item: NavItem) => (item.prefix ? pathname.startsWith(item.to) : pathname === item.to);
+
+  /** Rótulo flutuante do rail: posicionado pelo item, fora do overflow do rail. */
+  const [tip, setTip] = useState<{ label: string; top: number } | null>(null);
+  const showTip = (label: string) => (e: MouseEvent<HTMLElement> | FocusEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ label, top: r.top + r.height / 2 });
+  };
+  const tipProps = (label: string) => ({
+    onMouseEnter: showTip(label),
+    onFocus: showTip(label),
+    onBlur: () => setTip(null),
+  });
   const initials = (user?.displayName || user?.username || '?').slice(0, 2);
 
   useEffect(() => {
@@ -82,30 +124,24 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
 
   return (
     <div className="app">
-      <nav className="rail" aria-label="Navegação principal">
-        <Link to="/" className={`rail-link ${is('/') ? 'active' : ''}`} title="Chat"><IconChat /></Link>
-        <Link to="/agenda" className={`rail-link ${is('/agenda') ? 'active' : ''}`} title="Agenda"><IconCalendar /></Link>
-        <Link to="/treino" className={`rail-link ${is('/treino') ? 'active' : ''}`} title="Treino"><IconDumbbell /></Link>
-        <Link to="/musica" className={`rail-link ${is('/musica') ? 'active' : ''}`} title="Música"><IconMusic /></Link>
-        <Link to="/financas" className={`rail-link ${is('/financas') ? 'active' : ''}`} title="Finanças"><IconWallet /></Link>
-        <Link
-          to="/mensagens"
-          className={`rail-link ${pathname.startsWith('/mensagens') ? 'active' : ''}`}
-          title="Mensagens (criptografadas)"
-        >
-          <IconBubble />
-        </Link>
-        <Link to="/sobre" className={`rail-link ${is('/sobre') ? 'active' : ''}`} title="Sobre o Sano">
-          <IconInfo />
-        </Link>
-        {user?.role === 'ADMIN' && (
-          <>
-            <span className="rail-sep" />
-            <Link to="/admin" className={`rail-link ${is('/admin') ? 'active' : ''}`} title="Painel administrativo"><IconShield /></Link>
-            <Link to="/osint" className={`rail-link ${is('/osint') ? 'active' : ''}`} title="OSINT"><IconRadar /></Link>
-          </>
-        )}
+      <nav className="rail" aria-label="Navegação principal" onMouseLeave={() => setTip(null)}>
+        <Link to="/" className="rail-brand" aria-label="Sano — início" {...tipProps('Sano')}>S</Link>
+        {NAV.filter((item) => !item.admin || user?.role === 'ADMIN').map((item, index, list) => (
+          <Fragment key={item.to}>
+            {item.admin && !list[index - 1]?.admin && <span className="rail-sep" />}
+            <Link
+              to={item.to}
+              className={`rail-link ${isActive(item) ? 'active' : ''}`}
+              aria-label={item.label}
+              aria-current={isActive(item) ? 'page' : undefined}
+              {...tipProps(item.label)}
+            >
+              <item.Icon />
+            </Link>
+          </Fragment>
+        ))}
       </nav>
+      {tip && <span className="rail-tip" role="tooltip" style={{ top: tip.top }}>{tip.label}</span>}
 
       <div className="app-main">
         <header className="appbar">
@@ -151,8 +187,13 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
                   <div className="backdrop" onClick={() => setMenuOpen(false)} />
                   <div className="menu" role="menu">
                     <div className="menu-head">
-                      <b>{user?.displayName || user?.username}</b>
-                      <span>{user?.role === 'ADMIN' ? 'Administrador' : 'Usuário'}</span>
+                      <span className="avatar" aria-hidden="true">
+                        {user?.avatarDataUrl ? <img src={user.avatarDataUrl} alt="" /> : initials}
+                      </span>
+                      <div>
+                        <b>{user?.displayName || user?.username}</b>
+                        <span>@{user?.username} · {user?.role === 'ADMIN' ? 'Administrador' : 'Usuário'}</span>
+                      </div>
                     </div>
                     <button
                       className="menu-item"

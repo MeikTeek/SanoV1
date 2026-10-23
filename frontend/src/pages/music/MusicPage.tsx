@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { parseBlob } from 'music-metadata';
 import AppShell from '../../components/layout/AppShell';
-import { IconCopy, IconDownload, IconMoreVertical, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
+import { IconCopy, IconDownload, IconMoreVertical, IconMusic, IconPause, IconPlay, IconPlus, IconSearch } from '../../components/ui/icons';
 import MusicCover from '../../components/music/MusicCover';
 import { useMusic } from '../../music/musicStore';
 import { getAudioFormat, isAudioFile, SUPPORTED_AUDIO_ACCEPT, SUPPORTED_AUDIO_EXTENSIONS, type EditableMusicMetadata, type MusicTrack } from '../../music/musicTypes';
@@ -24,6 +24,20 @@ const uint8ToBase64 = (data: Uint8Array) => {
   return btoa(binary);
 };
 
+const fmtDuration = (seconds: number) =>
+  seconds > 0 ? `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}` : '—';
+
+/** Cor estável por texto: dá identidade às playlists sem capa. */
+const hueOf = (text: string) => [...text].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 360, 7);
+
+function IconHeart({ filled = false, size = 18 }: { filled?: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.6 4.5 7.1 4.5c2 0 3.5 1.1 4.9 2.9 1.4-1.8 2.9-2.9 4.9-2.9 3.5 0 5.7 3.5 4.4 6.8-1.8 4.6-9.3 9.2-9.3 9.2z" />
+    </svg>
+  );
+}
+
 function Equalizer() {
   return (
     <span className="track-eq" aria-label="Tocando agora">
@@ -33,7 +47,7 @@ function Equalizer() {
 }
 
 export default function MusicPage() {
-  const { tracks, playlists, current, playing, play, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, addToPlaylist, playPlaylist, exportPackage, importPackage, downloadTrack, toggleFavorite } = useMusic();
+  const { tracks, playlists, current, playing, queue, play, toggle, addFiles, updateTrack, remove, search, createPlaylist, deletePlaylist, addToPlaylist, playPlaylist, exportPackage, importPackage, downloadTrack, toggleFavorite } = useMusic();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [artistFilter, setArtistFilter] = useState('');
@@ -66,6 +80,7 @@ export default function MusicPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [creatingPlaylist, setCreatingPlaylist] = useState(false);
 
   const found = search(query);
   const artists = Array.from(new Set(tracks.map((t) => t.artist).filter(Boolean))).sort();
@@ -78,6 +93,16 @@ export default function MusicPage() {
     (!favoritesOnly || track.favorite) &&
     (!playlistFilter || playlists.find((playlist) => playlist.id === playlistFilter)?.trackIds.includes(track.id)),
   );
+
+  // Clique fora fecha o menu de ações da faixa.
+  useEffect(() => {
+    if (!openTrackMenu) return;
+    const close = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.track-menu-wrap')) { setOpenTrackMenu(null); setOpenPlaylistMenu(null); }
+    };
+    document.addEventListener('mousedown', close);
+    return () => document.removeEventListener('mousedown', close);
+  }, [openTrackMenu]);
 
   // Fecha o modal com Esc
   useEffect(() => {
@@ -195,6 +220,19 @@ export default function MusicPage() {
     setPlaylistId(playlist.id);
     setNewPlaylistName('');
     setMessage({ text: `Playlist "${playlist.name}" criada.`, });
+  };
+
+  const createFromNav = () => {
+    const playlist = createPlaylist(newPlaylistName);
+    if (!playlist) {
+      setMessage({ text: 'Informe um nome de playlist novo.', error: true });
+      return;
+    }
+    setNewPlaylistName('');
+    setCreatingPlaylist(false);
+    setFavoritesOnly(false);
+    setPlaylistFilter(playlist.id);
+    setMessage({ text: `Playlist "${playlist.name}" criada. Use o menu ⋮ de uma música para adicioná-la.` });
   };
 
   const openEdit = (track: MusicTrack) => {
@@ -356,6 +394,18 @@ export default function MusicPage() {
     }
   };
 
+  const activePlaylist = playlists.find((p) => p.id === playlistFilter);
+  const viewTitle = activePlaylist?.name ?? (favoritesOnly ? 'Favoritas' : 'Suas músicas');
+  const viewKind = activePlaylist ? 'Playlist' : favoritesOnly ? 'Coleção' : 'Biblioteca';
+  const favoritesCount = tracks.filter((t) => t.favorite).length;
+  const totalSeconds = visible.reduce((sum, t) => sum + (t.duration > 0 ? t.duration : 0), 0);
+  const heroHue = hueOf(activePlaylist?.name ?? (favoritesOnly ? 'favoritas' : current?.title ?? 'sano'));
+  const visiblePlaying = Boolean(current && playing && visible.some((t) => t.id === current.id));
+  const playVisible = () => {
+    if (visiblePlaying) { toggle(); return; }
+    if (visible.length) play(visible[0], visible.slice(1));
+  };
+
   const emptyTitle = tracks.length ? 'Nada encontrado' : 'Sua biblioteca começa aqui';
   const emptyText = tracks.length
     ? 'Tente outro termo de busca ou limpe o filtro de clima.'
@@ -370,41 +420,95 @@ export default function MusicPage() {
       <div className="music-page">
         <aside className="music-library-nav" aria-label="Sua biblioteca">
           <div className="music-library-title">
-            <strong>Sua biblioteca</strong>
+            <strong><IconMusic size={18} /> Sua biblioteca</strong>
+            <button className="music-nav-add" onClick={() => setCreatingPlaylist((v) => !v)} aria-label="Nova playlist" title="Nova playlist">
+              <IconPlus size={18} />
+            </button>
           </div>
-          <button className={`music-library-item${!favoritesOnly && !playlistFilter ? ' active' : ''}`} aria-current={!favoritesOnly && !playlistFilter ? 'page' : undefined} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(''); }}>♫ Músicas</button>
-          <button className={`music-library-item${favoritesOnly ? ' active' : ''}`} onClick={() => { setFavoritesOnly((value) => !value); setPlaylistFilter(''); }}>☆ Favoritas</button>
-          <button className={`music-library-item${!favoritesOnly && playlistFilter === 'all' ? ' active' : ''}`} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(''); }}>▦ Playlists</button>
+          <button className={`music-library-item${!favoritesOnly && !playlistFilter ? ' active' : ''}`} aria-current={!favoritesOnly && !playlistFilter ? 'page' : undefined} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(''); }}>
+            <span className="music-nav-thumb all"><IconMusic size={18} /></span>
+            <span className="music-nav-text"><b>Músicas</b><small>{tracks.length} {tracks.length === 1 ? 'faixa' : 'faixas'}</small></span>
+          </button>
+          <button className={`music-library-item${favoritesOnly ? ' active' : ''}`} onClick={() => { setFavoritesOnly((value) => !value); setPlaylistFilter(''); }}>
+            <span className="music-nav-thumb fav"><IconHeart filled size={16} /></span>
+            <span className="music-nav-text"><b>Favoritas</b><small>{favoritesCount} {favoritesCount === 1 ? 'faixa' : 'faixas'}</small></span>
+          </button>
+
+          <div className="music-nav-section">
+            <span>Playlists</span>
+            {playlists.length > 0 && <small>{playlists.length}</small>}
+          </div>
+          {creatingPlaylist && (
+            <form className="music-nav-create" onSubmit={(e) => { e.preventDefault(); createFromNav(); }}>
+              <input
+                autoFocus
+                value={newPlaylistName}
+                onChange={(e) => setNewPlaylistName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Escape') setCreatingPlaylist(false); }}
+                placeholder="Nome da playlist"
+                aria-label="Nome da nova playlist"
+                maxLength={60}
+              />
+              <button type="submit" disabled={!newPlaylistName.trim()}>Criar</button>
+            </form>
+          )}
           {playlists.map((playlist) => (
-            <div className="music-playlist-item" key={playlist.id}>
-              <button className={`music-library-item${!favoritesOnly && playlistFilter === playlist.id ? ' active' : ''}`} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(playlist.id); }} title={`Tocar playlist ${playlist.name}`}>
-                {playlist.name}
+            <div className={`music-playlist-item${!favoritesOnly && playlistFilter === playlist.id ? ' active' : ''}`} key={playlist.id}>
+              <button className={`music-library-item${!favoritesOnly && playlistFilter === playlist.id ? ' active' : ''}`} onClick={() => { setFavoritesOnly(false); setPlaylistFilter(playlist.id); }} title={`Abrir playlist ${playlist.name}`}>
+                <span className="music-nav-thumb" style={{ '--hue': hueOf(playlist.name) } as React.CSSProperties}>{playlist.name.slice(0, 1).toUpperCase()}</span>
+                <span className="music-nav-text"><b>{playlist.name}</b><small>Playlist · {playlist.trackIds.length} {playlist.trackIds.length === 1 ? 'faixa' : 'faixas'}</small></span>
               </button>
-              <button className="music-playlist-play" onClick={() => playPlaylist(playlist)} aria-label={`Tocar playlist ${playlist.name}`}>▶</button>
-              <button className="music-playlist-delete" onClick={() => { deletePlaylist(playlist.id); if (playlistFilter === playlist.id) setPlaylistFilter(''); }} aria-label={`Excluir playlist ${playlist.name}`}>×</button>
+              <button className="music-playlist-play" onClick={() => playPlaylist(playlist)} aria-label={`Tocar playlist ${playlist.name}`} title="Tocar"><IconPlay size={14} /></button>
+              <button className="music-playlist-delete" onClick={() => { if (!confirm(`Excluir a playlist "${playlist.name}"? As músicas continuam na biblioteca.`)) return; deletePlaylist(playlist.id); if (playlistFilter === playlist.id) setPlaylistFilter(''); }} aria-label={`Excluir playlist ${playlist.name}`} title="Excluir">×</button>
             </div>
           ))}
-          <button className="music-library-item music-create-playlist" onClick={() => setUploadOpen(true)}>＋ Nova playlist</button>
+          {!playlists.length && !creatingPlaylist && (
+            <button className="music-nav-empty" onClick={() => setCreatingPlaylist(true)}>
+              <b>Crie sua primeira playlist</b>
+              <small>É fácil — clique aqui e dê um nome.</small>
+            </button>
+          )}
         </aside>
 
         <main className="music-main-column">
           <section
             className={`music-hero${dragging ? ' dragover' : ''}`}
+            style={{ '--hero-hue': heroHue } as React.CSSProperties}
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
+            key={viewTitle}
           >
-            <div>
-              <span className="eyebrow">Sua biblioteca</span>
-              <h2>Trilha sonora do seu dia.</h2>
-              <p>Envie suas músicas, organize por clima e peça ao Sano para tocar o que você quiser. Você também pode soltar arquivos aqui.</p>
+            <div className={`music-hero-art${activePlaylist ? '' : favoritesOnly ? ' fav' : ' all'}`} aria-hidden="true">
+              {activePlaylist ? activePlaylist.name.slice(0, 1).toUpperCase() : favoritesOnly ? <IconHeart filled size={56} /> : <IconMusic size={56} />}
             </div>
-            <button onClick={() => setUploadOpen(true)}>Adicionar músicas</button>
+            <div className="music-hero-text">
+              <span className="eyebrow">{viewKind}</span>
+              <h2>{viewTitle}</h2>
+              <p>
+                {visible.length} {visible.length === 1 ? 'música' : 'músicas'}
+                {totalSeconds > 0 && <> · cerca de {Math.max(1, Math.round(totalSeconds / 60))} min</>}
+                {!activePlaylist && !favoritesOnly && <> · {playlists.length} {playlists.length === 1 ? 'playlist' : 'playlists'}</>}
+              </p>
+              <small>Solte arquivos de áudio aqui para adicioná-los, ou peça ao Sano: “tocar favoritas”.</small>
+            </div>
           </section>
+
+          <div className="music-actions">
+            <button className="music-play-all" onClick={playVisible} disabled={!visible.length} aria-label={visiblePlaying ? 'Pausar' : 'Tocar tudo'} title={visiblePlaying ? 'Pausar' : 'Tocar tudo'}>
+              {visiblePlaying ? <IconPause size={22} /> : <IconPlay size={22} />}
+            </button>
+            <button className="music-add" onClick={() => setUploadOpen(true)}><IconPlus size={16} /> Adicionar músicas</button>
+          </div>
 
           <input ref={inputRef} hidden type="file" accept={SUPPORTED_AUDIO_ACCEPT} multiple onChange={onPick} />
 
-          {message && <p className={`music-message${message.error ? ' error' : ''}`} role="status">{message.text}</p>}
+          {message && (
+            <p className={`music-message${message.error ? ' error' : ''}`} role="status" key={message.text}>
+              <span>{message.text}</span>
+              <button onClick={() => setMessage(null)} aria-label="Fechar aviso">×</button>
+            </p>
+          )}
 
           <div className="music-search">
             <IconSearch />
@@ -448,7 +552,7 @@ export default function MusicPage() {
           )}
 
           <div className="music-section-head">
-            <h3>Suas músicas</h3>
+            <h3>{selectionMode ? 'Marque o que quer enviar' : 'Faixas'}</h3>
             <div className="music-share-actions">
               <span>{visible.length} {visible.length === 1 ? 'resultado' : 'resultados'}</span>
               <button className="ghost" onClick={() => void downloadAll()} disabled={downloading || !tracks.length}>
@@ -459,12 +563,23 @@ export default function MusicPage() {
           </div>
 
           <div className="track-list">
+            {visible.length > 0 && (
+              <div className="track-head" aria-hidden="true">
+                {selectionMode && <span className="track-select" />}
+                <span className="track-index">#</span>
+                <span className="track-head-title">Título</span>
+                <span className="track-mood">Clima</span>
+                <span className="track-duration">⏱</span>
+                <span className="track-head-actions" />
+              </div>
+            )}
             {visible.map((track, index) => {
               const isCurrent = current?.id === track.id;
               return (
                 <div
-                  className={`track-row${isCurrent ? ' playing' : ''}`}
+                  className={`track-row${isCurrent ? ' playing' : ''}${openTrackMenu === track.id ? ' menu-open' : ''}`}
                   key={track.id}
+                  style={{ '--i': Math.min(index, 14) } as React.CSSProperties}
                   onDoubleClick={() => play(track, visible.slice(index + 1))}
                 >
                   {selectionMode && <label className="track-select" onClick={(event) => event.stopPropagation()}>
@@ -475,14 +590,33 @@ export default function MusicPage() {
                         aria-label={`Selecionar ${track.title} para compartilhar`}
                       />
                     </label>}
-                  <span className="track-index">{isCurrent ? (playing ? <Equalizer /> : <span className="track-current-marker">●</span>) : index + 1}</span>
+                  <span className="track-index">
+                    <span className="track-index-label">{isCurrent ? (playing ? <Equalizer /> : <span className="track-current-marker">●</span>) : index + 1}</span>
+                    <button
+                      className="track-play"
+                      onClick={() => (isCurrent ? toggle() : play(track, visible.slice(index + 1)))}
+                      aria-label={isCurrent && playing ? `Pausar ${track.title}` : `Tocar ${track.title}`}
+                    >
+                      {isCurrent && playing ? <IconPause /> : <IconPlay />}
+                    </button>
+                  </span>
                   <MusicCover src={track.coverDataUrl} title={track.title} className="track-art" />
                   <div className="track-info">
-                    <strong title={track.title}>{track.title} {track.favorite && <span className="track-favorite" title="Favorita">★</span>}</strong>
-                    <span>{track.artist} · {track.genre} · {track.mood}</span>
-                    <small className="track-format">Formato: {getAudioFormat(track.fileName) || 'desconhecido'}</small>
+                    <strong title={track.title}>{track.title}</strong>
+                    <span>{track.artist || 'Artista desconhecido'}{track.album ? ` · ${track.album}` : ''}</span>
+                    <small className="track-format">{track.genre}{track.genre ? ' · ' : ''}{getAudioFormat(track.fileName) || 'formato desconhecido'}</small>
                   </div>
-                  <button className="icon-btn track-play" onClick={() => play(track, visible.slice(index + 1))} aria-label={`Tocar ${track.title}`}><IconPlay /></button>
+                  <span className="track-mood">{track.mood && <span className="music-chip small">{track.mood}</span>}</span>
+                  <button
+                    className={`track-fav${track.favorite ? ' on' : ''}`}
+                    onClick={() => void toggleFavorite(track.id)}
+                    aria-pressed={track.favorite}
+                    aria-label={track.favorite ? `Desfavoritar ${track.title}` : `Favoritar ${track.title}`}
+                    title={track.favorite ? 'Desfavoritar' : 'Favoritar'}
+                  >
+                    <IconHeart filled={track.favorite} size={17} />
+                  </button>
+                  <span className="track-duration">{fmtDuration(track.duration)}</span>
                   <div className="track-menu-wrap">
                     <button
                       className="icon-btn track-menu-trigger"
@@ -526,24 +660,48 @@ export default function MusicPage() {
             })}
             {!visible.length && (
               <div className="music-empty">
-                <h3>{playlistFilter ? playlists.find((p) => p.id === playlistFilter)?.name || emptyTitle : emptyTitle}</h3>
-                <p>{emptyText}</p>
+                <span className="music-empty-icon">{favoritesOnly ? <IconHeart size={30} /> : <IconMusic size={30} />}</span>
+                <h3>
+                  {activePlaylist && tracks.length
+                    ? 'Playlist vazia'
+                    : favoritesOnly && tracks.length && !query ? 'Nenhuma favorita ainda' : emptyTitle}
+                </h3>
+                <p>
+                  {activePlaylist && tracks.length
+                    ? 'Abra o menu ⋮ de uma música e escolha "Adicionar à playlist".'
+                    : favoritesOnly && tracks.length && !query ? 'Toque no coração ao lado de uma música para guardá-la aqui.' : emptyText}
+                </p>
+                {!tracks.length && <button className="music-add" onClick={() => setUploadOpen(true)}><IconPlus size={16} /> Adicionar músicas</button>}
               </div>
             )}
           </div>
         </main>
 
-        <aside className="music-side-panel" aria-label="Tocando agora">
-          <span className="eyebrow">Tocando agora</span>
-          <MusicCover src={current?.coverDataUrl} title={current?.title || '♪'} className="music-side-art" />
-          <h3>{current?.title || 'Sua biblioteca'}</h3>
-          <p>{current?.artist || 'Adicione uma música para começar'}</p>
+        <aside className={`music-side-panel${current && playing ? ' is-playing' : ''}`} aria-label="Tocando agora">
+          <span className="eyebrow">{current ? (playing ? 'Tocando agora' : 'Pausado') : 'Nada tocando'}</span>
+          <div className="music-side-art-wrap">
+            <MusicCover src={current?.coverDataUrl} title={current?.title || '♪'} className="music-side-art" />
+          </div>
+          <h3 key={current?.id}>{current?.title || 'Sua biblioteca'}</h3>
+          <p>{current?.artist || 'Escolha uma música para começar'}</p>
           {current && <div className="music-side-meta">
             <span>{current.album || 'Sem álbum'}</span>
             <span>{current.genre || 'Sem gênero'} · {current.mood || 'Sem clima'}</span>
             <span>{playlists.find((playlist) => playlist.trackIds.includes(current.id))?.name || 'Músicas'}</span>
-            <span>{current.duration > 0 ? `${Math.floor(current.duration / 60)}:${String(Math.floor(current.duration % 60)).padStart(2, '0')}` : 'Duração não informada'}</span>
+            <span>{current.duration > 0 ? fmtDuration(current.duration) : 'Duração não informada'}</span>
           </div>}
+          {queue.length > 0 && (
+            <div className="music-queue">
+              <span className="music-queue-title">A seguir</span>
+              {queue.slice(0, 6).map((track, index) => (
+                <button key={`${track.id}-${index}`} className="music-queue-item" onClick={() => play(track, queue.slice(index + 1))} title={`Tocar ${track.title}`}>
+                  <MusicCover src={track.coverDataUrl} title={track.title} className="track-art" />
+                  <span><b>{track.title}</b><small>{track.artist || 'Artista desconhecido'}</small></span>
+                </button>
+              ))}
+              {queue.length > 6 && <small className="music-queue-more">+ {queue.length - 6} na fila</small>}
+            </div>
+          )}
         </aside>
       </div>
 

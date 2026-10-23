@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { useMusic } from '../../music/musicStore';
 import { IconBack, IconPause, IconPlay } from '../ui/icons';
 import MusicCover from './MusicCover';
@@ -30,8 +30,22 @@ function IconVolume({ level }: { level: 'mute' | 'low' | 'high' }) {
 }
 
 export default function MusicPlayer() {
-  const { current, playing, progress, duration, volume, error, toggle, next, previous, setProgress, setVolume } = useMusic();
+  const { current, playing, progress, duration, volume, error, queue, toggle, next, previous, setProgress, setVolume, toggleFavorite } = useMusic();
   const lastVolume = useRef(0.7);
+
+  // Espaço toca/pausa de qualquer tela, menos quando se está digitando.
+  useEffect(() => {
+    if (!current) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
+      const el = e.target as HTMLElement;
+      if (el.closest('input, textarea, select, button, [contenteditable="true"], a')) return;
+      e.preventDefault();
+      toggle();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [current, toggle]);
 
   if (!current) return null;
 
@@ -51,25 +65,39 @@ export default function MusicPlayer() {
   };
 
   return (
-    <div className="music-player" role="region" aria-label="Player de música">
+    <div className={`music-player${playing ? ' is-playing' : ''}`} role="region" aria-label="Player de música">
+      <span className="music-player-glow" style={{ '--progress': `${progressPct}%` } as CSSProperties} aria-hidden="true" />
       <div className="music-now">
         <MusicCover src={current.coverDataUrl} title={current.title} className={`music-cover${playing ? ' is-playing' : ''}`} />
-        <div className="music-now-text">
+        <div className="music-now-text" key={current.id}>
           <strong title={current.title}>{current.title}</strong>
-          <span>{current.artist || 'Artista desconhecido'}</span>
+          {error
+            ? <button type="button" className="music-player-error" onClick={toggle} title="Tentar novamente">{error}</button>
+            : <span>{current.artist || 'Artista desconhecido'}</span>}
         </div>
+        <button
+          type="button"
+          className={`player-btn player-fav${current.favorite ? ' on' : ''}`}
+          onClick={() => void toggleFavorite(current.id)}
+          aria-pressed={current.favorite}
+          aria-label={current.favorite ? 'Desfavoritar' : 'Favoritar'}
+          title={current.favorite ? 'Desfavoritar' : 'Favoritar'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill={current.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.6 4.5 7.1 4.5c2 0 3.5 1.1 4.9 2.9 1.4-1.8 2.9-2.9 4.9-2.9 3.5 0 5.7 3.5 4.4 6.8-1.8 4.6-9.3 9.2-9.3 9.2z" />
+          </svg>
+        </button>
       </div>
-      {error && <button type="button" className="music-player-error" onClick={toggle} title="Tentar novamente">{error}</button>}
 
       <div className="music-controls">
         <div className="music-buttons">
           <button type="button" className="player-btn" onClick={previous} aria-label="Anterior">
             <IconBack />
           </button>
-          <button type="button" className="player-main" onClick={toggle} aria-label={playing ? 'Pausar' : 'Tocar'}>
+          <button type="button" className="player-main" onClick={toggle} aria-label={playing ? 'Pausar' : 'Tocar'} title={`${playing ? 'Pausar' : 'Tocar'} (espaço)`}>
             {playing ? <IconPause /> : <IconPlay />}
           </button>
-          <button type="button" className="player-btn" onClick={next} aria-label="Próxima">
+          <button type="button" className="player-btn" onClick={next} aria-label="Próxima" title={queue[0] ? `Próxima: ${queue[0].title}` : 'Próxima'}>
             <IconBack size={20} />
           </button>
         </div>

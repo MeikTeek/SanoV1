@@ -11,10 +11,11 @@
   --line: #404249;
   --line-soft: #34363c;
 
-  --text: #f2f2f2;
-  /* Texto secundário com contraste legível sobre as superfícies escuras. */
-  --text-dim: #9a9a9a;
-  --muted: #6b6b6b;
+  --text: #f2f3f5;
+  /* Texto secundário com contraste legível sobre as superfícies escuras
+     (mesmos tons do Discord: #b5bac1 e #80848e passam AA no grafite). */
+  --text-dim: #b5bac1;
+  --muted: #80848e;
 
   --accent: #00e5ff;
   --accent-gradient: linear-gradient(135deg, #00e5ff, #0097a7);
@@ -27,6 +28,12 @@
   --radius-card: 10px;
   --radius-sm: 10px;
   --rail: 76px;
+
+  /* Movimento: curvas e sombras compartilhadas pelas animações. */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --shadow-pop: 0 18px 48px #0009, 0 2px 6px #0005;
+  --ring: 0 0 0 2px var(--bg), 0 0 0 4px #00e5ffaa;
 
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -42,17 +49,17 @@ html { color-scheme: dark; }
 /* Barra de rolagem discreta e sem setinhas em todo o app. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1c3a52 transparent;
+  scrollbar-color: #4e5058 transparent;
 }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: #1c3a52;
+  background: #41434a;
   border-radius: 99px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: #2a5878; background-clip: content-box; }
+*::-webkit-scrollbar-thumb:hover { background: #5c5f68; background-clip: content-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 body {
   margin: 0;
@@ -78,6 +85,7 @@ p { margin: 0 0 10px; }
   border-radius: var(--radius-card);
   padding: 20px;
   box-shadow: inset 0 1px 0 #00e5ff0a;
+  transition: border-color .2s ease, box-shadow .2s ease;
 }
 .card + .card { margin-top: 16px; }
 .auth-card { width: 100%; max-width: 380px; }
@@ -101,9 +109,11 @@ input::placeholder, textarea::placeholder { color: var(--muted); }
 input:focus, select:focus, textarea:focus {
   /* Sem contorno ciano: foco discreto, só a borda clareia. */
   outline: none;
-  border-color: #4e5058;
-  box-shadow: none;
+  border-color: #5c5f68;
+  box-shadow: 0 0 0 3px #ffffff0a;
 }
+input, select, textarea { transition: border-color .15s ease, box-shadow .2s ease, background .15s ease; }
+input:hover:not(:focus):not(:disabled), select:hover:not(:focus), textarea:hover:not(:focus) { border-color: #4e5058; }
 
 button {
   font: inherit;
@@ -115,9 +125,13 @@ button {
   padding: 10px 16px;
   border-radius: 10px;
   cursor: pointer;
-  transition: filter .15s ease, background .15s ease, border-color .15s ease;
+  transition: filter .15s ease, background .15s ease, border-color .15s ease, color .15s ease, transform .12s var(--ease-out), box-shadow .2s ease;
 }
 button:hover:not(:disabled) { filter: brightness(1.08); }
+button:active:not(:disabled) { transform: scale(.97); }
+/* Foco visível só para teclado: anel ciano que não aparece no clique. */
+:focus-visible { outline: none; box-shadow: var(--ring); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { box-shadow: 0 0 0 3px #ffffff0a; border-color: #5c5f68; }
 button:disabled { opacity: .45; cursor: not-allowed; }
 button.ghost {
   background: var(--surface-2);
@@ -153,8 +167,10 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   color: #ffb3bd;
   border-radius: var(--radius-sm);
   font-size: .88rem;
+  animation: slideDown .25s var(--ease-out);
 }
 .notice {
+  animation: slideDown .25s var(--ease-out);
   margin: 14px 0;
   padding: 13px;
   border: 1px solid #3ddc9740;
@@ -176,7 +192,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
 }
 .app-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .app-content { flex: 1; overflow-y: auto; min-height: 0; }
-.page { width: 100%; padding: 22px 24px 32px; max-width: 1480px; margin: 0 auto; }
+.page { width: 100%; padding: 22px 24px 32px; max-width: 1480px; margin: 0 auto; animation: pageIn .35s var(--ease-out); }
 .page.wide { max-width: 1600px; }
 .page.flush { max-width: none; padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
@@ -190,7 +206,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   background: var(--bg);
   border-right: 1px solid var(--line-soft);
   overflow-y: auto;
+  scrollbar-width: none;
 }
+.rail::-webkit-scrollbar { display: none; }
 .rail-link {
   position: relative;
   width: 48px;
@@ -200,22 +218,78 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   border-radius: 14px;
   color: var(--muted);
   text-decoration: none;
-  transition: background .15s ease, color .15s ease;
+  flex-shrink: 0;
+  transition: background .2s ease, color .2s ease, border-radius .25s var(--ease-out), transform .2s var(--ease-out);
 }
-.rail-link:hover { background: var(--surface); color: var(--text); }
-.rail-link.active { background: var(--surface-2); color: var(--accent); }
-.rail-link.active::before {
+.rail-link svg { transition: transform .25s var(--ease-spring); }
+.rail-link:hover { background: var(--surface-2); color: var(--text); border-radius: 16px; }
+.rail-link:hover svg { transform: scale(1.08); }
+.rail-link:active svg { transform: scale(.92); }
+.rail-link.active { background: #00e5ff14; color: var(--accent); }
+/* Indicador à esquerda: cresce no hover e fica cheio no item ativo. */
+.rail-link::before {
   content: '';
   position: absolute;
   left: -14px;
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 22px;
+  height: 0;
   border-radius: 0 3px 3px 0;
-  background: var(--accent);
+  background: var(--text);
+  transition: height .25s var(--ease-out), background .2s ease;
 }
-.rail-sep { width: 32px; height: 1px; background: var(--line); margin: 6px 0; }
+.rail-link:hover::before { height: 10px; }
+.rail-link.active::before { height: 26px; background: var(--accent); }
+/* Rótulo flutuante: o rail é só ícone, o nome aparece ao passar o mouse. */
+.rail-tip {
+  position: fixed;
+  left: calc(var(--rail) + 6px);
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #111214;
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px #0008;
+  pointer-events: none;
+  z-index: 90;
+  transform: translateY(-50%);
+  animation: tipIn .16s var(--ease-out);
+}
+.rail-tip::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  transform: translateY(-50%) rotate(45deg);
+  border-radius: 2px;
+}
+@keyframes tipIn { from { opacity: 0; margin-left: -6px; } }
+/* Marca no topo do rail. */
+.rail-brand {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  margin-bottom: 4px;
+  border-radius: 16px;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: 1.25rem;
+  letter-spacing: -.04em;
+  text-decoration: none;
+  box-shadow: 0 6px 18px #00e5ff26;
+  transition: border-radius .25s var(--ease-out), transform .25s var(--ease-spring), box-shadow .25s ease;
+}
+.rail-brand:hover { border-radius: 14px; transform: rotate(-6deg) scale(1.04); box-shadow: 0 8px 24px #00e5ff40; }
+.rail-sep { width: 32px; height: 2px; border-radius: 2px; background: var(--line-soft); margin: 4px 0; flex-shrink: 0; }
 
 /* Topbar enxuta: só título, status e ações de ícone */
 .appbar {
@@ -250,6 +324,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--bg);
+  animation: dotPulse 2s ease-in-out infinite;
 }
 .appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .appbar-extra { display: flex; align-items: center; gap: 8px; }
@@ -269,7 +344,9 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   cursor: pointer;
   padding: 0;
   text-transform: uppercase;
+  transition: transform .2s var(--ease-spring), box-shadow .2s ease;
 }
+.avatar:hover:not(:disabled) { filter: none; transform: scale(1.06); box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px #00e5ff55; }
 .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .avatar.sano-avatar { background: var(--surface-3); color: var(--accent); }
 .visually-hidden {
@@ -330,10 +407,15 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 6px;
-  box-shadow: 0 16px 40px #000c;
+  box-shadow: var(--shadow-pop);
   z-index: 60;
+  transform-origin: top right;
+  animation: popIn .18s var(--ease-out);
 }
-.menu-head { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); margin-bottom: 6px; }
+.menu-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line-soft); margin-bottom: 6px; }
+.menu-head > div { min-width: 0; }
+.menu-head .avatar { width: 34px; height: 34px; cursor: default; flex-shrink: 0; }
+.menu-head .avatar:hover { transform: none; box-shadow: none; }
 .menu-head b { display: block; font-size: .9rem; }
 .menu-head span { font-size: .75rem; color: var(--muted); }
 .menu-item {
@@ -370,6 +452,7 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
 }
 .tabs button:hover:not(:disabled) { color: var(--text); filter: none; }
 .tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+.tabs button { transition: color .15s ease, border-color .2s ease; }
 .inline { display: flex; gap: 10px; flex-wrap: wrap; }
 .inline input { flex: 1; min-width: 160px; width: auto; }
 .inline select, .inline button { width: auto; }
@@ -394,10 +477,105 @@ td.actions { display: flex; gap: 6px; }
     border-top: 1px solid var(--line);
   }
   .rail-link { width: 100%; max-width: 72px; height: 44px; }
-  .rail-link.active::before { left: 50%; top: -6px; transform: translateX(-50%); width: 22px; height: 3px; border-radius: 0 0 3px 3px; }
+  .rail-link::before { left: 50%; top: -6px; transform: translateX(-50%); width: 0; height: 3px; border-radius: 0 0 3px 3px; transition: width .25s var(--ease-out); }
+  .rail-link:hover::before { width: 0; height: 3px; }
+  .rail-link.active::before { width: 22px; height: 3px; }
+  .rail-tip, .rail-brand { display: none; }
   .rail-sep { display: none; }
   .page { padding: 16px 14px 24px; }
   .appbar { padding: 0 14px; }
+}
+
+/* ── Movimento ───────────────────────────────────────────
+   Animações curtas e com propósito: entrada de tela, pop de menus e modais,
+   avisos que deslizam. Tudo some com prefers-reduced-motion.
+   ─────────────────────────────────────────────────────────── */
+@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.94) translateY(-4px); } }
+@keyframes modalIn { from { opacity: 0; transform: scale(.96) translateY(12px); } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } }
+@keyframes toastIn { from { opacity: 0; transform: translateX(24px) scale(.98); } }
+@keyframes dotPulse { 0%, 100% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 2px #00e5ff00; } 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 6px #00e5ff33; } }
+@keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Lista que entra em cascata: cada filho recebe --i (índice) no style. */
+.stagger > * { animation: slideUp .35s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms); }
+
+/* Esqueleto de carregamento. */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+/* Modais genéricos (mensagens, música, admin): fundo desfocado e caixa que sobe. */
+.modal-backdrop, .music-modal-backdrop { animation: fadeIn .2s ease; backdrop-filter: blur(4px); }
+.modal, .music-modal { animation: modalIn .28s var(--ease-out); box-shadow: var(--shadow-pop); }
+
+/* Pílulas de status reaproveitadas (admin, logs). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: .74rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--surface-3);
+  color: var(--text-dim);
+  border: 1px solid transparent;
+}
+.pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pill.plain::before { display: none; }
+.pill.ok { color: var(--ok); background: #3ddc9714; border-color: #3ddc9730; }
+.pill.bad { color: var(--bad); background: #ff5d7314; border-color: #ff5d7330; }
+.pill.warn { color: var(--warn); background: #ffb34714; border-color: #ffb34730; }
+.pill.accent { color: var(--accent); background: #00e5ff12; border-color: #00e5ff30; }
+
+/* Contador sobre um botão (ex.: pedidos de amizade). */
+button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
+.btn-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border-radius: 99px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: .68rem;
+  font-weight: 800;
+  animation: popIn .3s var(--ease-spring);
+}
+.appbar-extra button.ghost { display: inline-flex; align-items: center; gap: 6px; }
+
+/* Botão "×" de fechar usado nos modais de música. */
+.track-remove {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 1.3rem;
+  font-weight: 400;
+  line-height: 1;
+}
+.track-remove:hover:not(:disabled) { background: #ffffff14; color: var(--text); filter: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
 }
 
 /* ── Música (estilo Spotify) ─────────────────────────────────

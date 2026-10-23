@@ -7,6 +7,8 @@ import { ChatProvider } from './store/chatStore';
 import { MusicProvider } from './music/musicStore';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import './styles/global.css';
+// Acabamento da música por cima da base de global.css (precisa vir depois dela).
+import './styles/music.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
