@@ -79,10 +79,6 @@
   0%, 100% { height: 9px; }
   50% { height: 26px; }
 }
-/* Sem animação para quem pediu menos movimento. */
-@media (prefers-reduced-motion: reduce) {
-  .wave-bar { animation: none !important; height: 4px; }
-}
 .sr-only {
   position: absolute; width: 1px; height: 1px;
   padding: 0; margin: -1px; overflow: hidden;

@@ -4,7 +4,36 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+/* ----------------------------------------------------------------------------
+ * Requisições em andamento: a tela de carregamento de cada módulo espera a rede
+ * ficar quieta antes de mostrar a página. Uploads (Blob) não contam — podem
+ * levar minutos e não fazem parte do que a tela precisa para aparecer.
+ * ------------------------------------------------------------------------- */
+let inflight = 0;
+let lastChange = Date.now();
+export const network = {
+  /** Quantas requisições ainda não responderam. */
+  pending: () => inflight,
+  /** Há quantos ms o número de requisições não muda. */
+  quietFor: () => Date.now() - lastChange,
+};
+async function tracked<T>(run: () => Promise<T>, track: boolean): Promise<T> {
+  if (!track) return run();
+  inflight++;
+  lastChange = Date.now();
+  try {
+    return await run();
+  } finally {
+    inflight--;
+    lastChange = Date.now();
+  }
+}
+
+function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  return tracked(() => send<T>(method, path, body), !(body instanceof Blob));
+}
+
+async function send<T>(method: string, path: string, body?: unknown): Promise<T> {
   const rawBody = body instanceof Blob;
   const res = await fetch(`/api${path}`, {
     method,
@@ -20,7 +49,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return data as T;
 }
 
-async function requestBlob(method: string, path: string, body?: unknown): Promise<Blob> {
+function requestBlob(method: string, path: string, body?: unknown): Promise<Blob> {
+  return tracked(() => sendBlob(method, path, body), true);
+}
+
+async function sendBlob(method: string, path: string, body?: unknown): Promise<Blob> {
   const res = await fetch(`/api${path}`, {
     method,
     credentials: 'include',

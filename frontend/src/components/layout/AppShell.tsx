@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet, IconRadar } from '../ui/icons';
 import MusicPlayer from '../music/MusicPlayer';
+import PageLoader, { usePageReady } from './PageLoader';
 import { updatePresence } from '../../services/chat.service';
 
 interface NavItem {
@@ -48,6 +49,15 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notify, setNotify] = useState(false);
+  // Cada módulo abre com a tela de carregamento até os dados chegarem; depois
+  // ela some num fade e a página entra animada.
+  const ready = usePageReady();
+  const [loaderGone, setLoaderGone] = useState(false);
+  useEffect(() => {
+    if (!ready) return;
+    const timer = window.setTimeout(() => setLoaderGone(true), 320);
+    return () => window.clearTimeout(timer);
+  }, [ready]);
 
   useEffect(() => {
     if (!('Notification' in window)) return;
@@ -215,8 +225,11 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
           </div>
         </header>
 
-        <div className="app-content">
-          {flush ? <div className="page flush">{children}</div> : <div className="page">{children}</div>}
+        <div className="app-stage">
+          <div className={`app-content ${ready ? 'revealed' : 'loading'}`} aria-busy={!ready}>
+            {flush ? <div className="page flush">{children}</div> : <div className="page">{children}</div>}
+          </div>
+          {!loaderGone && <PageLoader label={title} leaving={ready} />}
         </div>
         <MusicPlayer />
       </div>

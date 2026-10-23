@@ -191,8 +191,63 @@ code { background: var(--surface-2); padding: 2px 7px; border-radius: 6px; color
   background: var(--bg);
 }
 .app-main { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.app-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .app-content { flex: 1; overflow-y: auto; min-height: 0; }
-.page { width: 100%; padding: 22px 24px 32px; max-width: 1480px; margin: 0 auto; animation: pageIn .35s var(--ease-out); }
+.page { width: 100%; padding: 22px 24px 32px; max-width: 1480px; margin: 0 auto; }
+/* A página fica escondida (e com as animações congeladas) enquanto a tela de
+   carregamento está na frente; ao revelar, entra e as cascatas começam juntas. */
+.app-content.loading > .page { opacity: 0; }
+.app-content.loading * { animation-play-state: paused !important; }
+.app-content.revealed > .page { animation: pageIn .5s var(--ease-out); }
+
+/* ── Tela de carregamento ─────────────────────────────────── */
+.page-loader {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  background: var(--bg);
+  animation: fadeIn .15s ease;
+}
+.page-loader.fullscreen { position: fixed; }
+.page-loader.leaving { animation: loaderOut .32s var(--ease-out) forwards; pointer-events: none; }
+@keyframes loaderOut { to { opacity: 0; transform: scale(1.04); filter: blur(2px); } }
+.page-loader-mark { position: relative; width: 72px; height: 72px; display: grid; place-items: center; }
+.page-loader-logo {
+  position: relative;
+  z-index: 1;
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -.04em;
+  box-shadow: 0 10px 30px #00e5ff40;
+  animation: logoBreath 1.2s ease-in-out infinite;
+}
+@keyframes logoBreath { 50% { transform: scale(.92); border-radius: 22px; box-shadow: 0 6px 18px #00e5ff26; } }
+.page-loader-ring {
+  position: absolute;
+  inset: 6px;
+  border-radius: 20px;
+  border: 2px solid var(--accent);
+  opacity: 0;
+  animation: ringOut 1.6s var(--ease-out) infinite;
+}
+.page-loader-ring.delay { animation-delay: .8s; }
+@keyframes ringOut { 0% { opacity: .7; transform: scale(.85); } 100% { opacity: 0; transform: scale(1.6); } }
+.page-loader-label { color: var(--text-dim); font-size: .9rem; font-weight: 600; letter-spacing: .01em; animation: slideUp .3s var(--ease-out) .05s both; }
+.page-loader-bar { position: relative; width: 140px; height: 3px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+.page-loader-bar i { position: absolute; top: 0; bottom: 0; width: 40%; border-radius: 3px; background: var(--accent-gradient); animation: barSlide 1s ease-in-out infinite; }
+@keyframes barSlide { 0% { left: -40%; } 100% { left: 100%; } }
 .page.wide { max-width: 1600px; }
 .page.flush { max-width: none; padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
 
@@ -488,21 +543,21 @@ td.actions { display: flex; gap: 6px; }
 
 /* ── Movimento ───────────────────────────────────────────
    Animações curtas e com propósito: entrada de tela, pop de menus e modais,
-   avisos que deslizam. Tudo some com prefers-reduced-motion.
+   avisos que deslizam. Com movimento reduzido, só os loops decorativos param.
    ─────────────────────────────────────────────────────────── */
-@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } }
+@keyframes pageIn { from { opacity: 0; transform: translateY(18px) scale(.99); } }
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes popIn { from { opacity: 0; transform: scale(.94) translateY(-4px); } }
 @keyframes modalIn { from { opacity: 0; transform: scale(.96) translateY(12px); } }
 @keyframes slideDown { from { opacity: 0; transform: translateY(-6px); } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(10px); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px); } }
 @keyframes toastIn { from { opacity: 0; transform: translateX(24px) scale(.98); } }
 @keyframes dotPulse { 0%, 100% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 2px #00e5ff00; } 50% { box-shadow: 0 0 0 2px var(--bg), 0 0 0 6px #00e5ff33; } }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Lista que entra em cascata: cada filho recebe --i (índice) no style. */
-.stagger > * { animation: slideUp .35s var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 12) * 35ms); }
+.stagger > * { animation: slideUp .45s var(--ease-out) both; animation-delay: calc(.08s + min(var(--i, 0), 12) * 50ms); }
 
 /* Esqueleto de carregamento. */
 .skeleton {
@@ -570,12 +625,12 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
 }
 .track-remove:hover:not(:disabled) { background: #ffffff14; color: var(--text); filter: none; }
 
+/* Movimento reduzido (ex.: "Efeitos de animação" desligado no Windows): as
+   entradas curtas continuam — são o retorno visual do app — e só os efeitos
+   decorativos em loop param. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .001ms !important;
-  }
+  .bell-dot, .msg-empty-orb, .music-cover-fallback.is-playing,
+  .music-side-art-wrap::before { animation: none !important; }
 }
 
 /* ── Música (estilo Spotify) ─────────────────────────────────
@@ -982,9 +1037,6 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
   outline: 2px solid #fff;
   outline-offset: 2px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .music-page *, .music-player * { transition: none !important; }
-}
 
 /* ── Responsivo ──────────────────────────────────────────── */
 @media (max-width: 1100px) {
@@ -1074,7 +1126,6 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
 .track-eq i:nth-child(2) { animation-delay: -.4s; }
 .track-eq i:nth-child(3) { animation-delay: -.7s; }
 @keyframes sp-eq { 0%, 100% { transform: scaleY(.25); } 50% { transform: scaleY(1); } }
-@media (prefers-reduced-motion: reduce) { .track-eq i { animation: none; transform: scaleY(.7); } }
 
 @media (max-width: 760px) {
   .music-chips { margin: 16px 20px 0; }
