@@ -21,7 +21,8 @@ export interface WavRecording {
 }
 
 export async function recordWav(handlers: {
-  onDone: (wavBase64: string | null) => void;
+  /** `pcm`: fala em 16 kHz mono (null se ninguém falou). */
+  onDone: (pcm: Float32Array | null) => void;
   onError: (message: string) => void;
 }): Promise<WavRecording | null> {
   let stream: MediaStream;
@@ -49,7 +50,7 @@ export async function recordWav(handlers: {
     source.disconnect();
     stream.getTracks().forEach((t) => t.stop());
     void ctx.close();
-    handlers.onDone(heardSpeech ? toWavBase64(chunks, ctx.sampleRate) : null);
+    handlers.onDone(heardSpeech ? toPcm16k(chunks, ctx.sampleRate) : null);
   };
 
   node.onaudioprocess = (e) => {
@@ -68,15 +69,28 @@ export async function recordWav(handlers: {
   return { stop: finish };
 }
 
-/** Junta, reduz para 16 kHz e embrulha em WAV PCM 16 bits. */
-export function toWavBase64(chunks: Float32Array[], rate: number): string {
+/** Junta os pedaços e reduz para 16 kHz (média da janela: sem serrilhar demais). */
+export function toPcm16k(chunks: Float32Array[], rate: number): Float32Array {
   const length = chunks.reduce((n, c) => n + c.length, 0);
   const merged = new Float32Array(length);
   let offset = 0;
   for (const c of chunks) { merged.set(c, offset); offset += c.length; }
 
   const ratio = rate / TARGET_RATE;
-  const samples = Math.floor(merged.length / ratio);
+  const out = new Float32Array(Math.floor(merged.length / ratio));
+  for (let i = 0; i < out.length; i++) {
+    const from = Math.floor(i * ratio);
+    const to = Math.min(merged.length, Math.floor((i + 1) * ratio));
+    let acc = 0;
+    for (let j = from; j < to; j++) acc += merged[j];
+    out[i] = Math.max(-1, Math.min(1, acc / Math.max(1, to - from)));
+  }
+  return out;
+}
+
+/** Fala em 16 kHz → WAV PCM 16 bits em base64 (para a transcrição pela OpenRouter). */
+export function pcmToWavBase64(pcm: Float32Array): string {
+  const samples = pcm.length;
   const buffer = new ArrayBuffer(44 + samples * 2);
   const view = new DataView(buffer);
   const text = (at: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(at + i, s.charCodeAt(i)); };
@@ -85,12 +99,7 @@ export function toWavBase64(chunks: Float32Array[], rate: number): string {
   view.setUint32(24, TARGET_RATE, true); view.setUint32(28, TARGET_RATE * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
   text(36, 'data'); view.setUint32(40, samples * 2, true);
   for (let i = 0; i < samples; i++) {
-    // Média da janela: reduz a taxa sem serrilhar demais.
-    const from = Math.floor(i * ratio);
-    const to = Math.min(merged.length, Math.floor((i + 1) * ratio));
-    let acc = 0;
-    for (let j = from; j < to; j++) acc += merged[j];
-    const v = Math.max(-1, Math.min(1, acc / Math.max(1, to - from)));
+    const v = pcm[i];
     view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7fff, true);
   }
 
@@ -99,3 +108,6 @@ export function toWavBase64(chunks: Float32Array[], rate: number): string {
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(binary);
 }
+
+/** Atalho usado pelos testes e pela transcrição no servidor. */
+export const toWavBase64 = (chunks: Float32Array[], rate: number) => pcmToWavBase64(toPcm16k(chunks, rate));

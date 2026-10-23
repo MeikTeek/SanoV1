@@ -160,12 +160,24 @@ export default function SanoAiCard() {
       ) : (
         <>
           <p className="muted small">
-            {canListen()
-              ? 'Toque no microfone do chat e fale. O Sano entende português e responde em voz alta. Em navegadores sem o reconhecimento do Google (Brave, Opera, app Android), a fala é transcrita pela sua IA.'
-              : canUseMic()
-                ? 'Toque no microfone do chat e fale. Neste navegador a fala é transcrita pela sua IA, então ligue-a acima para usar o microfone.'
-                : 'Este navegador não consegue usar o microfone, mas o Sano ainda pode ler as respostas.'}
+            {canUseMic()
+              ? 'Toque no microfone do chat e fale. O Sano entende português e responde em voz alta. Em navegadores sem o reconhecimento do Google (Brave, Opera, app Android), a fala é transcrita como você escolher abaixo.'
+              : 'Este navegador não consegue usar o microfone, mas o Sano ainda pode ler as respostas.'}
           </p>
+          {canUseMic() && (
+            <label className="ai-field">
+              <span>Quem transcreve a sua fala (quando o navegador não consegue)</span>
+              <select value={prefs.stt} onChange={(e) => updatePrefs({ stt: e.target.value as VoicePrefs['stt'] })}>
+                <option value="local">Este computador — Whisper, grátis e privado</option>
+                <option value="openrouter">OpenRouter — mais leve, bom para celular</option>
+              </select>
+              <small className="muted">
+                {prefs.stt === 'local'
+                  ? 'Na primeira vez baixa o modelo de voz (cerca de 77 MB), que fica guardado. Depois leva uns 3 segundos por frase, e o áudio não sai do aparelho.'
+                  : 'Precisa de uma chave da OpenRouter. O áudio vai para um modelo gratuito de lá.'}
+              </small>
+            </label>
+          )}
           <label className="ai-field">
             <span>Ler respostas em voz alta</span>
             <select value={prefs.speak} onChange={(e) => updatePrefs({ speak: e.target.value as VoicePrefs['speak'] })}>

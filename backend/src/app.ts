@@ -8,6 +8,14 @@ import { globalLimiter, originCheck } from './middleware/security';
 import { errorHandler } from './middleware/errorHandler';
 import { serveFrontend } from './static';
 
+/** Precisam bater com `frontend/src/voice/whisper.worker.ts`. */
+const WHISPER_SOURCES = [
+  'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/',
+  'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/',
+];
+/** Arquivos do modelo: huggingface.co redireciona para os servidores de arquivos dele. */
+const WHISPER_MODEL_HOSTS = ['https://huggingface.co', 'https://*.huggingface.co', 'https://*.hf.co'];
+
 const app = express();
 
 app.set('trust proxy', 1); // atrás do proxy da hospedagem (IP real nos logs/rate limit)
@@ -21,10 +29,26 @@ app.use(helmet({
       'media-src': ["'self'", 'blob:'],
       // IA local: o navegador fala direto com o LM Studio no PC do usuário.
       // Só loopback — endereços da rede local seguem bloqueados.
-      'connect-src': ["'self'", 'http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
+      'connect-src': ["'self'", 'http://localhost:*', 'http://127.0.0.1:*'],
     },
   },
 }));
+
+/**
+ * O worker do Whisper tem política própria: só ele carrega transformers.js e o
+ * ONNX Runtime (versões fixas, caminho exato), compila WebAssembly e importa
+ * `blob:` — o ONNX Runtime monta o próprio carregador assim. A página
+ * continua com a política restrita acima.
+ */
+const WHISPER_WORKER_CSP = [
+  "default-src 'none'",
+  `script-src 'self' 'wasm-unsafe-eval' blob: ${WHISPER_SOURCES.join(' ')}`,
+  `connect-src 'self' ${[...WHISPER_SOURCES, ...WHISPER_MODEL_HOSTS].join(' ')}`,
+].join('; ');
+app.use(/^\/assets\/whisper\.worker-[\w-]+\.js$/, (_req, res, next) => {
+  res.setHeader('Content-Security-Policy', WHISPER_WORKER_CSP);
+  next();
+});
 // `origin: allowedOrigins` (lista) em vez da string única: o CORS precisa
 // liberar exatamente as mesmas origens que o `originCheck` aceita logo abaixo.
 app.use(cors({ origin: allowedOrigins, credentials: true }));

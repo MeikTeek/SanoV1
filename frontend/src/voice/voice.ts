@@ -8,13 +8,19 @@
  * Firefox), `canListen()` devolve false e a tela esconde o botão.
  */
 import { api } from '../services/api';
-import { canRecord, recordWav } from './wavRecorder';
+import { canRecord, pcmToWavBase64, recordWav } from './wavRecorder';
+import { transcribeLocally } from './localWhisper';
 
 export interface VoicePrefs {
   /** Ler as respostas em voz alta: sempre, só quando você falou, ou nunca. */
   speak: 'always' | 'voice' | 'never';
   /** Voz neural (servidor) ou a do próprio navegador. */
   engine: 'neural' | 'browser';
+  /**
+   * Quem transcreve quando o navegador não reconhece fala sozinho: o Whisper
+   * neste computador (grátis, privado) ou a OpenRouter (mais leve no celular).
+   */
+  stt: 'local' | 'openrouter';
   /** Voz neural escolhida (ex.: "pt-BR-AntonioNeural"). */
   neuralVoice: string;
   /** `voiceURI` do navegador; vazio = a melhor pt-BR disponível. */
@@ -24,7 +30,7 @@ export interface VoicePrefs {
 }
 
 const PREFS_KEY = 'sano:voice:v1';
-const DEFAULTS: VoicePrefs = { speak: 'voice', engine: 'neural', neuralVoice: 'pt-BR-AntonioNeural', voiceURI: '', rate: 1.05, pitch: 0.95 };
+const DEFAULTS: VoicePrefs = { speak: 'voice', engine: 'neural', stt: 'local', neuralVoice: 'pt-BR-AntonioNeural', voiceURI: '', rate: 1.05, pitch: 0.95 };
 
 export function loadVoicePrefs(): VoicePrefs {
   try {
@@ -193,11 +199,16 @@ export function listen(h: ListenHandlers): Listener | null {
     }
     h.onHint?.('Ouvindo… fale e faça uma pausa para enviar');
     void recordWav({
-      onDone: (wav) => {
-        if (!wav) { h.onHint?.(''); h.onEnd(); return; }
+      onDone: (pcm) => {
+        if (!pcm) { h.onHint?.(''); h.onEnd(); return; }
         h.onHint?.('Transcrevendo sua fala…');
-        api.post<{ text: string }>('/sano/voice/stt', { audio: wav })
-          .then(({ text }) => { if (text) h.onFinal(text); })
+        const local = loadVoicePrefs().stt === 'local';
+        const job = local
+          ? transcribeLocally(pcm, (p) => h.onHint?.(p < 100 ? `Baixando o reconhecimento de voz (só na 1ª vez)… ${p}%` : 'Transcrevendo sua fala…'))
+            .catch((e: Error) => { throw new Error(`Transcrição no computador falhou: ${e.message}`); })
+          : api.post<{ text: string }>('/sano/voice/stt', { audio: pcmToWavBase64(pcm) }).then((r) => r.text);
+        job
+          .then((text) => { if (text) h.onFinal(text); else h.onError('Não entendi o que você falou. Tente de novo, um pouco mais perto do microfone.'); })
           .catch((e: Error) => h.onError(e.message))
           .finally(() => { h.onHint?.(''); h.onEnd(); });
       },
