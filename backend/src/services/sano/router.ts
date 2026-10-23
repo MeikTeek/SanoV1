@@ -10,6 +10,7 @@ import { recordLearningPhrase } from '../assistant/learning';
 import { registerSanoIntents } from '../assistant/intents';
 import { agendaIntent, executeAgendaPending } from './intents/schedule';
 import { failureMessage } from './ai.errors';
+import { fillsDraft, scheduleEvidence, wantsToDropDraft } from './agendaGate';
 
 const help = createHelpIntent(() => intents);
 export const intents: Intent[] = [help, ...baseIntents];
@@ -109,6 +110,19 @@ const CLIENT_COMMANDS: { name: string; description: string; examples: string[] }
 ];
 const CLIENT_COMMAND = /^(?:tocar|toque|reproduzir|pausar|pausa|pause|aumentar|diminuir|subir|baixar)\b/;
 
+/** A frase parece conversa, não compromisso: pergunta antes de abrir um rascunho. */
+function askIfAgenda(user: SanoUser, text: string): SanoResponse {
+  return {
+    intent: 'agenda-confirm',
+    reply: variedReply(user.id, 'agenda:is-it-schedule', [
+      'Isso é um compromisso para a agenda ou só estamos conversando?',
+      'Quer que eu anote isso na agenda, ou foi só um comentário?',
+      'Não tenho certeza se isso é para a agenda. Quer que eu anote?',
+    ]),
+    view: { kind: 'actions', title: 'Agenda', items: [{ label: 'Anotar na agenda', command: `anotar ${text.trim()}` }] },
+  };
+}
+
 /**
  * Sem regra que entenda a frase e com chave configurada: a IA reescreve como
  * comando (que roda aqui, com as confirmações de sempre) ou conversa.
@@ -149,6 +163,11 @@ async function askAi(
   if (CLIENT_COMMAND.test(command)) {
     return { intent: 'ai', reply: '', actions: [{ type: 'run', command: outcome.command }] };
   }
+  // A IA às vezes transforma desabafo em "anotar ...". Se a frase original não
+  // tem nada de agenda (verbo, dia ou hora), pergunta em vez de abrir rascunho.
+  if (matchIntent(command)?.name === 'agenda' && scheduleEvidence(text, now) === 'none') {
+    return askIfAgenda(user, text);
+  }
   // Sem `ai` no segundo passe: uma tradução que ainda não casa não volta à IA.
   const result = await handleCommand(user, outcome.command, { ...deps, ai: undefined }, now);
   return result.intent === 'unknown' ? null : result;
@@ -167,9 +186,9 @@ export async function handleCommand(
   deps: SanoDeps,
   now: Date = new Date(),
 ): Promise<SanoResponse> {
-  const memory = await loadMemory(user.id);
+  let memory = await loadMemory(user.id);
   let normalized = stripWakeWord(normalizeMessage(normalize(text)));
-  const pending = memory.pendingAction && pendingIsFresh(memory.pendingAction, now)
+  let pending = memory.pendingAction && pendingIsFresh(memory.pendingAction, now)
     ? memory.pendingAction
     : null;
   if (memory.pendingAction && !pending) {
@@ -195,6 +214,17 @@ export async function handleCommand(
           ? `Só falta o horário de "${pending.title}". Que horas?`
           : `Só falta a data de "${pending.title}". Para qual dia?`,
       };
+    }
+    if (wantsToDropDraft(normalized)) {
+      await saveMemory(user.id, { pendingAction: null });
+      return { intent: 'agenda', reply: `Sem problema, não anotei "${pending.title}".` };
+    }
+    // Não respondeu à pergunta (nem data, nem horário): era outro assunto.
+    // O rascunho cai e a frase segue o fluxo normal.
+    if (!fillsDraft(text, now)) {
+      await saveMemory(user.id, { pendingAction: null });
+      memory = { ...memory, pendingAction: null };
+      pending = null;
     }
   }
 
@@ -247,6 +277,16 @@ export async function handleCommand(
   if (intent && !pending && deps.ai && (scored!.score < CONFIDENT_SCORE || intent.name === 'pergunta')) {
     const viaAi = await askAi(user, text, deps, now, false);
     if (viaAi) return viaAi;
+  }
+  // Regra explícita de agenda, mas a frase só cita um dia no meio de uma conversa.
+  if (intent?.name === 'agenda' && !pending && scored!.score >= CONFIDENT_SCORE) {
+    const evidence = scheduleEvidence(text, now);
+    if (evidence !== 'strong') {
+      const viaAi = deps.ai ? await askAi(user, text, deps, now, false) : null;
+      if (viaAi) return viaAi;
+      if (evidence === 'weak') return askIfAgenda(user, text);
+      intent = null;
+    }
   }
   if (pending?.type === 'draft' && !intent) intent = agendaIntent;
   if (pending?.type === 'draft' && intent?.name === 'agenda') {

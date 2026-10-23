@@ -261,7 +261,7 @@ const WHEN = /\b(quando (e|eh|sera|vai ser|e que e|tenho|marquei|ficou|foi marca
 const FREE = /\b(livre|livres|disponivel|disponiveis|desocupad[oa]s?|ocupad[oa]s?|tenho tempo|horarios? vagos?|horarios? livres?|brecha)\b/;
 const COUNT = /\bquant[oa]s (compromissos|eventos|reunioes|coisas|agendamentos)\b/;
 const LIST = /\b(o que tenho|que tenho|tenho algo|tem algo|tenho alguma coisa|tem alguma coisa|minha agenda|meus compromissos|quais (sao )?(os )?(meus )?compromissos|listar|lista|mostra|mostrar|mostre|ver (a |minha )?agenda|como (esta|ta|fica) (minha|a) (agenda|semana|dia)|agenda (de|da|do|para|pra)|programacao|o que rola|abre a agenda|abrir agenda)\b|^agenda$|^compromissos$/;
-const CREATE = /\b(agendar|agende|agendo|agenda|criar|crie|cria|marcar|marque|marca|marquei|coloca|coloque|bota|boto|poe|lembrar|lembre|lembra|anote|anota|anotar|adiciona|adicione|adicionar|inclui|incluir|cadastrar|cadastra|registrar|registre|tenho que|preciso)\b/;
+export const CREATE = /\b(agendar|agende|agendo|agenda|criar|crie|cria|marcar|marque|marca|marquei|coloca|coloque|bota|boto|poe|lembrar|lembre|lembra|anote|anota|anotar|adiciona|adicione|adicionar|inclui|incluir|cadastrar|cadastra|registrar|registre|tenho que|preciso)\b/;
 const REMIND_ONLY = new RegExp(`\\b${AMOUNT}\\s+antes\\b|\\bsem lembrete\\b|\\bna hora\\b`);
 
 export function understandAgenda(text: string, now: Date): AgendaRequest {

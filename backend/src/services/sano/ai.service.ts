@@ -196,6 +196,8 @@ Agora é ${when} (horário de Brasília).
 O Sano já sabe executar os comandos abaixo. Quando o pedido for um deles, NÃO responda você mesmo: reescreva o pedido como uma frase curta e completa, parecida com os exemplos, incluindo datas, horários e valores que a pessoa disse.
 ${catalog.map((c) => `- ${c.name}: ${c.description}. Ex.: ${c.examples.slice(0, 3).map((e) => `"${e}"`).join(', ')}`).join('\n')}
 
+Use "command" de agenda só quando a pessoa pedir claramente para marcar, lembrar, consultar ou mudar compromissos. Desabafos, sentimentos, cumprimentos, perguntas sobre você, testes e comentários soltos são conversa: responda com "reply", mesmo que citem um dia ou um número.
+
 Responda SEMPRE com um JSON de uma linha, sem nada antes ou depois:
 {"command": "<frase para o Sano executar>"}  quando for um comando da lista;
 {"reply": "<sua resposta>"}  para conversa, dúvidas e conhecimento geral.
