@@ -6,10 +6,11 @@ import { ApiError } from '../../services/api';
 import { sendCommand, fetchGreeting } from '../../services/sano.service';
 import { useCommandHistory } from '../../hooks/useCommandHistory';
 import type { ChatMessage } from '../../types/sano';
-import { IconSend } from '../ui/icons';
+import { IconMic, IconSend } from '../ui/icons';
 import ViewRenderer from './ViewRenderer';
 import { notifyAgendaChanged } from '../../native/bridge';
 import { useMusic } from '../../music/musicStore';
+import { canListen, listen, loadVoicePrefs, speak, stopSpeaking, type Listener } from '../../voice/voice';
 import '../../styles/chat.css';
 
 /** Cartões que ficam melhores acompanhados da frase do Sano. */
@@ -39,13 +40,37 @@ export default function ChatTerminal() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const history = useCommandHistory();
-  const { messages, setMessages, setBusy, setComposing, setThinking, busy, thinking, refreshPanels } = useChat();
+  const { messages, setMessages, setBusy, setComposing, setThinking, setVoice, voice, busy, thinking, refreshPanels } = useChat();
   const { tracks, playlists, volume, playing, play, toggle, setVolume } = useMusic();
   const nextId = useRef(1);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [input, setInput] = useState('');
+  const listenerRef = useRef<Listener | null>(null);
+  /** A última frase veio do microfone: a resposta volta por voz. */
+  const spokeRef = useRef(false);
+  /** Só o que chegar depois disso é lido — nunca a conversa restaurada. */
+  const spokenAtRef = useRef(Date.now());
+  const [voicePrefs, setVoicePrefs] = useState(loadVoicePrefs);
+
+  useEffect(() => {
+    const sync = () => setVoicePrefs(loadVoicePrefs());
+    window.addEventListener('sano-voice-prefs', sync);
+    return () => { window.removeEventListener('sano-voice-prefs', sync); stopSpeaking(); listenerRef.current?.stop(); };
+  }, []);
+
+  // Lê em voz alta cada resposta nova do Sano (conforme a preferência).
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    const at = last?.at ? new Date(last.at).getTime() : 0;
+    if (!last || last.role !== 'sano' || at <= spokenAtRef.current) return;
+    spokenAtRef.current = at;
+    const wants = voicePrefs.speak === 'always' || (voicePrefs.speak === 'voice' && spokeRef.current);
+    spokeRef.current = false;
+    if (!wants) return;
+    speak(last.text, voicePrefs, { onStart: () => setVoice('speaking'), onEnd: () => setVoice('idle') });
+  }, [messages, voicePrefs, setVoice]);
   // Exemplo diferente a cada mensagem: ensina o que dá para pedir sem precisar de "ajuda".
   const placeholder = messages.length % PLACEHOLDERS.length;
 
@@ -72,13 +97,15 @@ export default function ChatTerminal() {
   }, [messages, busy]);
 
   /** Envia ao Sano. Usado pelo formulario e pelos botoes clicaveis dos paineis. */
-  const send = useCallback(async (text: string) => {
+  const send = useCallback(async (text: string, opts: { spoken?: boolean; silent?: boolean } = {}) => {
     const trimmed = text.trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || (busy && !opts.silent)) return;
 
+    stopSpeaking();
+    spokeRef.current = Boolean(opts.spoken);
     setInput('');
     setComposing(false);
-    history.push(trimmed);
+    if (!opts.silent) history.push(trimmed);
 
     // "limpar" e local: nao vai ao servidor.
     if (/^(limpar|clear|cls)$/i.test(trimmed)) {
@@ -86,7 +113,7 @@ export default function ChatTerminal() {
       return;
     }
 
-    setMessages((m) => [...m, make('user', trimmed)]);
+    if (!opts.silent) setMessages((m) => [...m, make('user', trimmed)]);
 
     const normalized = trimmed.toLocaleLowerCase();
     if (/^(?:sano[,:]?\s*)?(?:pausar|pause|pausa)(?:\s+m[uú]sica)?$/i.test(trimmed)) {
@@ -141,12 +168,14 @@ export default function ChatTerminal() {
 
     try {
       const res = await sendCommand(trimmed);
-      setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
+      if (res.reply || res.view) setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
       // Mexeu na agenda pelo chat: os painéis "Hoje" precisam refletir na hora.
       if (res.intent === 'agenda' || res.intent === 'financas') refreshPanels();
       if (res.intent === 'agenda') notifyAgendaChanged();
       res.actions?.forEach((a) => {
         if (a.type === 'navigate') setTimeout(() => navigate(a.to), 600);
+        // A IA traduziu para um comando do player: o próprio console executa.
+        if (a.type === 'run') setTimeout(() => void sendRef.current(a.command, { silent: true, spoken: opts.spoken }), 0);
       });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) { setUser(null); return; }
@@ -156,6 +185,21 @@ export default function ChatTerminal() {
       inputRef.current?.focus();
     }
   }, [busy, history, make, navigate, playing, playlists, play, refreshPanels, setMessages, setBusy, setComposing, setThinking, setUser, setVolume, toggle, tracks, volume]);
+
+  const sendRef = useRef(send);
+  sendRef.current = send;
+
+  /** Microfone: um toque abre, outro fecha; a frase vai sozinha ao terminar. */
+  const toggleMic = () => {
+    if (listenerRef.current) { listenerRef.current.stop(); return; }
+    const listener = listen({
+      onPartial: (t) => { setInput(t); setComposing(Boolean(t)); },
+      onFinal: (t) => void sendRef.current(t, { spoken: true }),
+      onError: (msg) => setMessages((m) => [...m, make('error', msg)]),
+      onEnd: () => { listenerRef.current = null; setVoice('idle'); },
+    });
+    if (listener) { listenerRef.current = listener; setVoice('listening'); }
+  };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {
@@ -231,6 +275,18 @@ return (
           spellCheck={false}
           aria-label="Mensagem para o Sano"
         />
+        {canListen() && (
+          <button
+            className={`icon-btn mic-btn${voice === 'listening' ? ' on' : ''}`}
+            type="button"
+            onClick={toggleMic}
+            disabled={busy}
+            aria-pressed={voice === 'listening'}
+            aria-label={voice === 'listening' ? 'Parar de ouvir' : 'Falar com o Sano'}
+          >
+            <IconMic />
+          </button>
+        )}
         <button className="icon-btn" type="submit" disabled={busy || !input.trim()} aria-label="Enviar">
           <IconSend />
         </button>

@@ -16,11 +16,12 @@ import { useChat } from '../../store/chatStore';
  */
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { messages, busy, composing, thinking, refreshKey } = useChat();
+  const { messages, busy, composing, thinking, voice, refreshKey } = useChat();
 
   // A onda reflete o que o Sano está fazendo agora.
   const lastRole = messages[messages.length - 1]?.role;
-  const state: SanoState = busy ? 'thinking' : composing ? 'listening' : lastRole === 'sano' ? 'speaking' : 'idle';
+  const state: SanoState = voice === 'listening' ? 'listening' : busy ? 'thinking' : voice === 'speaking' ? 'speaking'
+    : composing ? 'listening' : lastRole === 'sano' ? 'speaking' : 'idle';
 
   const name = user?.displayName || user?.username || '';
 
@@ -33,7 +34,7 @@ export default function DashboardPage() {
         <main className="hud-center">
           <SanoWave
             state={state}
-            label={busy ? thinking : composing ? 'Sano está ouvindo você escrever' : 'Sano online'}
+            label={voice === 'listening' ? 'Sano está ouvindo' : busy ? thinking : composing ? 'Sano está ouvindo você escrever' : 'Sano online'}
           />
           <ChatTerminal />
         </main>

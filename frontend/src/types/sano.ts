@@ -1,7 +1,5 @@
-export interface SanoAction {
-  type: 'navigate';
-  to: string;
-}
+/** `run`: comando que só o navegador resolve (música), sugerido pela IA. */
+export type SanoAction = { type: 'navigate'; to: string } | { type: 'run'; command: string };
 
 /**
  * Painéis estruturados que o backend devolve no lugar de texto corrido.

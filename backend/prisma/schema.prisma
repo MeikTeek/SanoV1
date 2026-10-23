@@ -88,6 +88,8 @@ model User {
    * Integração Discord (bot da agenda)
    */
   discordLink      DiscordLink?
+  /// IA do Sano com a chave OpenRouter do próprio usuário.
+  sanoAi           SanoAiConfig?
   discordLinkCodes DiscordLinkCode[]
 }
 
@@ -661,4 +663,21 @@ model DiscordLinkCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+/**
+ * ===================== IA do Sano (OpenRouter) =====================
+ */
+
+/// Cada usuário traz a própria chave da OpenRouter. A chave fica criptografada
+/// (AES-256-GCM) e nunca volta ao navegador — só o final dela, para conferência.
+model SanoAiConfig {
+  userId    String   @id
+  apiKeyEnc String
+  keyHint   String   @db.VarChar(24)
+  model     String   @default("openrouter/free") @db.VarChar(120)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

@@ -22,3 +22,18 @@ export const fetchGreeting = () =>
 /** Dados dos painéis laterais: agenda de hoje, treino e saúde do sistema. */
 export const fetchPanels = () =>
   api.get<{ today: Appointment[]; upcoming?: Appointment[]; training: PanelTraining | null; system: { dbMs: number | null } }>('/sano/panels');
+/* ───────── IA (chave OpenRouter do próprio usuário) ───────── */
+
+export interface AiStatus { configured: boolean; model: string; keyHint: string | null; updatedAt: string | null }
+export interface AiQuota {
+  label: string | null;
+  isFreeTier: boolean;
+  freeDaily: { used: number; limit: number; remaining: number } | null;
+}
+export interface FreeModel { id: string; name: string; context: number }
+
+export const fetchAiStatus = () => api.get<AiStatus>('/sano/ai');
+export const saveAi = (body: { apiKey?: string; model?: string }) => api.put<AiStatus & { quota?: AiQuota }>('/sano/ai', body);
+export const removeAi = () => api.delete<AiStatus>('/sano/ai');
+export const fetchAiQuota = () => api.get<{ quota: AiQuota | null }>('/sano/ai/quota');
+export const fetchFreeModels = () => api.get<{ models: FreeModel[] }>('/sano/ai/models');

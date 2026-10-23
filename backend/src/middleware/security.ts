@@ -64,6 +64,16 @@ export const commandLimiter = rateLimit({
 });
 
 /** Envio de mensagens e criação de grupos: 60/min por IP. */
+/** Voz neural: cada resposta falada é um pedido; o cache cobre as repetidas. */
+export const ttsLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Muitas falas em pouco tempo.' },
+  skip: () => isTest,
+});
+
 export const chatLimiter = rateLimit({
   windowMs: 60_000,
   limit: 60,

@@ -1,6 +1,8 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
-import { commandSchema } from '../validators/sano.validator';
+import { aiConfigSchema, commandSchema, ttsSchema } from '../validators/sano.validator';
+import * as tts from '../services/sano/tts.service';
+import * as sanoAi from '../services/sano/ai.service';
 import { handleCommand } from '../services/sano/router';
 import { logAudit } from '../services/audit.service';
 import * as agenda from '../services/agenda/service';
@@ -30,6 +32,7 @@ export async function command(req: Request, res: Response) {
       ask: async (userId, question) => (await trainer.askCall(userId, question)).answer,
     },
     finance: financeChat,
+    ai: (input) => sanoAi.askSanoAi(req.user!.id, { ...input, displayName: req.user!.displayName || req.user!.username }),
   });
 
   // Privacidade: registra apenas a intenção, nunca o texto digitado.
@@ -87,4 +90,44 @@ export async function panels(req: Request, res: Response) {
   }
 
   res.json({ today, upcoming, training, system: { dbMs } });
+}
+
+/* ───────── IA (chave OpenRouter do próprio usuário) ───────── */
+
+export async function aiStatus(req: Request, res: Response) {
+  res.json(await sanoAi.getAiStatus(req.user!.id));
+}
+
+export async function aiSave(req: Request, res: Response) {
+  const input = aiConfigSchema.parse(req.body);
+  const status = await sanoAi.saveAiConfig(req.user!.id, input);
+  // Nunca a chave: só que ela mudou.
+  await logAudit(req, input.apiKey ? 'SANO_AI_KEY_SET' : 'SANO_AI_MODEL_SET', req.user!.id, { model: status.model });
+  res.json(status);
+}
+
+export async function aiRemove(req: Request, res: Response) {
+  await sanoAi.removeAiConfig(req.user!.id);
+  await logAudit(req, 'SANO_AI_KEY_REMOVED', req.user!.id);
+  res.json(await sanoAi.getAiStatus(req.user!.id));
+}
+
+export async function aiQuota(req: Request, res: Response) {
+  res.json({ quota: await sanoAi.getAiQuota(req.user!.id) });
+}
+
+export async function aiModels(_req: Request, res: Response) {
+  res.json({ models: await sanoAi.listFreeModels() });
+}
+
+/* ───────── Voz neural (Edge TTS) ───────── */
+
+export async function voices(_req: Request, res: Response) {
+  res.json({ voices: await tts.listNeuralVoices(), defaultVoice: tts.DEFAULT_VOICE });
+}
+
+export async function speak(req: Request, res: Response) {
+  const { text, voice, rate, pitch } = ttsSchema.parse(req.body);
+  const audio = await tts.synthesize({ text, voice: voice ?? tts.DEFAULT_VOICE, rate, pitch });
+  res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' }).send(audio);
 }

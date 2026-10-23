@@ -22,7 +22,24 @@ export interface SanoDeps {
   trainer?: SanoTrainerDeps;
   /** Finanças (orçamento por envelopes). */
   finance?: SanoFinanceDeps;
+  /** IA com a chave OpenRouter do usuário; ausente = Sano sem IA. */
+  ai?: SanoAiDeps;
 }
+
+/**
+ * A IA só traduz: devolve um comando que o motor determinístico executa, ou
+ * uma resposta de conversa. `null` = usuário sem chave configurada.
+ */
+export type SanoAiDeps = (input: {
+  text: string;
+  now: Date;
+  catalog: { name: string; description: string; examples: string[] }[];
+}) => Promise<
+  | { ok: true; command: string }
+  | { ok: true; reply: string }
+  | { ok: false; reason: 'quota' | 'invalid' | 'policy' | 'unavailable' }
+  | null
+>;
 
 export interface SanoFinanceDeps {
   summary: (userId: string) => Promise<{
@@ -121,8 +138,11 @@ export interface SanoContext {
   memory?: SanoMemory;
 }
 
-/** Ações que o frontend executa depois de mostrar a resposta. */
-export type SanoAction = { type: 'navigate'; to: string };
+/**
+ * Ações que o frontend executa depois de mostrar a resposta.
+ * `run` reenvia um comando que só o navegador resolve (ex.: tocar música).
+ */
+export type SanoAction = { type: 'navigate'; to: string } | { type: 'run'; command: string };
 
 /**
  * Respostas estruturadas ("painéis" / HUD) em vez de texto corrido.

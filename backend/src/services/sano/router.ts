@@ -15,8 +15,15 @@ export const intents: Intent[] = [help, ...baseIntents];
 registerSanoIntents(intents);
 
 export function matchIntent(normalized: string): Intent | null {
+  return matchIntentScored(normalized)?.intent ?? null;
+}
+
+/** Abaixo disso o casamento veio da tolerância a erros, não de uma regra explícita. */
+const CONFIDENT_SCORE = 3;
+
+function matchIntentScored(normalized: string): { intent: Intent; score: number } | null {
   const match = detectIntent(normalized, listRegisteredIntents<Intent>());
-  return match?.intent.handler ?? null;
+  return match ? { intent: match.intent.handler, score: match.score } : null;
 }
 
 /**
@@ -95,11 +102,64 @@ function executePendingAction(
   return executeAgendaPending(user, action, deps, now, scope);
 }
 
+/** Comandos que o navegador resolve sozinho (player de música). */
+const CLIENT_COMMANDS: { name: string; description: string; examples: string[] }[] = [
+  { name: 'musica', description: 'tocar, pausar e mudar o volume das músicas do usuário', examples: ['tocar favoritas', 'tocar Coldplay', 'pausar música', 'aumentar volume'] },
+];
+const CLIENT_COMMAND = /^(?:tocar|toque|reproduzir|pausar|pausa|pause|aumentar|diminuir|subir|baixar)\b/;
+
+/**
+ * Sem regra que entenda a frase e com chave configurada: a IA reescreve como
+ * comando (que roda aqui, com as confirmações de sempre) ou conversa.
+ * Devolve null para seguir o "não entendi" normal.
+ */
+async function askAi(
+  user: SanoUser,
+  text: string,
+  deps: SanoDeps,
+  now: Date,
+  /** false quando ainda existe uma regra de reserva: falhas ficam em silêncio. */
+  reportFailure = true,
+): Promise<SanoResponse | null> {
+  if (!deps.ai) return null;
+  const catalog = [
+    ...intents
+      .filter((i) => !i.hidden && !i.planned && (!i.adminOnly || user.role === 'ADMIN'))
+      .map((i) => ({ name: i.name, description: i.description, examples: i.examples })),
+    ...CLIENT_COMMANDS,
+  ];
+  const outcome = await deps.ai({ text, now, catalog });
+  if (!outcome) return null;
+
+  if (!outcome.ok) {
+    if (!reportFailure) return null;
+    const reply = outcome.reason === 'quota'
+      ? 'Sua cota gratuita de IA na OpenRouter acabou por hoje. Sigo no modo sem IA até ela renovar.'
+      : outcome.reason === 'invalid'
+        ? 'A OpenRouter recusou sua chave. Confira em Ajustes → Inteligência artificial.'
+        : outcome.reason === 'policy'
+          ? 'Os modelos gratuitos pedem uma liberação na sua conta OpenRouter: em openrouter.ai/settings/privacy, ative o uso de modelos gratuitos.'
+          : 'A IA não respondeu a tempo. Sigo no modo sem IA por enquanto.';
+    return { intent: 'unknown', ...unknownResponse(user, text), reply };
+  }
+
+  if ('reply' in outcome) return { intent: 'ai', reply: outcome.reply };
+
+  const command = normalizeMessage(normalize(outcome.command));
+  if (CLIENT_COMMAND.test(command)) {
+    return { intent: 'ai', reply: '', actions: [{ type: 'run', command: outcome.command }] };
+  }
+  // Sem `ai` no segundo passe: uma tradução que ainda não casa não volta à IA.
+  const result = await handleCommand(user, outcome.command, { ...deps, ai: undefined }, now);
+  return result.intent === 'unknown' ? null : result;
+}
+
 /**
  * Ponto de entrada do Sano.
  *
- * Ordem: memória → regra determinística → recuperação conversacional.
- * A classificação e a extração nunca dependem de IA ou rede externa.
+ * Ordem: memória → regra determinística → IA do usuário (opcional) →
+ * recuperação conversacional. As regras nunca dependem de IA; ela só entra
+ * quando nenhuma entendeu a frase e o usuário cadastrou a própria chave.
  */
 export async function handleCommand(
   user: SanoUser,
@@ -180,13 +240,22 @@ export async function handleCommand(
   }
 
   // 2) Regras determinísticas e referências de preenchimento de dados.
-  let intent = matchIntent(normalized);
+  const scored = matchIntentScored(normalized);
+  let intent = scored?.intent ?? null;
+  // Com IA: casamento fraco ("qual a capital da austrália" → agenda) ou dúvida
+  // livre vão primeiro para ela; se a IA falhar, a regra segue valendo.
+  if (intent && !pending && deps.ai && (scored!.score < CONFIDENT_SCORE || intent.name === 'pergunta')) {
+    const viaAi = await askAi(user, text, deps, now, false);
+    if (viaAi) return viaAi;
+  }
   if (pending?.type === 'draft' && !intent) intent = agendaIntent;
   if (pending?.type === 'draft' && intent?.name === 'agenda') {
     effectiveText = text;
   }
 
   if (!intent) {
+    const viaAi = await askAi(user, text, deps, now);
+    if (viaAi) return viaAi;
     await recordLearningPhrase(user.id, text, 7);
     return { intent: 'unknown', ...unknownResponse(user, text) };
   }

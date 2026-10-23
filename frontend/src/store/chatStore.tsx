@@ -17,6 +17,9 @@ interface ChatState {
   setBusy: (b: boolean) => void;
   composing: boolean;
   setComposing: (composing: boolean) => void;
+  /** Microfone aberto ou Sano falando em voz alta — também dirige a onda. */
+  voice: 'idle' | 'listening' | 'speaking';
+  setVoice: (v: 'idle' | 'listening' | 'speaking') => void;
   /** Texto da espera ("processando", "consultando") exibido junto do orbe. */
   thinking: string;
   setThinking: (t: string) => void;
@@ -48,6 +51,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
   const [thinking, setThinking] = useState('processando…');
+  const [voice, setVoice] = useState<'idle' | 'listening' | 'speaking'>('idle');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const persist = (next: ChatMessage[]) => {
@@ -63,6 +67,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     busy,
     composing,
     thinking,
+    voice,
+    setVoice,
     refreshKey,
     setBusy,
     setComposing,
@@ -78,7 +84,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return next;
     }),
     reset: () => { setRaw([]); try { sessionStorage.removeItem(STORAGE_KEY); } catch { /* ignora */ } },
-  }), [messages, busy, composing, thinking, refreshKey]);
+  }), [messages, busy, composing, thinking, voice, refreshKey]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

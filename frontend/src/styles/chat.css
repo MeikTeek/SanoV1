@@ -446,3 +446,10 @@
 
 .hud-title-sub { margin-top: 18px; }
 .hud-side-list .n small { display: block; color: var(--muted); font-size: .72rem; }
+
+/* Microfone: neutro em repouso, aceso enquanto ouve. */
+.chat-input .icon-btn.mic-btn { background: var(--surface-3); color: var(--text); box-shadow: none; }
+.chat-input .icon-btn.mic-btn:hover:not(:disabled) svg { transform: none; }
+.chat-input .icon-btn.mic-btn.on { background: var(--accent); color: var(--accent-ink); animation: mic-pulse 1.2s ease-in-out infinite; }
+@keyframes mic-pulse { 0%, 100% { box-shadow: 0 0 0 0 #00e5ff55; } 50% { box-shadow: 0 0 0 8px #00e5ff00; } }
+@media (prefers-reduced-motion: reduce) { .chat-input .icon-btn.mic-btn.on { animation: none; } }

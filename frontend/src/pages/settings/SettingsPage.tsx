@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../components/layout/AppShell';
 import DiscordLinkCard from '../../components/settings/DiscordLinkCard';
+import SanoAiCard from '../../components/settings/SanoAiCard';
 import AndroidAppCard from '../../native/AndroidAppCard';
 import { useAuth } from '../../context/AuthContext';
 import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, setPrivacy, type Profile } from '../../services/profile.service';
@@ -22,9 +23,10 @@ export default function SettingsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (window.location.hash !== '#android') return;
+    const target = window.location.hash.slice(1);
+    if (target !== 'android' && target !== 'ia') return;
     // Espera a tela de carregamento sair antes de rolar.
-    const timer = window.setTimeout(() => document.getElementById('android')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700);
+    const timer = window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -190,6 +192,7 @@ export default function SettingsPage() {
 
       {error && <div className="error">{error}</div>}
       {ok && <div className="notice">{ok}</div>}
+      <SanoAiCard />
       <DiscordLinkCard />
     </AppShell>
   );

@@ -11,3 +11,11 @@ Para adicionar uma intenção:
 5. Adicione variações de linguagem, casos de data/hora e diálogos de confirmação em `tests/unit`.
 
 O frontend renderiza respostas tipadas em `frontend/src/components/chat/ViewRenderer.tsx`. Para novos cards, atualize também o contrato `SanoView` do backend e do frontend. O endpoint `/sano/command` mantém autenticação, validação Zod e `commandLimiter`; o núcleo de reconhecimento não faz chamadas externas. A intenção já existente de perguntas técnicas do treino permanece separada e só usa IA quando configurada.
+
+## IA por usuário (OpenRouter)
+
+Cada usuário pode cadastrar a própria chave da OpenRouter em Ajustes → Inteligência artificial (`/sano/ai`). A chave é validada em `GET /api/v1/key`, guardada criptografada em `SanoAiConfig` e nunca volta ao navegador. O modelo padrão é `openrouter/free`, que escolhe um modelo gratuito disponível.
+
+A IA entra em `router.ts` só quando nenhuma regra entendeu a frase, quando a regra casou com nota baixa (tolerância a erros) ou para a intenção `pergunta`. Ela nunca executa nada: devolve `{"command": ...}`, que roda de novo pelo motor determinístico (sem IA, para não entrar em laço e com as confirmações de sempre), ou `{"reply": ...}` para conversa. Comandos do player de música voltam ao navegador como a ação `run`. Se a IA falhar e havia uma regra de reserva, a regra vale; sem reserva, o Sano explica o motivo (cota, chave recusada, privacidade) e mostra os atalhos. O histórico da conversa com a IA fica só na memória do processo (8 falas, 30 minutos).
+
+Voz: `frontend/src/voice/voice.ts` ouve com a Web Speech API do navegador (pt-BR). Para falar, usa por padrão a voz neural da Microsoft (`POST /sano/voice/tts`, `services/sano/tts.service.ts`, biblioteca `msedge-tts` em versão fixa). É o serviço "Ler em voz alta" do Edge: grátis, sem chave e não oficial, então se ele falhar o navegador cai no `speechSynthesis` do aparelho. Atualizações da Microsoft já quebraram versões antigas da biblioteca (a 2.0.9 recebe 403): se a voz neural parar, atualize o `msedge-tts`. As preferências ficam no `localStorage` do aparelho.
