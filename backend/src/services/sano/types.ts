@@ -37,7 +37,7 @@ export type SanoAiDeps = (input: {
 }) => Promise<
   | { ok: true; command: string }
   | { ok: true; reply: string }
-  | { ok: false; reason: 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable'; detail?: string }
+  | { ok: false; reason: 'quota' | 'credits' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable'; detail?: string }
   /** IA local: o navegador precisa rodar estas mensagens e reenviar a resposta. */
   | { ok: false; reason: 'client'; messages: { role: 'system' | 'user' | 'assistant'; content: string }[] }
   | null

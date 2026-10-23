@@ -58,7 +58,7 @@ test('tradução que ainda não casa não entra em laço', async () => {
 test('cota esgotada avisa e mantém os atalhos', async () => {
   const r = await withAi(async () => ({ ok: false, reason: 'quota' }))('frase estranha qualquer');
   assert.equal(r.intent, 'unknown');
-  assert.match(r.reply, /cota/);
+  assert.match(r.reply, /limite diário/);
   assert.equal(r.view?.kind, 'actions');
 });
 
@@ -112,4 +112,12 @@ test('IA local fora do ar com regra de reserva: segue em silêncio', async () =>
 
 test('IA local fora do ar sem regra: explica o que conferir', async () => {
   assert.match((await localDown('frase estranha qualquer')).reply, /LM Studio/);
+});
+
+test('402 é falta de crédito, não limite diário; erro sem corpo mostra o código', () => {
+  const credits = describeFailure(402, '{"error":{"code":402,"message":"Insufficient credits"}}');
+  assert.equal(credits.reason, 'credits');
+  assert.doesNotMatch(failureMessage(credits), /limite diário|por hoje/);
+  assert.equal(describeFailure(429, '{"error":{"message":"google/gemma is temporarily rate-limited upstream"}}').reason, 'rate');
+  assert.equal(describeFailure(502, '').detail, 'HTTP 502');
 });

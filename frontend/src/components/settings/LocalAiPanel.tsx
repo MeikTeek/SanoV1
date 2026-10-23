@@ -28,8 +28,9 @@ export default function LocalAiPanel({ onChange }: { onChange?: (active: boolean
     const list = await listLocalModels(prefs);
     setModels(list);
     if (!list.length) { setError('Conectei, mas o LM Studio não tem nenhum modelo de conversa baixado.'); return; }
-    if (!prefs.model || !list.includes(prefs.model)) update({ model: list[0] });
-    setOk(`Conectado! ${list.length} modelo(s) encontrado(s).`);
+    const model = prefs.model && list.includes(prefs.model) ? prefs.model : list[0];
+    update({ model, enabled: true });
+    setOk(`Conectado! O chat deste aparelho agora usa o LM Studio (${model}).`);
   });
 
   const test = () => void run(async () => {
@@ -40,18 +41,11 @@ export default function LocalAiPanel({ onChange }: { onChange?: (active: boolean
 
   return (
     <div className="ai-local">
-      <label className="privacy-toggle">
-        <span>
-          <b>Usar o LM Studio neste aparelho</b>
-          <small className="muted">Substitui a OpenRouter aqui. Nos outros aparelhos nada muda.</small>
-        </span>
-        <input
-          type="checkbox"
-          checked={prefs.enabled}
-          disabled={!prefs.model}
-          onChange={(e) => update({ enabled: e.target.checked })}
-        />
-      </label>
+      <p className={prefs.enabled && prefs.model ? 'notice small' : 'muted small'}>
+        {prefs.enabled && prefs.model
+          ? <>Em uso neste aparelho: <b>{prefs.model}</b>. Nos outros aparelhos nada muda.</>
+          : 'Clique em Conectar para o chat deste aparelho passar a usar o LM Studio.'}
+      </p>
 
       <label className="ai-field">
         <span>Endereço do servidor</span>
@@ -84,7 +78,7 @@ export default function LocalAiPanel({ onChange }: { onChange?: (active: boolean
         <input
           list="sano-local-models"
           value={prefs.model}
-          onChange={(e) => update({ model: e.target.value.trim() })}
+          onChange={(e) => update({ model: e.target.value.trim(), enabled: Boolean(e.target.value.trim()) })}
           placeholder={models.length ? 'Escolha ou digite o nome' : 'Clique em Conectar para listar'}
           spellCheck={false}
         />
@@ -103,7 +97,7 @@ export default function LocalAiPanel({ onChange }: { onChange?: (active: boolean
           <li>Instale o <a href="https://lmstudio.ai" target="_blank" rel="noreferrer">LM Studio</a> e baixe um modelo na aba de busca (ex.: <i>Qwen</i>, <i>Llama</i> ou <i>Gemma</i>; os de 4B a 8B rodam bem na maioria dos PCs).</li>
           <li>Abra a aba <b>Developer</b> (ícone de terminal, à esquerda) e ligue o servidor em <b>Status: Running</b>.</li>
           <li>Em <b>Settings</b> do servidor, ative <b>Enable CORS</b>. Sem isso o navegador não consegue falar com ele.</li>
-          <li>Volte aqui, clique em <b>Conectar</b>, escolha o modelo e ligue a chave <b>Usar o LM Studio neste aparelho</b>.</li>
+          <li>Volte aqui e clique em <b>Conectar</b>. Pronto: o chat deste aparelho passa a usar o LM Studio. Para voltar à OpenRouter, é só clicar na aba dela.</li>
           <li>Se o navegador perguntar se o site pode acessar dispositivos da rede local, toque em <b>Permitir</b>.</li>
         </ol>
         <ul className="ai-notes muted small">

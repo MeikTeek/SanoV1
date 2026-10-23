@@ -172,17 +172,19 @@ export default function ChatTerminal() {
     try {
       const local = localAiActive() ? loadLocalAi() : null;
       let res = await sendCommand(trimmed, local ? { clientAi: 'local' } : {});
+      let via = res.intent === 'ai' ? 'OpenRouter' : undefined;
       // IA local: o Sano montou o pedido; o navegador roda no LM Studio e devolve.
       if (local && res.aiRequest) {
         setThinking('IA local pensando...');
         try {
           const aiAnswer = await runLocalAi(local, res.aiRequest.messages);
           res = await sendCommand(trimmed, { clientAi: 'local', aiAnswer });
+          via = `IA local · ${local.model}`;
         } catch (err) {
           res = await sendCommand(trimmed, { clientAi: 'local', aiError: (err as Error).message.slice(0, 240) });
         }
       }
-      if (res.reply || res.view) setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
+      if (res.reply || res.view) setMessages((m) => [...m, { ...make('sano', res.reply, res.view, res.suggestions), via }]);
       // Mexeu na agenda pelo chat: os painéis "Hoje" precisam refletir na hora.
       if (res.intent === 'agenda' || res.intent === 'financas') refreshPanels();
       if (res.intent === 'agenda') notifyAgendaChanged();
@@ -249,7 +251,7 @@ return (
                   painéis densos (medidores, ajuda) substituem o texto. */}
               {(!m.view || WITH_TEXT.has(m.view.kind)) && <div className="bubble">{m.text}</div>}
               {m.view && <ViewRenderer view={m.view} onCommand={(c) => void send(c)} />}
-              {m.at && <div className="time">{hhmm(m.at)}</div>}
+              {m.at && <div className="time">{hhmm(m.at)}{m.via && ` · ${m.via}`}</div>}
             </div>
           </div>
         ))}

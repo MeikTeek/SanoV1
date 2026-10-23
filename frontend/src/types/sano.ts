@@ -71,6 +71,8 @@ export interface SanoResponse {
 
 export interface ChatMessage {
   id: number;
+  /** Qual IA respondeu ("IA local · modelo", "OpenRouter"), quando houve IA. */
+  via?: string;
   role: 'user' | 'sano' | 'error';
   text: string;
   /** Horário de exibição da mensagem. */

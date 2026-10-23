@@ -1,6 +1,6 @@
 /** Erros da OpenRouter traduzidos para o usuário. Sem dependências: o roteador e os testes usam direto. */
 
-export type AiFailureReason = 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable';
+export type AiFailureReason = 'quota' | 'credits' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable';
 
 /**
  * Traduz um erro da OpenRouter. Pela documentação: 401 = chave inválida,
@@ -17,11 +17,12 @@ export function describeFailure(status: number, body: string): { reason: AiFailu
   } catch {
     detail = body.trim() ? body.trim().slice(0, 240) : undefined;
   }
-  const text = `${detail ?? ''} ${body}`;
+  detail ??= `HTTP ${status}`;
+  const text = `${detail} ${body}`;
   if (status === 401) return { reason: 'invalid', detail };
   if (/data policy|privacy|guardrail|training/i.test(text)) return { reason: 'policy', detail };
-  if (status === 402) return { reason: 'quota', detail };
-  if (status === 429) return { reason: /per.day|daily|free-models-per-day/i.test(text) ? 'quota' : 'rate', detail };
+  if (status === 402) return { reason: 'credits', detail };
+  if (status === 429) return { reason: /free-models-per-day|per day|daily/i.test(text) ? 'quota' : 'rate', detail };
   if (status === 403) return { reason: 'blocked', detail };
   return { reason: 'unavailable', detail };
 }
@@ -31,8 +32,9 @@ export function failureMessage({ reason, detail }: { reason: AiFailureReason; de
   const why = detail ? ` (OpenRouter: "${detail}")` : '';
   switch (reason) {
     case 'invalid': return `A OpenRouter recusou sua chave${why}. Confira em Ajustes → Inteligência artificial.`;
-    case 'quota': return `Sua cota da OpenRouter acabou por hoje${why}. Sigo no modo sem IA até ela renovar.`;
-    case 'rate': return 'Muitas perguntas à IA em pouco tempo. Espere um minuto e tente de novo.';
+    case 'quota': return `Você chegou ao limite diário de perguntas gratuitas da OpenRouter${why}. Sigo no modo sem IA até ele renovar.`;
+    case 'credits': return `A OpenRouter recusou por falta de créditos${why}. Isso acontece com modelos pagos ou com a conta com saldo negativo; o modelo "Automático" é gratuito.`;
+    case 'rate': return `O modelo gratuito está sobrecarregado agora${why}. Tente de novo em um minuto ou escolha outro modelo.`;
     case 'policy': return `A sua conta da OpenRouter está bloqueando os modelos gratuitos${why}. Em openrouter.ai/settings/privacy, permita os modelos gratuitos.`;
     case 'blocked': return `A OpenRouter bloqueou o pedido${why}. Confira as regras (Guardrails) e a privacidade da sua conta em openrouter.ai/settings/privacy.`;
     case 'local': return `O LM Studio não respondeu${why}. Confira se ele está aberto, com o servidor ligado e o CORS ativado.`;

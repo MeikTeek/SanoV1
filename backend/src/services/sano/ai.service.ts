@@ -312,7 +312,7 @@ async function freeAudioModels(): Promise<string[]> {
 export async function transcribeSpeech(userId: string, wavBase64: string): Promise<string> {
   const cfg = await userKey(userId);
   if (!cfg) {
-    throw new AppError(400, 'Este navegador não reconhece fala sozinho. Ligue a IA em Ajustes → Inteligência artificial para usar o microfone aqui.');
+    throw new AppError(400, 'Este navegador não reconhece fala sozinho. Para usar o microfone aqui, adicione uma chave da OpenRouter em Ajustes (o LM Studio não transcreve áudio).');
   }
   const models = (await freeAudioModels()).slice(0, 3);
   if (!models.length) throw new AppError(503, 'Nenhum modelo gratuito de áudio está disponível agora na OpenRouter.');
@@ -343,7 +343,9 @@ export async function transcribeSpeech(userId: string, wavBase64: string): Promi
         console.error(`[sano-stt] ${model} ${res.status}: ${body.slice(0, 300)}`);
         const failure = describeFailure(res.status, body);
         // Chave e cota valem para todos os modelos; bloqueio de um modelo não — tenta o próximo.
-        if (failure.reason === 'invalid' || failure.reason === 'quota') throw new AppError(400, failureMessage(failure));
+        if (failure.reason === 'invalid' || failure.reason === 'quota' || failure.reason === 'credits') {
+          throw new AppError(400, `Transcrição de voz: ${failureMessage(failure)}`);
+        }
         lastFailure = failure;
         continue;
       }
@@ -353,7 +355,7 @@ export async function transcribeSpeech(userId: string, wavBase64: string): Promi
       console.error(`[sano-stt] ${model}:`, (err as Error).message);
     }
   }
-  throw new AppError(503, lastFailure ? failureMessage(lastFailure) : 'Não consegui transcrever agora. Tente de novo.');
+  throw new AppError(503, lastFailure ? `Transcrição de voz: ${failureMessage(lastFailure)}` : 'Não consegui transcrever agora. Tente de novo.');
 }
 
 /** Botão "Testar IA" dos Ajustes: um pedido mínimo e a resposta real da OpenRouter. */

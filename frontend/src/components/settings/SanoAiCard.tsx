@@ -3,7 +3,7 @@ import {
   fetchAiQuota, fetchAiStatus, fetchModels, removeAi, saveAi, testAi,
   type AiModel, type AiQuota, type AiStatus,
 } from '../../services/sano.service';
-import { localAiActive } from '../../ai/localAi';
+import { loadLocalAi, localAiActive, saveLocalAi } from '../../ai/localAi';
 import LocalAiPanel from './LocalAiPanel';
 import {
   canListen, canSpeak, canUseMic, fetchNeuralVoices, loadVoicePrefs, portugueseVoices, saveVoicePrefs, speak,
@@ -24,6 +24,15 @@ export default function SanoAiCard() {
   const [models, setModels] = useState<AiModel[]>([]);
   const [provider, setProvider] = useState<'openrouter' | 'local'>(() => (localAiActive() ? 'local' : 'openrouter'));
   const [localOn, setLocalOn] = useState(localAiActive);
+
+  /** Trocar de aba troca o provedor deste aparelho (o LM Studio liga ao conectar). */
+  const pickProvider = (next: 'openrouter' | 'local') => {
+    setProvider(next);
+    const local = loadLocalAi();
+    const enabled = next === 'local' && Boolean(local.model);
+    if (local.enabled !== enabled) saveLocalAi({ ...local, enabled });
+    setLocalOn(enabled);
+  };
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
@@ -104,16 +113,16 @@ export default function SanoAiCard() {
       </p>
 
       <div className="ai-tabs" role="tablist" aria-label="Onde a IA roda">
-        <button type="button" role="tab" aria-selected={provider === 'openrouter'} className={provider === 'openrouter' ? 'on' : ''} onClick={() => setProvider('openrouter')}>
-          OpenRouter <small>nuvem</small>
+        <button type="button" role="tab" aria-selected={provider === 'openrouter'} className={provider === 'openrouter' ? 'on' : ''} onClick={() => pickProvider('openrouter')}>
+          OpenRouter <small>nuvem</small>{!localOn && status?.configured && <i className="ai-dot" aria-label="em uso" />}
         </button>
-        <button type="button" role="tab" aria-selected={provider === 'local'} className={provider === 'local' ? 'on' : ''} onClick={() => setProvider('local')}>
-          LM Studio <small>neste computador</small>
+        <button type="button" role="tab" aria-selected={provider === 'local'} className={provider === 'local' ? 'on' : ''} onClick={() => pickProvider('local')}>
+          LM Studio <small>neste computador</small>{localOn && <i className="ai-dot" aria-label="em uso" />}
         </button>
       </div>
-      {localOn && provider === 'openrouter' && (
-        <p className="hud-alert small">Neste aparelho o Sano está usando o LM Studio. A OpenRouter vale nos outros aparelhos.</p>
-      )}
+      <p className="muted small ai-using">
+        A aba escolhida é a IA que o chat usa <b>neste aparelho</b>.
+      </p>
 
       {provider === 'local' ? <LocalAiPanel onChange={setLocalOn} /> : status?.configured ? (
         <div className="ai-on">
