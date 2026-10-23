@@ -1,9 +1,10 @@
 {
-  "version": "1.1.0",
-  "build": 2,
-  "size": 18096439,
-  "releasedAt": "2026-10-22",
+  "version": "1.1.1",
+  "build": 3,
+  "size": 18099900,
+  "releasedAt": "2026-10-23",
   "notes": [
+    "Corrige o app travado na tela de abertura",
     "Lembretes da agenda como notificações do Android, mesmo com o app fechado",
     "Widget \"Agenda do Sano\" na tela inicial",
     "Atalhos ao pressionar o ícone: Sano, Agenda, Mensagens e Música",
