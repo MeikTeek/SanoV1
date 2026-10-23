@@ -19,6 +19,9 @@ app.use(helmet({
       // Libere blob apenas para mídia; scripts e demais recursos continuam
       // restritos pela política padrão do Helmet.
       'media-src': ["'self'", 'blob:'],
+      // IA local: o navegador fala direto com o LM Studio no PC do usuário.
+      // Só loopback — endereços da rede local seguem bloqueados.
+      'connect-src': ["'self'", 'http://localhost:*', 'http://127.0.0.1:*', 'http://[::1]:*'],
     },
   },
 }));

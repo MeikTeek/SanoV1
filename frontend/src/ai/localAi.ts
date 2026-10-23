@@ -36,7 +36,15 @@ export function saveLocalAi(prefs: LocalAiPrefs): void {
 /** Usa a IA local neste aparelho? (ligada e com modelo escolhido) */
 export const localAiActive = () => { const p = loadLocalAi(); return p.enabled && Boolean(p.model); };
 
-const base = (url: string) => url.trim().replace(/\/+$/, '');
+/** O LM Studio mostra "http://127.0.0.1:1234", sem `/v1`: completa quando falta caminho. */
+export function base(url: string): string {
+  const clean = url.trim().replace(/\/+$/, '');
+  try {
+    return new URL(clean).pathname === '/' ? `${clean}/v1` : clean;
+  } catch {
+    return clean;
+  }
+}
 const headers = (p: LocalAiPrefs) => ({
   'Content-Type': 'application/json',
   ...(p.apiKey.trim() && { Authorization: `Bearer ${p.apiKey.trim()}` }),
@@ -49,7 +57,7 @@ function explain(err: unknown, url: string): Error {
     return new Error('o navegador bloqueia endereços http de outra máquina numa página https; use localhost no próprio PC');
   }
   if ((err as Error)?.name === 'TimeoutError' || /abort/i.test(msg)) return new Error('o modelo demorou demais para responder');
-  return new Error('não consegui conectar — o LM Studio está aberto, com o servidor ligado e "Enable CORS" ativado?');
+  return new Error('não consegui conectar. Confira se o LM Studio está com o servidor ligado e "Enable CORS" ativado. No Chrome, permita o acesso à rede local quando ele perguntar; no Brave, desligue os Shields para este site');
 }
 
 /** Modelos carregáveis no LM Studio (`GET /v1/models`). */
