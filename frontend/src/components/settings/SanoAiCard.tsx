@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import {
-  fetchAiQuota, fetchAiStatus, fetchFreeModels, removeAi, saveAi,
+  fetchAiQuota, fetchAiStatus, fetchFreeModels, removeAi, saveAi, testAi,
   type AiQuota, type AiStatus, type FreeModel,
 } from '../../services/sano.service';
 import {
@@ -73,6 +73,12 @@ export default function SanoAiCard() {
     setOk('Modelo trocado.');
   });
 
+  const test = () => void run(async () => {
+    const r = await testAi();
+    if (r.ok) setOk(`${r.message} Modelo usado: ${r.model}.`);
+    else setError(r.message);
+  });
+
   const remove = () => void run(async () => {
     setStatus(await removeAi());
     setQuota(null);
@@ -99,7 +105,10 @@ export default function SanoAiCard() {
         <div className="ai-on">
           <div className="ai-row">
             <span><span className="ai-dot" aria-hidden="true" /> IA ligada · chave <code>{status.keyHint}</code></span>
-            <button type="button" className="ghost" disabled={busy} onClick={remove}>Remover chave</button>
+            <span className="ai-actions">
+              <button type="button" className="ghost" disabled={busy} onClick={test}>Testar IA</button>
+              <button type="button" className="ghost" disabled={busy} onClick={remove}>Remover chave</button>
+            </span>
           </div>
           {quota?.freeDaily && (
             <p className="muted small">

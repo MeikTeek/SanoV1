@@ -11,6 +11,7 @@
 import { getPrismaClient } from '../../config/prisma';
 import { decrypt, encrypt } from '../../utils/encryption';
 import { AppError } from '../../utils/errors';
+import { describeFailure, failureMessage, type AiFailureReason } from './ai.errors';
 
 const OPENROUTER = 'https://openrouter.ai/api/v1';
 export const DEFAULT_MODEL = 'openrouter/free';
@@ -65,7 +66,8 @@ async function fetchQuota(key: string): Promise<AiQuota> {
   } catch {
     throw new AppError(502, 'Não consegui falar com a OpenRouter agora. Tente de novo em instantes.');
   }
-  if (res.status === 401 || res.status === 403) {
+  // Só 401 é chave inválida; 403 é bloqueio de permissão/regra da conta.
+  if (res.status === 401) {
     throw new AppError(400, 'A OpenRouter recusou essa chave. Confira se copiou ela inteira.');
   }
   if (!res.ok) throw new AppError(502, `A OpenRouter respondeu com erro (${res.status}).`);
@@ -166,7 +168,7 @@ export interface AiCommand { name: string; description: string; examples: string
 export type AiOutcome =
   | { ok: true; command: string }
   | { ok: true; reply: string }
-  | { ok: false; reason: 'quota' | 'invalid' | 'policy' | 'unavailable' };
+  | { ok: false; reason: AiFailureReason; detail?: string };
 
 function systemPrompt(name: string, now: Date, catalog: AiCommand[]): string {
   const when = new Intl.DateTimeFormat('pt-BR', {
@@ -230,16 +232,12 @@ export async function askSanoAi(
       // Modelos gratuitos às vezes demoram; mais que isso a conversa perde o ritmo.
       signal: AbortSignal.timeout(25_000),
     });
-    if (res.status === 401 || res.status === 403) return { ok: false, reason: 'invalid' };
-    if (res.status === 429 || res.status === 402) return { ok: false, reason: 'quota' };
-    if (!res.ok) {
-      const body = await res.text().catch(() => '');
-      // Vários modelos gratuitos exigem liberar o uso de dados nas configurações de privacidade da conta.
-      if (res.status === 404 && /data policy|privacy/i.test(body)) return { ok: false, reason: 'policy' };
-      console.error(`[sano-ia] ${res.status}: ${body.slice(0, 200)}`);
-      return { ok: false, reason: 'unavailable' };
+    const body = await res.text().catch(() => '');
+    const data = (() => { try { return JSON.parse(body) as { error?: unknown; choices?: { message?: { content?: string | null } }[] }; } catch { return {}; } })();
+    if (!res.ok || data.error) {
+      console.error(`[sano-ia] ${res.status} (${cfg.model}): ${body.slice(0, 300)}`);
+      return { ok: false, ...describeFailure(res.status, body) };
     }
-    const data = await res.json() as { choices?: { message?: { content?: string | null } }[] };
     const parsed = parseAiAnswer(data.choices?.[0]?.message?.content ?? '');
     if (!parsed) return { ok: false, reason: 'unavailable' };
     remember(userId, input.text, 'command' in parsed ? JSON.stringify(parsed) : parsed.reply);
@@ -286,6 +284,7 @@ export async function transcribeSpeech(userId: string, wavBase64: string): Promi
   const models = (await freeAudioModels()).slice(0, 3);
   if (!models.length) throw new AppError(503, 'Nenhum modelo gratuito de áudio está disponível agora na OpenRouter.');
 
+  let lastFailure: { reason: AiFailureReason; detail?: string } | null = null;
   for (const model of models) {
     try {
       const res = await fetch(`${OPENROUTER}/chat/completions`, {
@@ -305,18 +304,41 @@ export async function transcribeSpeech(userId: string, wavBase64: string): Promi
         }),
         signal: AbortSignal.timeout(20_000),
       });
-      if (res.status === 401 || res.status === 403) throw new AppError(400, 'A OpenRouter recusou sua chave. Confira em Ajustes.');
-      if (res.status === 429 || res.status === 402) throw new AppError(429, 'Sua cota gratuita da OpenRouter acabou por hoje.');
-      if (!res.ok) {
-        console.error(`[sano-stt] ${model} ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
-        continue; // tenta o próximo modelo gratuito
+      const body = await res.text().catch(() => '');
+      const data = (() => { try { return JSON.parse(body) as { error?: unknown; choices?: { message?: { content?: string | null } }[] }; } catch { return {}; } })();
+      if (!res.ok || data.error) {
+        console.error(`[sano-stt] ${model} ${res.status}: ${body.slice(0, 300)}`);
+        const failure = describeFailure(res.status, body);
+        // Chave e cota valem para todos os modelos; bloqueio de um modelo não — tenta o próximo.
+        if (failure.reason === 'invalid' || failure.reason === 'quota') throw new AppError(400, failureMessage(failure));
+        lastFailure = failure;
+        continue;
       }
-      const data = await res.json() as { choices?: { message?: { content?: string | null } }[] };
       return (data.choices?.[0]?.message?.content ?? '').trim().replace(/^["“]|["”]$/g, '').slice(0, 500);
     } catch (err) {
       if (err instanceof AppError) throw err;
       console.error(`[sano-stt] ${model}:`, (err as Error).message);
     }
   }
-  throw new AppError(503, 'Não consegui transcrever agora. Tente de novo.');
+  throw new AppError(503, lastFailure ? failureMessage(lastFailure) : 'Não consegui transcrever agora. Tente de novo.');
+}
+
+/** Botão "Testar IA" dos Ajustes: um pedido mínimo e a resposta real da OpenRouter. */
+export async function testAi(userId: string): Promise<{ ok: boolean; message: string; model: string }> {
+  const cfg = await userKey(userId);
+  if (!cfg) throw new AppError(400, 'Adicione sua chave da OpenRouter primeiro.');
+  try {
+    const res = await fetch(`${OPENROUTER}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}`, ...APP_HEADERS },
+      body: JSON.stringify({ model: cfg.model, max_tokens: 20, messages: [{ role: 'user', content: 'Responda apenas: ok' }] }),
+      signal: AbortSignal.timeout(25_000),
+    });
+    const body = await res.text().catch(() => '');
+    const data = (() => { try { return JSON.parse(body) as { error?: unknown; model?: string }; } catch { return {}; } })();
+    if (!res.ok || data.error) return { ok: false, message: failureMessage(describeFailure(res.status, body)), model: cfg.model };
+    return { ok: true, message: 'Tudo certo: a IA respondeu.', model: data.model ?? cfg.model };
+  } catch {
+    return { ok: false, message: 'A OpenRouter não respondeu a tempo. Tente de novo.', model: cfg.model };
+  }
 }

@@ -2,6 +2,7 @@ import { beforeEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handleCommand } from '../../backend/src/services/sano/router';
 import { parseAiAnswer } from '../../backend/src/services/sano/ai.service';
+import { describeFailure, failureMessage } from '../../backend/src/services/sano/ai.errors';
 import { clearAssistantMemoryForTests } from '../../backend/src/services/sano/context.service';
 import type { SanoAiDeps, SanoUser } from '../../backend/src/services/sano/types';
 
@@ -71,4 +72,24 @@ test('casamento fraco vai à IA, mas a regra fica de reserva', async () => {
   const fuzzy = 'qual a capital da australia'; // as regras acham "agenda" com nota baixa
   assert.equal((await withAi(async () => ({ ok: true, reply: 'Camberra.' }))(fuzzy)).intent, 'ai');
   assert.equal((await withAi(async () => ({ ok: false, reason: 'unavailable' }))(fuzzy)).intent, 'agenda');
+});
+
+test('403 é bloqueio da conta, não chave inválida; só 401 é chave', () => {
+  const blocked = describeFailure(403, '{"error":{"code":403,"message":"Request blocked by guardrail"}}');
+  assert.equal(blocked.reason, 'policy'); // guardrail → orientação de privacidade/regras
+  assert.equal(describeFailure(403, '{"error":{"code":403,"message":"Input flagged by moderation"}}').reason, 'blocked');
+  assert.equal(describeFailure(401, '{"error":{"code":401,"message":"User not found."}}').reason, 'invalid');
+  assert.equal(describeFailure(404, '{"error":{"message":"No endpoints found matching your data policy"}}').reason, 'policy');
+  assert.equal(describeFailure(429, '{"error":{"message":"Rate limit exceeded: free-models-per-day"}}').reason, 'quota');
+  assert.equal(describeFailure(429, '{"error":{"message":"Rate limit exceeded: free-models-per-min"}}').reason, 'rate');
+  assert.equal(describeFailure(200, '{"error":{"message":"Provider returned error"}}').reason, 'unavailable');
+  assert.doesNotMatch(failureMessage(blocked), /recusou sua chave/);
+  assert.match(failureMessage(blocked), /guardrail/);
+});
+
+test('erro de configuração aparece mesmo com regra de reserva', async () => {
+  const fuzzy = 'qual a capital da australia';
+  const r = await withAi(async () => ({ ok: false, reason: 'blocked', detail: 'Input flagged by moderation' }))(fuzzy);
+  assert.equal(r.intent, 'unknown');
+  assert.match(r.reply, /moderation/);
 });

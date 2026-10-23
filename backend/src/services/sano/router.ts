@@ -9,6 +9,7 @@ import { socialResponse, unknownResponse, variedReply } from '../assistant/recov
 import { recordLearningPhrase } from '../assistant/learning';
 import { registerSanoIntents } from '../assistant/intents';
 import { agendaIntent, executeAgendaPending } from './intents/schedule';
+import { failureMessage } from './ai.errors';
 
 const help = createHelpIntent(() => intents);
 export const intents: Intent[] = [help, ...baseIntents];
@@ -132,15 +133,11 @@ async function askAi(
   if (!outcome) return null;
 
   if (!outcome.ok) {
-    if (!reportFailure) return null;
-    const reply = outcome.reason === 'quota'
-      ? 'Sua cota gratuita de IA na OpenRouter acabou por hoje. Sigo no modo sem IA até ela renovar.'
-      : outcome.reason === 'invalid'
-        ? 'A OpenRouter recusou sua chave. Confira em Ajustes → Inteligência artificial.'
-        : outcome.reason === 'policy'
-          ? 'Os modelos gratuitos pedem uma liberação na sua conta OpenRouter: em openrouter.ai/settings/privacy, ative o uso de modelos gratuitos.'
-          : 'A IA não respondeu a tempo. Sigo no modo sem IA por enquanto.';
-    return { intent: 'unknown', ...unknownResponse(user, text), reply };
+    // Falha passageira com regra de reserva: segue em silêncio. Problema de
+    // configuração (chave, cota, bloqueio) aparece sempre, senão nunca é corrigido.
+    const transient = outcome.reason === 'unavailable' || outcome.reason === 'rate';
+    if (!reportFailure && transient) return null;
+    return { intent: 'unknown', ...unknownResponse(user, text), reply: failureMessage(outcome) };
   }
 
   if ('reply' in outcome) return { intent: 'ai', reply: outcome.reply };

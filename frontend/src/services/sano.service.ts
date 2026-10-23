@@ -37,3 +37,4 @@ export const saveAi = (body: { apiKey?: string; model?: string }) => api.put<AiS
 export const removeAi = () => api.delete<AiStatus>('/sano/ai');
 export const fetchAiQuota = () => api.get<{ quota: AiQuota | null }>('/sano/ai/quota');
 export const fetchFreeModels = () => api.get<{ models: FreeModel[] }>('/sano/ai/models');
+export const testAi = () => api.post<{ ok: boolean; message: string; model: string }>('/sano/ai/test');

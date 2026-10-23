@@ -116,6 +116,10 @@ export async function aiQuota(req: Request, res: Response) {
   res.json({ quota: await sanoAi.getAiQuota(req.user!.id) });
 }
 
+export async function aiTest(req: Request, res: Response) {
+  res.json(await sanoAi.testAi(req.user!.id));
+}
+
 export async function aiModels(_req: Request, res: Response) {
   res.json({ models: await sanoAi.listFreeModels() });
 }

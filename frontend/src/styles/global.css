@@ -1271,3 +1271,4 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
 .ai-steps a, .ai-notes a { color: var(--accent); }
 .ai-notes { margin: 14px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .ai-sub { margin: 22px 0 6px; font-size: 1rem; }
+.ai-actions { display: flex; gap: 8px; flex-wrap: wrap; }

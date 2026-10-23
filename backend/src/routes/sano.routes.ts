@@ -14,6 +14,7 @@ r.get('/ai', requireAuth, c.aiStatus);
 r.put('/ai', requireAuth, commandLimiter, c.aiSave);
 r.delete('/ai', requireAuth, c.aiRemove);
 r.get('/ai/quota', requireAuth, c.aiQuota);
+r.post('/ai/test', requireAuth, commandLimiter, c.aiTest);
 r.get('/ai/models', requireAuth, c.aiModels);
 
 // Voz neural do Sano (Microsoft Edge TTS).
