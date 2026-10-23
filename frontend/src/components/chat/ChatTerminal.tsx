@@ -10,7 +10,7 @@ import { IconMic, IconSend } from '../ui/icons';
 import ViewRenderer from './ViewRenderer';
 import { notifyAgendaChanged } from '../../native/bridge';
 import { useMusic } from '../../music/musicStore';
-import { canListen, listen, loadVoicePrefs, speak, stopSpeaking, type Listener } from '../../voice/voice';
+import { canUseMic, listen, loadVoicePrefs, speak, stopSpeaking, type Listener } from '../../voice/voice';
 import '../../styles/chat.css';
 
 /** Cartões que ficam melhores acompanhados da frase do Sano. */
@@ -53,6 +53,8 @@ export default function ChatTerminal() {
   /** Só o que chegar depois disso é lido — nunca a conversa restaurada. */
   const spokenAtRef = useRef(Date.now());
   const [voicePrefs, setVoicePrefs] = useState(loadVoicePrefs);
+  /** Texto no campo enquanto o microfone ouve ou transcreve. */
+  const [micHint, setMicHint] = useState('');
 
   useEffect(() => {
     const sync = () => setVoicePrefs(loadVoicePrefs());
@@ -197,6 +199,7 @@ export default function ChatTerminal() {
       onFinal: (t) => void sendRef.current(t, { spoken: true }),
       onError: (msg) => setMessages((m) => [...m, make('error', msg)]),
       onEnd: () => { listenerRef.current = null; setVoice('idle'); },
+      onHint: setMicHint,
     });
     if (listener) { listenerRef.current = listener; setVoice('listening'); }
   };
@@ -269,13 +272,13 @@ return (
             setComposing(Boolean(e.target.value.trim()));
           }}
           onKeyDown={onKeyDown}
-          placeholder={PLACEHOLDERS[placeholder]}
+          placeholder={micHint || PLACEHOLDERS[placeholder]}
           maxLength={500}
           autoComplete="off"
           spellCheck={false}
           aria-label="Mensagem para o Sano"
         />
-        {canListen() && (
+        {canUseMic() && (
           <button
             className={`icon-btn mic-btn${voice === 'listening' ? ' on' : ''}`}
             type="button"

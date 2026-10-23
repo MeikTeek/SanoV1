@@ -4,7 +4,7 @@ import {
   type AiQuota, type AiStatus, type FreeModel,
 } from '../../services/sano.service';
 import {
-  canListen, canSpeak, fetchNeuralVoices, loadVoicePrefs, portugueseVoices, saveVoicePrefs, speak,
+  canListen, canSpeak, canUseMic, fetchNeuralVoices, loadVoicePrefs, portugueseVoices, saveVoicePrefs, speak,
   type NeuralVoice, type VoicePrefs,
 } from '../../voice/voice';
 
@@ -129,14 +129,16 @@ export default function SanoAiCard() {
       {ok && <p className="notice">{ok}</p>}
 
       <h3 className="ai-sub">Voz</h3>
-      {!canSpeak() && !canListen() ? (
+      {!canSpeak() && !canUseMic() ? (
         <p className="muted small">Este navegador não tem voz. No computador, use o Chrome ou o Edge.</p>
       ) : (
         <>
           <p className="muted small">
             {canListen()
-              ? 'Toque no microfone do chat e fale. O Sano entende português e responde em voz alta.'
-              : 'Este navegador não reconhece fala (use Chrome ou Edge para o microfone), mas o Sano ainda pode ler as respostas.'}
+              ? 'Toque no microfone do chat e fale. O Sano entende português e responde em voz alta. Em navegadores sem o reconhecimento do Google (Brave, Opera, app Android), a fala é transcrita pela sua IA.'
+              : canUseMic()
+                ? 'Toque no microfone do chat e fale. Neste navegador a fala é transcrita pela sua IA, então ligue-a acima para usar o microfone.'
+                : 'Este navegador não consegue usar o microfone, mas o Sano ainda pode ler as respostas.'}
           </p>
           <label className="ai-field">
             <span>Ler respostas em voz alta</span>

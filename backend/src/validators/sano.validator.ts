@@ -17,3 +17,8 @@ export const ttsSchema = z.object({
   rate: z.number().min(0.5).max(2).default(1),
   pitch: z.number().min(0.5).max(1.5).default(1),
 });
+
+/** WAV mono 16 kHz em base64; ~20 s cabem com folga. */
+export const sttSchema = z.object({
+  audio: z.string().min(100).max(1_400_000).regex(/^[A-Za-z0-9+/]+=*$/, 'Áudio inválido'),
+});

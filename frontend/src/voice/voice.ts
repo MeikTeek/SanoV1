@@ -8,6 +8,7 @@
  * Firefox), `canListen()` devolve false e a tela esconde o botão.
  */
 import { api } from '../services/api';
+import { canRecord, recordWav } from './wavRecorder';
 
 export interface VoicePrefs {
   /** Ler as respostas em voz alta: sempre, só quando você falou, ou nunca. */
@@ -152,23 +153,79 @@ export const canListen = () => recognitionCtor() !== null;
 
 export interface Listener { stop(): void }
 
-/**
- * Ouve uma frase e devolve o texto final. `onPartial` recebe o que já foi
- * entendido enquanto a pessoa fala (para mostrar no campo).
- */
-export function listen(handlers: {
+export interface ListenHandlers {
   onPartial: (text: string) => void;
   onFinal: (text: string) => void;
   onError: (message: string) => void;
   onEnd: () => void;
-}): Listener | null {
-  const Ctor = recognitionCtor();
-  if (!Ctor) return null;
+  /** Dica para o campo enquanto ouve/transcreve (vazio = limpar). */
+  onHint?: (hint: string) => void;
+}
+
+/**
+ * O reconhecimento do navegador manda o áudio para o serviço do Google. Brave,
+ * Opera, o app Android e vários Chromium não têm acesso a ele e devolvem
+ * `network` mesmo com a internet funcionando. Depois da primeira falha o
+ * aparelho fica marcado e passa direto para a gravação + transcrição pela IA.
+ */
+const BROKEN_KEY = 'sano:voice:browser-stt-broken';
+const browserSttBroken = () => { try { return localStorage.getItem(BROKEN_KEY) === '1'; } catch { return false; } };
+const markBrowserSttBroken = () => { try { localStorage.setItem(BROKEN_KEY, '1'); } catch { /* sem storage: tenta de novo na próxima */ } };
+
+/** Existe algum jeito de ouvir neste aparelho? */
+export const canUseMic = () => canListen() || canRecord();
+
+/**
+ * Ouve uma frase e devolve o texto final. `onPartial` recebe o que já foi
+ * entendido enquanto a pessoa fala (só no reconhecimento do navegador).
+ */
+export function listen(h: ListenHandlers): Listener | null {
+  if (!canUseMic()) return null;
+  stopSpeaking(); // o Sano não fala por cima de quem está falando
+  let stopped = false;
+  let stopCurrent = () => {};
+
+  const startRecorder = () => {
+    if (!canRecord()) {
+      // Depois do return de `listen`: quem chamou já guardou o Listener.
+      setTimeout(() => { h.onError('Este navegador não consegue usar o microfone.'); h.onEnd(); }, 0);
+      return;
+    }
+    h.onHint?.('Ouvindo… fale e faça uma pausa para enviar');
+    void recordWav({
+      onDone: (wav) => {
+        if (!wav) { h.onHint?.(''); h.onEnd(); return; }
+        h.onHint?.('Transcrevendo sua fala…');
+        api.post<{ text: string }>('/sano/voice/stt', { audio: wav })
+          .then(({ text }) => { if (text) h.onFinal(text); })
+          .catch((e: Error) => h.onError(e.message))
+          .finally(() => { h.onHint?.(''); h.onEnd(); });
+      },
+      onError: (message) => { h.onError(message); h.onHint?.(''); h.onEnd(); },
+    }).then((rec) => {
+      if (!rec) return;
+      if (stopped) rec.stop();
+      else stopCurrent = () => rec.stop();
+    });
+  };
+
+  if (!canListen() || browserSttBroken()) {
+    startRecorder();
+  } else {
+    stopCurrent = listenInBrowser(h, () => { markBrowserSttBroken(); if (!stopped) startRecorder(); else h.onEnd(); });
+  }
+  return { stop: () => { stopped = true; stopCurrent(); } };
+}
+
+/** Reconhecimento nativo do navegador; `onBroken` quando o serviço dele não responde. */
+function listenInBrowser(h: ListenHandlers, onBroken: () => void): () => void {
+  const Ctor = recognitionCtor()!;
   const rec = new Ctor();
   rec.lang = 'pt-BR';
   rec.interimResults = true;
   rec.continuous = false;
   let finalText = '';
+  let broken = false;
 
   rec.onresult = (e) => {
     let partial = '';
@@ -177,22 +234,26 @@ export function listen(handlers: {
       if (e.results[i].isFinal) finalText += piece;
       else partial += piece;
     }
-    handlers.onPartial((finalText + partial).trim());
+    h.onPartial((finalText + partial).trim());
   };
   rec.onerror = (e) => {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
-    handlers.onError(e.error === 'not-allowed' || e.error === 'service-not-allowed'
+    if (e.error === 'network' || e.error === 'service-not-allowed' || e.error === 'language-not-supported') {
+      broken = true;
+      return; // `onend` vem em seguida e troca para a gravação
+    }
+    h.onError(e.error === 'not-allowed'
       ? 'Permita o uso do microfone para falar com o Sano.'
-      : e.error === 'network'
-        ? 'O reconhecimento de voz precisa de internet.'
-        : 'Não consegui ouvir agora. Tente de novo.');
+      : 'Não consegui ouvir agora. Tente de novo.');
   };
   rec.onend = () => {
-    if (finalText.trim()) handlers.onFinal(finalText.trim());
-    handlers.onEnd();
+    if (broken) { onBroken(); return; }
+    if (finalText.trim()) h.onFinal(finalText.trim());
+    h.onHint?.('');
+    h.onEnd();
   };
 
-  stopSpeaking(); // o Sano não fala por cima de quem está falando
+  h.onHint?.('Ouvindo…');
   rec.start();
-  return { stop: () => rec.stop() };
+  return () => rec.stop();
 }

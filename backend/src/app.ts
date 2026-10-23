@@ -35,6 +35,8 @@ app.use('/api/chat/conversations', express.json({ limit: '4mb' }));
 app.use('/api/music/shares', express.raw({ type: 'application/zip', limit: '500mb' }));
 // Importação de extrato: até 5.000 linhas de CSV já separadas em colunas.
 app.use('/api/finance/import', express.json({ limit: '2mb' }));
+// Gravação curta do microfone (WAV em base64) para transcrição.
+app.use('/api/sano/voice/stt', express.json({ limit: '1.5mb' }));
 app.use('/api/music/tracks', express.json({ limit: '2.5mb' }));
 app.use('/api/music/tracks', express.raw({
   type: (req) => req.method === 'POST' && (req.url ?? '').includes('/upload'),

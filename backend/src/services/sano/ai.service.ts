@@ -249,3 +249,74 @@ export async function askSanoAi(
     return { ok: false, reason: 'unavailable' };
   }
 }
+
+/* ───────── Ouvidos de reserva (transcrição) ───────── */
+
+let audioModelsCache: { at: number; list: string[] } | null = null;
+
+/** Modelos gratuitos que aceitam áudio; a lista da OpenRouter muda com o tempo. */
+async function freeAudioModels(): Promise<string[]> {
+  if (audioModelsCache && Date.now() - audioModelsCache.at < 60 * 60_000) return audioModelsCache.list;
+  try {
+    const res = await fetch(`${OPENROUTER}/models`, { signal: AbortSignal.timeout(8000) });
+    const { data } = await res.json() as {
+      data?: { id: string; architecture?: { input_modalities?: string[] }; pricing?: { prompt?: string; completion?: string } }[];
+    };
+    const list = (data ?? [])
+      .filter((m) => m.architecture?.input_modalities?.includes('audio')
+        && Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0)
+      .map((m) => m.id);
+    audioModelsCache = { at: Date.now(), list };
+  } catch {
+    audioModelsCache = { at: Date.now() - 50 * 60_000, list: audioModelsCache?.list ?? [] };
+  }
+  return audioModelsCache.list;
+}
+
+/**
+ * Transcreve uma fala curta (WAV em base64) com a chave do usuário.
+ * Usada quando o reconhecimento do navegador não existe ou não alcança o
+ * serviço dele (Brave, Opera, app Android).
+ */
+export async function transcribeSpeech(userId: string, wavBase64: string): Promise<string> {
+  const cfg = await userKey(userId);
+  if (!cfg) {
+    throw new AppError(400, 'Este navegador não reconhece fala sozinho. Ligue a IA em Ajustes → Inteligência artificial para usar o microfone aqui.');
+  }
+  const models = (await freeAudioModels()).slice(0, 3);
+  if (!models.length) throw new AppError(503, 'Nenhum modelo gratuito de áudio está disponível agora na OpenRouter.');
+
+  for (const model of models) {
+    try {
+      const res = await fetch(`${OPENROUTER}/chat/completions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.key}`, ...APP_HEADERS },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 300,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Transcreva exatamente o que é dito neste áudio, em português do Brasil. Responda apenas com a transcrição, sem aspas nem comentários. Se não houver fala, responda vazio.' },
+              { type: 'input_audio', input_audio: { data: wavBase64, format: 'wav' } },
+            ],
+          }],
+        }),
+        signal: AbortSignal.timeout(20_000),
+      });
+      if (res.status === 401 || res.status === 403) throw new AppError(400, 'A OpenRouter recusou sua chave. Confira em Ajustes.');
+      if (res.status === 429 || res.status === 402) throw new AppError(429, 'Sua cota gratuita da OpenRouter acabou por hoje.');
+      if (!res.ok) {
+        console.error(`[sano-stt] ${model} ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}`);
+        continue; // tenta o próximo modelo gratuito
+      }
+      const data = await res.json() as { choices?: { message?: { content?: string | null } }[] };
+      return (data.choices?.[0]?.message?.content ?? '').trim().replace(/^["“]|["”]$/g, '').slice(0, 500);
+    } catch (err) {
+      if (err instanceof AppError) throw err;
+      console.error(`[sano-stt] ${model}:`, (err as Error).message);
+    }
+  }
+  throw new AppError(503, 'Não consegui transcrever agora. Tente de novo.');
+}

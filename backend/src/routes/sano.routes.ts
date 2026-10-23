@@ -19,5 +19,6 @@ r.get('/ai/models', requireAuth, c.aiModels);
 // Voz neural do Sano (Microsoft Edge TTS).
 r.get('/voice/voices', requireAuth, c.voices);
 r.post('/voice/tts', requireAuth, ttsLimiter, c.speak);
+r.post('/voice/stt', requireAuth, commandLimiter, c.transcribe);
 
 export default r;

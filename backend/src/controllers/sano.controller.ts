@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
-import { aiConfigSchema, commandSchema, ttsSchema } from '../validators/sano.validator';
+import { aiConfigSchema, commandSchema, sttSchema, ttsSchema } from '../validators/sano.validator';
 import * as tts from '../services/sano/tts.service';
 import * as sanoAi from '../services/sano/ai.service';
 import { handleCommand } from '../services/sano/router';
@@ -130,4 +130,10 @@ export async function speak(req: Request, res: Response) {
   const { text, voice, rate, pitch } = ttsSchema.parse(req.body);
   const audio = await tts.synthesize({ text, voice: voice ?? tts.DEFAULT_VOICE, rate, pitch });
   res.set({ 'Content-Type': 'audio/mpeg', 'Cache-Control': 'private, max-age=86400' }).send(audio);
+}
+
+/** Ouvidos de reserva: transcreve a gravação com a IA do próprio usuário. */
+export async function transcribe(req: Request, res: Response) {
+  const { audio } = sttSchema.parse(req.body);
+  res.json({ text: await sanoAi.transcribeSpeech(req.user!.id, audio) });
 }
