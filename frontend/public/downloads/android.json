@@ -1,0 +1,13 @@
+{
+  "version": "1.1.0",
+  "build": 2,
+  "size": 18096439,
+  "releasedAt": "2026-10-22",
+  "notes": [
+    "Lembretes da agenda como notificações do Android, mesmo com o app fechado",
+    "Widget \"Agenda do Sano\" na tela inicial",
+    "Atalhos ao pressionar o ícone: Sano, Agenda, Mensagens e Música",
+    "Envio de fotos, áudios e músicas pelo app",
+    "Tela de abertura e cores no visual do site"
+  ]
+}

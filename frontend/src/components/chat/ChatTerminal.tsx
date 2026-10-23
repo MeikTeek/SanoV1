@@ -8,6 +8,7 @@ import { useCommandHistory } from '../../hooks/useCommandHistory';
 import type { ChatMessage } from '../../types/sano';
 import { IconSend } from '../ui/icons';
 import ViewRenderer from './ViewRenderer';
+import { notifyAgendaChanged } from '../../native/bridge';
 import { useMusic } from '../../music/musicStore';
 import '../../styles/chat.css';
 
@@ -143,6 +144,7 @@ export default function ChatTerminal() {
       setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
       // Mexeu na agenda pelo chat: os painéis "Hoje" precisam refletir na hora.
       if (res.intent === 'agenda' || res.intent === 'financas') refreshPanels();
+      if (res.intent === 'agenda') notifyAgendaChanged();
       res.actions?.forEach((a) => {
         if (a.type === 'navigate') setTimeout(() => navigate(a.to), 600);
       });

@@ -1,4 +1,5 @@
 import { api } from './api';
+import { notifyAgendaChanged } from '../native/bridge';
 import type { Appointment, AppointmentInput, AppointmentPreview } from '../types/appointment';
 
 export type SeriesScope = 'one' | 'following';
@@ -11,14 +12,17 @@ export const listAppointments = (from?: string, to?: string) => {
   return api.get<{ appointments: Appointment[] }>(`/appointments${qs ? `?${qs}` : ''}`);
 };
 
+/** Repassa o resultado e avisa quem acompanha a agenda (app Android). */
+const changed = <T,>(p: Promise<T>) => p.then((r) => { notifyAgendaChanged(); return r; });
+
 export const createAppointment = (data: AppointmentInput) =>
-  api.post<{ appointment: Appointment }>('/appointments', data);
+  changed(api.post<{ appointment: Appointment }>('/appointments', data));
 
 export const updateAppointment = (id: string, data: Partial<AppointmentInput> & { status?: string; scope?: SeriesScope }) =>
-  api.patch<{ appointment: Appointment }>(`/appointments/${id}`, data);
+  changed(api.patch<{ appointment: Appointment }>(`/appointments/${id}`, data));
 
 export const deleteAppointment = (id: string, scope: SeriesScope = 'one') =>
-  api.delete<{ ok: true }>(`/appointments/${id}${scope === 'following' ? '?scope=following' : ''}`);
+  changed(api.delete<{ ok: true }>(`/appointments/${id}${scope === 'following' ? '?scope=following' : ''}`));
 
 /** Interpreta a frase da criação rápida sem salvar. */
 export const previewAppointment = (text: string) =>

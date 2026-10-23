@@ -1162,6 +1162,91 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
   .track-play { opacity: 1; width: 34px; height: 34px; }
   .track-menu-trigger { width: 34px; height: 34px; }
 }
+/* ── App Android: faixa de convite/atualização e cartão de download ── */
+.app-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: linear-gradient(90deg, #00e5ff1a, #5865f21a);
+  border-bottom: 1px solid #00e5ff2a;
+  font-size: .85rem;
+  flex-shrink: 0;
+  animation: slideDown .35s var(--ease-out);
+}
+.app-banner-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-weight: 800;
+  font-size: .85rem;
+}
+.app-banner-text { flex: 1; min-width: 0; color: var(--text-dim); }
+.app-banner-text b { color: var(--text); }
+.app-banner-btn, .android-download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: transform .2s var(--ease-spring), box-shadow .2s ease;
+}
+.app-banner-btn:hover, .android-download-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px #00e5ff40; }
+.app-banner-close { padding: 0 6px; background: transparent; color: var(--text-dim); font-size: 1.2rem; line-height: 1; }
+.app-banner-close:hover:not(:disabled) { color: var(--text); filter: none; }
+
+.android-card { position: relative; overflow: hidden; scroll-margin-top: 16px; }
+.android-card::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #00e5ff26, transparent 70%);
+  pointer-events: none;
+}
+.android-card-head { display: flex; align-items: center; gap: 14px; }
+.android-card-head h2 { margin: 0; font-size: 1.05rem; }
+.android-card-head p { margin: 2px 0 0; font-size: .86rem; }
+.android-card-icon {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--accent-gradient);
+  color: var(--accent-ink);
+  font-size: 1.3rem;
+  font-weight: 800;
+  box-shadow: 0 8px 22px #00e5ff33;
+}
+.android-features { list-style: none; margin: 18px 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.android-features li { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-soft); font-size: .84rem; color: var(--text-dim); }
+.android-features li svg { color: var(--accent); flex-shrink: 0; margin-top: 2px; }
+.android-features b { color: var(--text); }
+.android-download { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.android-download-btn { padding: 11px 20px; font-size: .95rem; }
+.android-notes { margin-top: 14px; font-size: .86rem; color: var(--text-dim); }
+.android-notes summary { cursor: pointer; color: var(--text); font-weight: 600; }
+.android-notes ol, .android-notes ul { margin: 8px 0 0; padding-left: 20px; line-height: 1.7; }
+@media (max-width: 720px) {
+  .android-features { grid-template-columns: 1fr; }
+  .app-banner { padding: 8px 12px; font-size: .8rem; }
+}
+
 /* Vínculo com o SanoBot (Discord) */
 .discord-card p { margin: 0 0 14px; }
 .discord-linked { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }

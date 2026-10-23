@@ -3,6 +3,7 @@ import { ApiError } from '../../services/api';
 import { fetchDueReminders } from '../../services/appointment.service';
 import { useAuth } from '../../context/AuthContext';
 import type { Appointment } from '../../types/appointment';
+import { isNativeApp } from '../../native/bridge';
 
 const POLL_MS = 30_000;
 
@@ -35,7 +36,8 @@ export default function ReminderWatcher({ onReminder }: Props) {
     setActive((prev) => [...prev, ...reminders]);
 
     // Notificação do navegador, se o usuário já autorizou.
-    if ('Notification' in window && Notification.permission === 'granted') {
+    // Dentro do app Android o sistema já avisou (lembrete agendado pela ponte).
+    if (!isNativeApp() && 'Notification' in window && Notification.permission === 'granted') {
       for (const a of reminders) {
         const lead = leadText(a.remindBefore);
         try {

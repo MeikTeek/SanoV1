@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import AppShell from '../../components/layout/AppShell';
 import DiscordLinkCard from '../../components/settings/DiscordLinkCard';
+import AndroidAppCard from '../../native/AndroidAppCard';
 import { useAuth } from '../../context/AuthContext';
 import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, setPrivacy, type Profile } from '../../services/profile.service';
 
@@ -19,6 +20,13 @@ export default function SettingsPage() {
   const [ok, setOk] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (window.location.hash !== '#android') return;
+    // Espera a tela de carregamento sair antes de rolar.
+    const timer = window.setTimeout(() => document.getElementById('android')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 700);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     getProfile().then((p) => { setProfile(p); setName(p.displayName ?? p.username); }).catch((e) => setError(e.message));
@@ -101,6 +109,7 @@ export default function SettingsPage() {
 
   return (
     <AppShell title="Configurações" status="perfil pessoal">
+      <AndroidAppCard />
       <section className="card">
         <h2>Foto de perfil</h2>
         <div className="settings-avatar-row">

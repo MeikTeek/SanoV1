@@ -1,9 +1,11 @@
 import { Fragment, useEffect, useState, type ComponentType, type FocusEvent, type MouseEvent, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet, IconRadar } from '../ui/icons';
+import { IconBell, IconBubble, IconCalendar, IconChat, IconDumbbell, IconInfo, IconLock, IconLogout, IconSettings, IconShield, IconUsers, IconMusic, IconWallet, IconRadar, IconDownload } from '../ui/icons';
 import MusicPlayer from '../music/MusicPlayer';
 import PageLoader, { usePageReady } from './PageLoader';
+import AppBanner from '../../native/AppBanner';
+import { isNativeApp, nativeInfo, requestNativeNotifications } from '../../native/bridge';
 import { updatePresence } from '../../services/chat.service';
 
 interface NavItem {
@@ -59,10 +61,17 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
     return () => window.clearTimeout(timer);
   }, [ready]);
 
+  // No app Android a permissão é do sistema (via ponte); no navegador, a da Web.
+  const native = isNativeApp();
+  const canNotify = native || 'Notification' in window;
   useEffect(() => {
+    if (native) {
+      void nativeInfo().then((info) => setNotify(info?.notifications ?? true));
+      return;
+    }
     if (!('Notification' in window)) return;
     setNotify(Notification.permission === 'granted');
-  }, []);
+  }, [native]);
 
   useEffect(() => {
     setMenuOpen(false);
@@ -78,6 +87,10 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
   }, [menuOpen]);
 
   const askPermission = async () => {
+    if (native) {
+      setNotify(await requestNativeNotifications());
+      return;
+    }
     const p = await Notification.requestPermission();
     setNotify(p === 'granted');
   };
@@ -168,7 +181,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
           </div>
           <div className="appbar-actions">
             {actions && <div className="appbar-extra">{actions}</div>}
-            {!notify && 'Notification' in window && (
+            {!notify && canNotify && (
               <button
                 className="icon-btn alert bell-pending"
                 onClick={askPermission}
@@ -215,6 +228,11 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
                     <button className="menu-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/config'); }}>
                       <IconSettings /> Configurações
                     </button>
+                    {!native && (
+                      <button className="menu-item" role="menuitem" onClick={() => { setMenuOpen(false); navigate('/config#android'); }}>
+                        <IconDownload size={18} /> App para Android
+                      </button>
+                    )}
                     <button className="menu-item danger" role="menuitem" onClick={() => { setMenuOpen(false); void logout(); }}>
                       <IconLogout /> Sair
                     </button>
@@ -225,6 +243,7 @@ export default function AppShell({ title, status, actions, flush, children }: Pr
           </div>
         </header>
 
+        <AppBanner />
         <div className="app-stage">
           <div className={`app-content ${ready ? 'revealed' : 'loading'}`} aria-busy={!ready}>
             {flush ? <div className="page flush">{children}</div> : <div className="page">{children}</div>}

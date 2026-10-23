@@ -12,9 +12,13 @@ import AboutPage from './pages/about/AboutPage';
 import MusicPage from './pages/music/MusicPage';
 import FinancePage from './pages/finance/FinancePage';
 import OsintPage from './pages/osint/OsintPage';
+import NativeSync from './native/NativeSync';
 
 export default function App() {
   return (
+    <>
+    {/* Só age dentro do app Android: lembretes agendados e widget. */}
+    <NativeSync />
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
@@ -32,5 +36,6 @@ export default function App() {
       <Route path="/osint" element={<ProtectedRoute adminOnly><OsintPage /></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   );
 }
