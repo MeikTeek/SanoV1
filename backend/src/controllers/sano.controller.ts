@@ -4,6 +4,7 @@ import { aiConfigSchema, commandSchema, sttSchema, ttsSchema } from '../validato
 import * as tts from '../services/sano/tts.service';
 import * as sanoAi from '../services/sano/ai.service';
 import { handleCommand } from '../services/sano/router';
+import type { SanoAiDeps } from '../services/sano/types';
 import { logAudit } from '../services/audit.service';
 import * as agenda from '../services/agenda/service';
 import * as trainer from '../services/trainer/api';
@@ -21,7 +22,18 @@ const pingDb = async () => {
 const QUIET = new Set(['help', 'greeting', 'time']);
 
 export async function command(req: Request, res: Response) {
-  const { message } = commandSchema.parse(req.body);
+  const { message, clientAi, aiAnswer, aiError } = commandSchema.parse(req.body);
+  const userId = req.user!.id;
+  const displayName = req.user!.displayName || req.user!.username;
+
+  // IA local: o 1º passe devolve as mensagens; o 2º traz a resposta (ou o erro).
+  const ai: SanoAiDeps = clientAi
+    ? async (input) => {
+      if (aiError) return { ok: false, reason: 'local', detail: aiError };
+      if (aiAnswer !== undefined) return sanoAi.acceptClientAnswer(userId, message, aiAnswer);
+      return { ok: false, reason: 'client', messages: sanoAi.buildAiMessages(userId, { ...input, displayName }) };
+    }
+    : (input) => sanoAi.askSanoAi(userId, { ...input, displayName });
 
   const result = await handleCommand(req.user!, message, {
     pingDb,
@@ -32,7 +44,7 @@ export async function command(req: Request, res: Response) {
       ask: async (userId, question) => (await trainer.askCall(userId, question)).answer,
     },
     finance: financeChat,
-    ai: (input) => sanoAi.askSanoAi(req.user!.id, { ...input, displayName: req.user!.displayName || req.user!.username }),
+    ai,
   });
 
   // Privacidade: registra apenas a intenção, nunca o texto digitado.
@@ -121,7 +133,7 @@ export async function aiTest(req: Request, res: Response) {
 }
 
 export async function aiModels(_req: Request, res: Response) {
-  res.json({ models: await sanoAi.listFreeModels() });
+  res.json({ models: await sanoAi.listModels() });
 }
 
 /* ───────── Voz neural (Edge TTS) ───────── */

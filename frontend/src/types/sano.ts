@@ -1,6 +1,8 @@
 /** `run`: comando que só o navegador resolve (música), sugerido pela IA. */
 export type SanoAction = { type: 'navigate'; to: string } | { type: 'run'; command: string };
 
+export type SanoAiMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+
 /**
  * Painéis estruturados que o backend devolve no lugar de texto corrido.
  * O frontend escolhe o componente certo pelo `kind`.
@@ -63,6 +65,8 @@ export interface SanoResponse {
   view?: SanoView;
   /** Respostas rápidas sugeridas pelo Sano. */
   suggestions?: string[];
+  /** IA local: rodar estas mensagens no LM Studio e reenviar a frase com a resposta. */
+  aiRequest?: { messages: SanoAiMessage[] };
 }
 
 export interface ChatMessage {

@@ -37,7 +37,9 @@ export type SanoAiDeps = (input: {
 }) => Promise<
   | { ok: true; command: string }
   | { ok: true; reply: string }
-  | { ok: false; reason: 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'unavailable'; detail?: string }
+  | { ok: false; reason: 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable'; detail?: string }
+  /** IA local: o navegador precisa rodar estas mensagens e reenviar a resposta. */
+  | { ok: false; reason: 'client'; messages: { role: 'system' | 'user' | 'assistant'; content: string }[] }
   | null
 >;
 
@@ -215,6 +217,8 @@ export interface SanoResult {
   /** O que esta resposta memoriza para permitir "cancela essa" / "e amanhã?". */
   memory?: { appointments?: SanoAppointment[]; focusDay?: string };
   dialog?: Partial<SanoMemory>;
+  /** IA local: mensagens que o navegador manda ao LM Studio antes de reenviar a frase. */
+  aiRequest?: { messages: { role: 'system' | 'user' | 'assistant'; content: string }[] };
 }
 
 export interface SanoResponse extends SanoResult {

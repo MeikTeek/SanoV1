@@ -1,6 +1,6 @@
 /** Erros da OpenRouter traduzidos para o usuário. Sem dependências: o roteador e os testes usam direto. */
 
-export type AiFailureReason = 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'unavailable';
+export type AiFailureReason = 'quota' | 'rate' | 'invalid' | 'policy' | 'blocked' | 'local' | 'unavailable';
 
 /**
  * Traduz um erro da OpenRouter. Pela documentação: 401 = chave inválida,
@@ -35,6 +35,7 @@ export function failureMessage({ reason, detail }: { reason: AiFailureReason; de
     case 'rate': return 'Muitas perguntas à IA em pouco tempo. Espere um minuto e tente de novo.';
     case 'policy': return `A sua conta da OpenRouter está bloqueando os modelos gratuitos${why}. Em openrouter.ai/settings/privacy, permita os modelos gratuitos.`;
     case 'blocked': return `A OpenRouter bloqueou o pedido${why}. Confira as regras (Guardrails) e a privacidade da sua conta em openrouter.ai/settings/privacy.`;
+    case 'local': return `O LM Studio não respondeu${why}. Confira se ele está aberto, com o servidor ligado e o CORS ativado.`;
     default: return `A IA não respondeu agora${why}. Sigo no modo sem IA por enquanto.`;
   }
 }

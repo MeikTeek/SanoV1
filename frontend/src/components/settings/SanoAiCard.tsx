@@ -1,8 +1,10 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
-  fetchAiQuota, fetchAiStatus, fetchFreeModels, removeAi, saveAi, testAi,
-  type AiQuota, type AiStatus, type FreeModel,
+  fetchAiQuota, fetchAiStatus, fetchModels, removeAi, saveAi, testAi,
+  type AiModel, type AiQuota, type AiStatus,
 } from '../../services/sano.service';
+import { localAiActive } from '../../ai/localAi';
+import LocalAiPanel from './LocalAiPanel';
 import {
   canListen, canSpeak, canUseMic, fetchNeuralVoices, loadVoicePrefs, portugueseVoices, saveVoicePrefs, speak,
   type NeuralVoice, type VoicePrefs,
@@ -19,7 +21,9 @@ import {
 export default function SanoAiCard() {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [quota, setQuota] = useState<AiQuota | null>(null);
-  const [models, setModels] = useState<FreeModel[]>([]);
+  const [models, setModels] = useState<AiModel[]>([]);
+  const [provider, setProvider] = useState<'openrouter' | 'local'>(() => (localAiActive() ? 'local' : 'openrouter'));
+  const [localOn, setLocalOn] = useState(localAiActive);
   const [key, setKey] = useState('');
   const [error, setError] = useState('');
   const [ok, setOk] = useState('');
@@ -37,7 +41,7 @@ export default function SanoAiCard() {
       setStatus(s);
       if (s.configured) {
         void fetchAiQuota().then((r) => setQuota(r.quota)).catch(() => undefined);
-        void fetchFreeModels().then((r) => setModels(r.models)).catch(() => undefined);
+        void fetchModels().then((r) => setModels(r.models)).catch(() => undefined);
       }
     }).catch((e: Error) => setError(e.message));
   }, []);
@@ -64,7 +68,7 @@ export default function SanoAiCard() {
       setQuota(res.quota ?? null);
       setKey('');
       setOk('Pronto! O Sano agora conversa com IA. Experimente perguntar qualquer coisa no chat.');
-      void fetchFreeModels().then((r) => setModels(r.models)).catch(() => undefined);
+      void fetchModels().then((r) => setModels(r.models)).catch(() => undefined);
     });
   };
 
@@ -91,8 +95,6 @@ export default function SanoAiCard() {
     saveVoicePrefs(next);
   };
 
-  const modelOptions = models.length ? models : status ? [{ id: status.model, name: status.model, context: 0 }] : [];
-
   return (
     <section className="card ai-card" id="ia">
       <h2>Inteligência artificial e voz</h2>
@@ -101,7 +103,19 @@ export default function SanoAiCard() {
         Sem ela, ele continua funcionando com os comandos de sempre.
       </p>
 
-      {status?.configured ? (
+      <div className="ai-tabs" role="tablist" aria-label="Onde a IA roda">
+        <button type="button" role="tab" aria-selected={provider === 'openrouter'} className={provider === 'openrouter' ? 'on' : ''} onClick={() => setProvider('openrouter')}>
+          OpenRouter <small>nuvem</small>
+        </button>
+        <button type="button" role="tab" aria-selected={provider === 'local'} className={provider === 'local' ? 'on' : ''} onClick={() => setProvider('local')}>
+          LM Studio <small>neste computador</small>
+        </button>
+      </div>
+      {localOn && provider === 'openrouter' && (
+        <p className="hud-alert small">Neste aparelho o Sano está usando o LM Studio. A OpenRouter vale nos outros aparelhos.</p>
+      )}
+
+      {provider === 'local' ? <LocalAiPanel onChange={setLocalOn} /> : status?.configured ? (
         <div className="ai-on">
           <div className="ai-row">
             <span><span className="ai-dot" aria-hidden="true" /> IA ligada · chave <code>{status.keyHint}</code></span>
@@ -115,13 +129,7 @@ export default function SanoAiCard() {
               Hoje: {quota.freeDaily.used} de {quota.freeDaily.limit} perguntas gratuitas usadas.
             </p>
           )}
-          <label className="ai-field">
-            <span>Modelo</span>
-            <select value={status.model} disabled={busy} onChange={(e) => changeModel(e.target.value)}>
-              {modelOptions.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-            </select>
-            <small className="muted">"Automático" escolhe sozinho um modelo gratuito disponível — é o mais fácil.</small>
-          </label>
+          <ModelPicker current={status.model} models={models} busy={busy} onPick={changeModel} />
           <details className="ai-help">
             <summary>Trocar a chave</summary>
             <KeyForm value={key} onChange={setKey} onSubmit={submitKey} busy={busy} label="Salvar nova chave" />
@@ -197,6 +205,52 @@ export default function SanoAiCard() {
         </>
       )}
     </section>
+  );
+}
+
+const price = (m: AiModel) => (m.free ? 'grátis' : `US$ ${m.pricePrompt.toFixed(2)} / ${m.priceCompletion.toFixed(2)} por 1M tokens`);
+
+/**
+ * Escolha livre de modelo: busca na lista inteira da OpenRouter (gratuitos e
+ * pagos) ou qualquer ID digitado à mão.
+ */
+function ModelPicker({ current, models, busy, onPick }: { current: string; models: AiModel[]; busy: boolean; onPick: (id: string) => void }) {
+  const [value, setValue] = useState(current);
+  const [onlyFree, setOnlyFree] = useState(true);
+  useEffect(() => setValue(current), [current]);
+
+  const shown = useMemo(() => models.filter((m) => !onlyFree || m.free), [models, onlyFree]);
+  const picked = models.find((m) => m.id === value.trim());
+  const active = models.find((m) => m.id === current);
+  const changed = value.trim() && value.trim() !== current;
+
+  return (
+    <div className="ai-field">
+      <span>Modelo</span>
+      <div className="ai-key-form">
+        <input
+          list="sano-or-models"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Busque pelo nome ou cole o ID (ex.: openai/gpt-5-mini)"
+          spellCheck={false}
+          aria-label="Modelo da OpenRouter"
+        />
+        <button type="button" disabled={busy || !changed} onClick={() => onPick(value.trim())}>Usar</button>
+      </div>
+      <datalist id="sano-or-models">
+        {shown.map((m) => <option key={m.id} value={m.id}>{`${m.name} · ${price(m)}`}</option>)}
+      </datalist>
+      <label className="ai-inline">
+        <input type="checkbox" checked={onlyFree} onChange={(e) => setOnlyFree(e.target.checked)} /> Mostrar só os gratuitos
+      </label>
+      <small className="muted">
+        Em uso: <b>{active?.name ?? current}</b>{active ? ` (${price(active)})` : ''}.
+        {changed && picked && !picked.free && <> <b className="warn-text">Esse modelo é pago</b>: gasta créditos da sua conta OpenRouter ({price(picked)}).</>}
+        {changed && !picked && models.length > 0 && <> Esse ID não está na lista, mas você pode usar mesmo assim — se não existir, o <b>Testar IA</b> avisa.</>}
+        {' '}"Automático" escolhe sozinho um modelo gratuito — é o mais fácil.
+      </small>
+    </div>
   );
 }
 

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useChat } from '../../store/chatStore';
 import { ApiError } from '../../services/api';
 import { sendCommand, fetchGreeting } from '../../services/sano.service';
+import { loadLocalAi, localAiActive, runLocalAi } from '../../ai/localAi';
 import { useCommandHistory } from '../../hooks/useCommandHistory';
 import type { ChatMessage } from '../../types/sano';
 import { IconMic, IconSend } from '../ui/icons';
@@ -169,7 +170,18 @@ export default function ChatTerminal() {
     setThinking(/\?$/.test(trimmed) ? 'consultando...' : 'processando...');
 
     try {
-      const res = await sendCommand(trimmed);
+      const local = localAiActive() ? loadLocalAi() : null;
+      let res = await sendCommand(trimmed, local ? { clientAi: 'local' } : {});
+      // IA local: o Sano montou o pedido; o navegador roda no LM Studio e devolve.
+      if (local && res.aiRequest) {
+        setThinking('IA local pensando...');
+        try {
+          const aiAnswer = await runLocalAi(local, res.aiRequest.messages);
+          res = await sendCommand(trimmed, { clientAi: 'local', aiAnswer });
+        } catch (err) {
+          res = await sendCommand(trimmed, { clientAi: 'local', aiError: (err as Error).message.slice(0, 240) });
+        }
+      }
       if (res.reply || res.view) setMessages((m) => [...m, make('sano', res.reply, res.view, res.suggestions)]);
       // Mexeu na agenda pelo chat: os painéis "Hoje" precisam refletir na hora.
       if (res.intent === 'agenda' || res.intent === 'financas') refreshPanels();

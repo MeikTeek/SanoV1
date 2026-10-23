@@ -132,10 +132,13 @@ async function askAi(
   const outcome = await deps.ai({ text, now, catalog });
   if (!outcome) return null;
 
+  if (!outcome.ok && outcome.reason === 'client') {
+    return { intent: 'ai-pending', reply: '', aiRequest: { messages: outcome.messages } };
+  }
   if (!outcome.ok) {
     // Falha passageira com regra de reserva: segue em silêncio. Problema de
     // configuração (chave, cota, bloqueio) aparece sempre, senão nunca é corrigido.
-    const transient = outcome.reason === 'unavailable' || outcome.reason === 'rate';
+    const transient = outcome.reason === 'unavailable' || outcome.reason === 'rate' || outcome.reason === 'local';
     if (!reportFailure && transient) return null;
     return { intent: 'unknown', ...unknownResponse(user, text), reply: failureMessage(outcome) };
   }

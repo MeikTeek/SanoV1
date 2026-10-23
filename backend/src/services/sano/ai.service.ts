@@ -117,25 +117,41 @@ export async function getAiQuota(userId: string): Promise<AiQuota | null> {
 
 /* ───────── Modelos gratuitos ───────── */
 
-export interface FreeModel { id: string; name: string; context: number }
+export interface AiModel {
+  id: string;
+  name: string;
+  context: number;
+  free: boolean;
+  /** US$ por 1 milhão de tokens (entrada / saída); 0 nos gratuitos. */
+  pricePrompt: number;
+  priceCompletion: number;
+}
 
-let modelsCache: { at: number; list: FreeModel[] } | null = null;
+let modelsCache: { at: number; list: AiModel[] } | null = null;
 
-/** Modelos de custo zero da OpenRouter, com o roteador gratuito sempre primeiro. */
-export async function listFreeModels(): Promise<FreeModel[]> {
+/**
+ * Todos os modelos da OpenRouter: o roteador gratuito primeiro, depois os
+ * gratuitos e então os pagos. Pagos gastam créditos da conta do usuário.
+ */
+export async function listModels(): Promise<AiModel[]> {
   if (modelsCache && Date.now() - modelsCache.at < 60 * 60_000) return modelsCache.list;
-  const router: FreeModel = { id: DEFAULT_MODEL, name: 'Automático (escolhe um modelo gratuito)', context: 0 };
+  const router: AiModel = { id: DEFAULT_MODEL, name: 'Automático (escolhe um modelo gratuito)', context: 0, free: true, pricePrompt: 0, priceCompletion: 0 };
   try {
     const res = await fetch(`${OPENROUTER}/models`, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return [router];
     const { data } = await res.json() as {
       data?: { id: string; name?: string; context_length?: number; pricing?: { prompt?: string; completion?: string } }[];
     };
-    const free = (data ?? [])
-      .filter((m) => m.id !== DEFAULT_MODEL && Number(m.pricing?.prompt) === 0 && Number(m.pricing?.completion) === 0)
-      .map((m) => ({ id: m.id, name: m.name ?? m.id, context: m.context_length ?? 0 }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    modelsCache = { at: Date.now(), list: [router, ...free] };
+    const list = (data ?? [])
+      // Preço negativo = roteador de preço variável; fica de fora.
+      .filter((m) => m.id !== DEFAULT_MODEL && Number(m.pricing?.prompt) >= 0 && Number(m.pricing?.completion) >= 0)
+      .map((m) => {
+        const pricePrompt = Number(m.pricing?.prompt) * 1e6;
+        const priceCompletion = Number(m.pricing?.completion) * 1e6;
+        return { id: m.id, name: m.name ?? m.id, context: m.context_length ?? 0, free: pricePrompt === 0 && priceCompletion === 0, pricePrompt, priceCompletion };
+      })
+      .sort((a, b) => Number(b.free) - Number(a.free) || a.name.localeCompare(b.name));
+    modelsCache = { at: Date.now(), list: [router, ...list] };
     return modelsCache.list;
   } catch {
     return [router];
@@ -207,11 +223,32 @@ export function parseAiAnswer(raw: string): { command: string } | { reply: strin
   return { reply: text.replace(/[*_#`>]/g, '').slice(0, 1200) };
 }
 
+export type AiMessage = { role: 'system' | 'user' | 'assistant'; content: string };
+type AskInput = { text: string; displayName: string; now: Date; catalog: AiCommand[] };
+
+/** Prompt + histórico + frase: o mesmo pedido para a OpenRouter e para a IA local. */
+export function buildAiMessages(userId: string, input: AskInput): AiMessage[] {
+  return [
+    { role: 'system', content: systemPrompt(input.displayName, input.now, input.catalog) },
+    ...recentTurns(userId),
+    { role: 'user', content: input.text },
+  ];
+}
+
+/**
+ * IA local (LM Studio): quem chama o modelo é o navegador, porque o servidor
+ * não alcança o `localhost` do usuário. A resposta volta aqui e passa pelas
+ * mesmas regras — a IA local também só traduz, nunca executa.
+ */
+export function acceptClientAnswer(userId: string, text: string, raw: string): AiOutcome {
+  const parsed = parseAiAnswer(raw);
+  if (!parsed) return { ok: false, reason: 'local', detail: 'a IA local respondeu vazio' };
+  remember(userId, text, 'command' in parsed ? JSON.stringify(parsed) : parsed.reply);
+  return { ok: true, ...parsed };
+}
+
 /** Pergunta à IA do usuário. Nunca lança: falhas viram `ok: false`. */
-export async function askSanoAi(
-  userId: string,
-  input: { text: string; displayName: string; now: Date; catalog: AiCommand[] },
-): Promise<AiOutcome | null> {
+export async function askSanoAi(userId: string, input: AskInput): Promise<AiOutcome | null> {
   const cfg = await userKey(userId);
   if (!cfg) return null;
 
@@ -223,11 +260,7 @@ export async function askSanoAi(
         model: cfg.model,
         temperature: 0.4,
         max_tokens: 400,
-        messages: [
-          { role: 'system', content: systemPrompt(input.displayName, input.now, input.catalog) },
-          ...recentTurns(userId),
-          { role: 'user', content: input.text },
-        ],
+        messages: buildAiMessages(userId, input),
       }),
       // Modelos gratuitos às vezes demoram; mais que isso a conversa perde o ritmo.
       signal: AbortSignal.timeout(25_000),

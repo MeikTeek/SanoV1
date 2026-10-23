@@ -93,3 +93,23 @@ test('erro de configuração aparece mesmo com regra de reserva', async () => {
   assert.equal(r.intent, 'unknown');
   assert.match(r.reply, /moderation/);
 });
+
+test('IA local: 1º passe pede ao navegador, 2º usa a resposta dele', async () => {
+  const messages = [{ role: 'user' as const, content: 'oi' }];
+  const first = await withAi(async () => ({ ok: false, reason: 'client', messages }))('qual a capital da australia');
+  assert.equal(first.intent, 'ai-pending');
+  assert.deepEqual(first.aiRequest, { messages });
+
+  const second = await withAi(async () => ({ ok: true, command: 'que horas são' }))('me diz o horário aí, parceiro');
+  assert.equal(second.intent, 'time');
+});
+
+const localDown = withAi(async () => ({ ok: false, reason: 'local', detail: 'Failed to fetch' }));
+
+test('IA local fora do ar com regra de reserva: segue em silêncio', async () => {
+  assert.equal((await localDown('qual a capital da australia')).intent, 'agenda');
+});
+
+test('IA local fora do ar sem regra: explica o que conferir', async () => {
+  assert.match((await localDown('frase estranha qualquer')).reply, /LM Studio/);
+});

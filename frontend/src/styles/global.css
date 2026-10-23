@@ -1272,3 +1272,11 @@ button.has-badge { display: inline-flex; align-items: center; gap: 6px; }
 .ai-notes { margin: 14px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
 .ai-sub { margin: 22px 0 6px; font-size: 1rem; }
 .ai-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-tabs { display: flex; gap: 6px; padding: 4px; margin: 0 0 14px; background: var(--surface-2); border: 1px solid var(--line-soft); border-radius: 12px; width: fit-content; max-width: 100%; flex-wrap: wrap; }
+.ai-tabs button { background: transparent; color: var(--muted); border: 0; box-shadow: none; padding: 8px 14px; border-radius: 9px; }
+.ai-tabs button small { opacity: .7; margin-left: 4px; font-size: .75em; }
+.ai-tabs button.on { background: var(--surface-3); color: var(--text); }
+.ai-local { display: flex; flex-direction: column; gap: 4px; }
+.ai-inline { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+.ai-inline input { width: auto; accent-color: var(--accent); }
+.warn-text { color: #ffb454; }

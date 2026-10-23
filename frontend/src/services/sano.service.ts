@@ -2,7 +2,9 @@ import { api } from './api';
 import type { Appointment } from '../types/appointment';
 import type { SanoResponse } from '../types/sano';
 
-export const sendCommand = (message: string) => api.post<SanoResponse>('/sano/command', { message });
+/** `clientAi`/`aiAnswer`/`aiError`: protocolo da IA local, que roda no navegador. */
+export const sendCommand = (message: string, extra: { clientAi?: 'local'; aiAnswer?: string; aiError?: string } = {}) =>
+  api.post<SanoResponse>('/sano/command', { message, ...extra });
 
 /** Resumo do treino usado no painel lateral e no orbe. */
 export interface PanelTraining {
@@ -30,11 +32,19 @@ export interface AiQuota {
   isFreeTier: boolean;
   freeDaily: { used: number; limit: number; remaining: number } | null;
 }
-export interface FreeModel { id: string; name: string; context: number }
+export interface AiModel {
+  id: string;
+  name: string;
+  context: number;
+  free: boolean;
+  /** US$ por 1 milhão de tokens. */
+  pricePrompt: number;
+  priceCompletion: number;
+}
 
 export const fetchAiStatus = () => api.get<AiStatus>('/sano/ai');
 export const saveAi = (body: { apiKey?: string; model?: string }) => api.put<AiStatus & { quota?: AiQuota }>('/sano/ai', body);
 export const removeAi = () => api.delete<AiStatus>('/sano/ai');
 export const fetchAiQuota = () => api.get<{ quota: AiQuota | null }>('/sano/ai/quota');
-export const fetchFreeModels = () => api.get<{ models: FreeModel[] }>('/sano/ai/models');
+export const fetchModels = () => api.get<{ models: AiModel[] }>('/sano/ai/models');
 export const testAi = () => api.post<{ ok: boolean; message: string; model: string }>('/sano/ai/test');
