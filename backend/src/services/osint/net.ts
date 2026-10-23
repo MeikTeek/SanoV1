@@ -248,3 +248,5 @@ export async function getJson<T = unknown>(url: string, timeout = 8000, headers:
   if (!res.ok) throw new CheckError(`HTTP ${res.status} em ${new URL(url).hostname}`);
   return (await res.json()) as T;
 }
+
+export const stripTrailingDot = (s: string) => s.replace(/\.$/, '');

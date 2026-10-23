@@ -285,16 +285,22 @@ const plannedIntents: Intent[] = [
  */
 const osint: Intent = {
   name: 'osint',
-  description: 'Painel OSINT: domínio/IP e username',
+  description: 'Painel OSINT: domínio/IP, username e e-mail',
   examples: ['abrir terminal osint'],
   adminOnly: true,
   patterns: [/\b(osint|varredura|scan)\b/],
   handle: ({ text }) => {
-    const user = text.match(/\b(?:username|usuario|usuário|user|perfil)\s+@?([A-Za-z0-9._-]{1,64})\b/i)?.[1];
-    const domain = user ? undefined : text.match(/\b((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?|\d{1,3}(?:\.\d{1,3}){3})\b/i)?.[1];
-    const query = user ? `?username=${encodeURIComponent(user)}` : domain ? `?alvo=${encodeURIComponent(domain)}` : '';
+    // E-mail antes de domínio: "pessoa@exemplo.com" também casaria como domínio.
+    const email = text.match(/\b([A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+)\b/)?.[1];
+    const user = email ? undefined : text.match(/\b(?:username|usuario|usuário|user|perfil)\s+@?([A-Za-z0-9._-]{1,64})\b/i)?.[1];
+    const domain = email || user ? undefined : text.match(/\b((?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/\S*)?|\d{1,3}(?:\.\d{1,3}){3})\b/i)?.[1];
+    const query = email ? `?email=${encodeURIComponent(email)}`
+      : user ? `?username=${encodeURIComponent(user)}`
+        : domain ? `?alvo=${encodeURIComponent(domain)}` : '';
     return {
-      reply: user ? `Abrindo o OSINT e procurando "${user}"…` : domain ? `Abrindo o OSINT para analisar ${domain}…` : 'Abrindo o painel OSINT…',
+      reply: email ? `Abrindo o OSINT para investigar ${email}…`
+        : user ? `Abrindo o OSINT e procurando "${user}"…`
+          : domain ? `Abrindo o OSINT para analisar ${domain}…` : 'Abrindo o painel OSINT…',
       actions: [{ type: 'navigate', to: `/osint${query}` }],
     };
   },

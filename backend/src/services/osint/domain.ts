@@ -9,9 +9,11 @@
  * - Algumas verificações foram fundidas (headers + segurança HTTP + HSTS).
  */
 import crypto from 'node:crypto';
+import dnsPromises from 'node:dns/promises';
 import { isIP } from 'node:net';
 import tls from 'node:tls';
-import { assertPublicHost, CheckError, doh, getJson, guardedLookup, safeFetch, txtData, type Target } from './net';
+import { readMeta } from './html';
+import { assertPublicHost, CheckError, doh, isPrivateIp, getJson, guardedLookup, safeFetch, stripTrailingDot, txtData, type FetchResult, type Target } from './net';
 
 export type CheckResult = Record<string, unknown> | { skipped: string } | { error: string };
 
@@ -20,10 +22,12 @@ export interface DomainCheck {
   label: string;
   description: string;
   run: (t: Target) => Promise<CheckResult>;
+  /** Tempo-limite próprio (padrão 30 s). */
+  timeout?: number;
 }
 
 const skipped = (reason: string) => ({ skipped: reason });
-const stripDot = (s: string) => s.replace(/\.$/, '');
+const stripDot = stripTrailingDot;
 
 /** Nome para consulta PTR: 1.2.3.4 → 4.3.2.1.in-addr.arpa (IPv6 expandido em nibbles). */
 function reverseName(ip: string) {
@@ -252,12 +256,20 @@ const hstsVerdict = (header: string | null) => {
   return 'Compatível com a lista de preload';
 };
 
+/** A página inicial é buscada uma vez por varredura e compartilhada entre as verificações. */
+const pages = new WeakMap<Target, Promise<FetchResult>>();
+const getPage = (t: Target) => {
+  let p = pages.get(t);
+  if (!p) pages.set(t, (p = safeFetch(t.url, { headers: { accept: 'text/html,*/*' } })));
+  return p;
+};
+
 const http: DomainCheck = {
   id: 'http',
   label: 'Servidor HTTP',
   description: 'Status, tempo de resposta, redirecionamentos e cabeçalhos.',
   async run(t) {
-    const r = await safeFetch(t.url, { readBody: false });
+    const r = await getPage(t);
     const headers = Object.fromEntries(r.headers.entries());
     return {
       status: r.status,
@@ -276,7 +288,7 @@ const httpSecurity: DomainCheck = {
   label: 'Segurança HTTP',
   description: 'Cabeçalhos de proteção presentes e avaliação do HSTS.',
   async run(t) {
-    const r = await safeFetch(t.url, { readBody: false });
+    const r = await getPage(t);
     const present = Object.fromEntries(Object.entries(SECURITY_HEADERS).map(([h, label]) => [label, r.headers.has(h)]));
     const score = Object.values(present).filter(Boolean).length;
     const cookies = r.headers.getSetCookie();
@@ -293,38 +305,6 @@ const httpSecurity: DomainCheck = {
   },
 };
 
-const decode = (s: string) =>
-  s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim();
-
-/** Lê `<meta>` e `<link>` sem parser HTML: suficiente para as tags de cabeçalho. */
-function readMeta(html: string) {
-  const head = html.slice(0, 300_000);
-  const meta: Record<string, string> = {};
-  for (const tag of head.match(/<meta\b[^>]*>/gi) ?? []) {
-    const key = tag.match(/\b(?:name|property|itemprop)\s*=\s*["']([^"']+)["']/i)?.[1]?.toLowerCase();
-    const content = tag.match(/\bcontent\s*=\s*["']([^"']*)["']/i)?.[1];
-    if (key && content !== undefined && !(key in meta)) meta[key] = decode(content);
-  }
-  const link = (rel: string) => head.match(new RegExp(`<link\\b[^>]*rel=["'][^"']*\\b${rel}\\b[^"']*["'][^>]*>`, 'i'))?.[0]?.match(/href=["']([^"']+)["']/i)?.[1];
-  return {
-    titulo: decode(head.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? ''),
-    descricao: meta.description,
-    palavrasChave: meta.keywords,
-    autor: meta.author,
-    gerador: meta.generator,
-    canonica: link('canonical'),
-    favicon: link('icon'),
-    ogTitulo: meta['og:title'],
-    ogDescricao: meta['og:description'],
-    ogImagem: meta['og:image'],
-    ogSite: meta['og:site_name'],
-    twitterSite: meta['twitter:site'],
-    twitterCriador: meta['twitter:creator'],
-    robots: meta.robots,
-    corTema: meta['theme-color'],
-  };
-}
-
 /** Perfis sociais linkados na página — pista boa para OSINT de organizações. */
 const SOCIAL_HOSTS = /https?:\/\/(?:www\.)?(?:facebook\.com|instagram\.com|x\.com|twitter\.com|linkedin\.com|youtube\.com|tiktok\.com|github\.com|t\.me|wa\.me|discord\.gg|threads\.net|pinterest\.com)\/[^\s"'<>)]+/gi;
 
@@ -333,7 +313,7 @@ const page: DomainCheck = {
   label: 'Página e redes sociais',
   description: 'Título, meta tags (Open Graph/Twitter), e-mails e perfis sociais citados na página.',
   async run(t) {
-    const r = await safeFetch(t.url, { headers: { accept: 'text/html,*/*' } });
+    const r = await getPage(t);
     if (!/html/i.test(r.headers.get('content-type') ?? '')) return skipped('A resposta não é uma página HTML');
     const meta = Object.fromEntries(Object.entries(readMeta(r.body)).filter(([, v]) => v));
     const socials = [...new Set((r.body.match(SOCIAL_HOSTS) ?? []).map((u) => u.replace(/[/?#]+$/, '')))].slice(0, 40);
@@ -440,59 +420,284 @@ const mail: DomainCheck = {
   },
 };
 
+
+/* ───────────────────────────── Tecnologias (fingerprint) ───────────────────────────── */
+
+interface Sig { name: string; cat: string; header?: [string, RegExp]; html?: RegExp; cookie?: RegExp }
+
+const SIGS: Sig[] = [
+  // CMS e lojas
+  { name: 'WordPress', cat: 'CMS', html: /wp-content\/|wp-includes\/|name=["']generator["'] content=["']WordPress/i },
+  { name: 'Joomla', cat: 'CMS', html: /name=["']generator["'] content=["']Joomla|\/media\/jui\//i },
+  { name: 'Drupal', cat: 'CMS', html: /name=["']generator["'] content=["']Drupal|\/sites\/default\/files\//i, header: ['x-generator', /drupal/i] },
+  { name: 'Ghost', cat: 'CMS', html: /name=["']generator["'] content=["']Ghost/i },
+  { name: 'Wix', cat: 'CMS', html: /static\.wixstatic\.com|wix-code/i, header: ['x-wix-request-id', /./] },
+  { name: 'Squarespace', cat: 'CMS', html: /static1\.squarespace\.com|squarespace-cdn/i },
+  { name: 'Webflow', cat: 'CMS', html: /data-wf-site|assets\.website-files\.com/i },
+  { name: 'Shopify', cat: 'E-commerce', html: /cdn\.shopify\.com|Shopify\.theme/i, header: ['x-shopid', /./] },
+  { name: 'WooCommerce', cat: 'E-commerce', html: /woocommerce/i },
+  { name: 'Magento', cat: 'E-commerce', html: /Mage\.Cookies|\/static\/frontend\/Magento|mage\/cookies/i },
+  { name: 'PrestaShop', cat: 'E-commerce', html: /prestashop/i },
+  { name: 'VTEX', cat: 'E-commerce', html: /vtexassets|vteximg|vtex\.com\.br/i, header: ['x-vtex-cache-status', /./] },
+  { name: 'Nuvemshop', cat: 'E-commerce', html: /nuvemshop|tiendanube/i },
+  { name: 'Hugo', cat: 'Gerador estático', html: /name=["']generator["'] content=["']Hugo/i },
+  { name: 'Gatsby', cat: 'Gerador estático', html: /id=["']___gatsby["']/i },
+  { name: 'Jekyll', cat: 'Gerador estático', html: /name=["']generator["'] content=["']Jekyll/i },
+  // Frameworks de front-end
+  { name: 'Next.js', cat: 'Framework', html: /__NEXT_DATA__|\/_next\/static\//i, header: ['x-powered-by', /next\.js/i] },
+  { name: 'Nuxt', cat: 'Framework', html: /__NUXT__|\/_nuxt\//i },
+  { name: 'React', cat: 'Framework', html: /data-reactroot|react(?:-dom)?(?:\.production)?\.min\.js/i },
+  { name: 'Vue.js', cat: 'Framework', html: /vue(?:\.runtime)?(?:\.min)?\.js|data-v-[0-9a-f]{6,8}/i },
+  { name: 'Angular', cat: 'Framework', html: /ng-version=|<app-root|angular(?:\.min)?\.js/i },
+  { name: 'Svelte', cat: 'Framework', html: /svelte-[a-z0-9]{6}|__sveltekit/i },
+  { name: 'Astro', cat: 'Framework', html: /astro-island|name=["']generator["'] content=["']Astro/i },
+  { name: 'jQuery', cat: 'Biblioteca JS', html: /jquery(?:[-.][\d.]+)?(?:\.min)?\.js/i },
+  { name: 'Bootstrap', cat: 'Biblioteca CSS', html: /bootstrap(?:[-.][\d.]+)?(?:\.min)?\.(?:css|js)/i },
+  { name: 'Tailwind CSS', cat: 'Biblioteca CSS', html: /tailwindcss/i },
+  // Servidor e linguagem
+  { name: 'nginx', cat: 'Servidor web', header: ['server', /nginx/i] },
+  { name: 'Apache', cat: 'Servidor web', header: ['server', /apache/i] },
+  { name: 'Microsoft IIS', cat: 'Servidor web', header: ['server', /iis/i] },
+  { name: 'LiteSpeed', cat: 'Servidor web', header: ['server', /litespeed/i] },
+  { name: 'Caddy', cat: 'Servidor web', header: ['server', /caddy/i] },
+  { name: 'PHP', cat: 'Linguagem', header: ['x-powered-by', /php/i], cookie: /PHPSESSID/ },
+  { name: 'ASP.NET', cat: 'Linguagem', header: ['x-powered-by', /asp\.net/i], cookie: /ASP\.NET_SessionId/ },
+  { name: 'Express', cat: 'Linguagem', header: ['x-powered-by', /express/i] },
+  { name: 'Laravel', cat: 'Framework', cookie: /laravel_session/ },
+  { name: 'Django', cat: 'Framework', cookie: /csrftoken|django/i },
+  { name: 'Ruby on Rails', cat: 'Framework', header: ['x-powered-by', /phusion|rails/i], cookie: /_rails|_session_id/ },
+  // CDN, WAF e hospedagem
+  { name: 'Cloudflare', cat: 'CDN / WAF', header: ['cf-ray', /./] },
+  { name: 'Amazon CloudFront', cat: 'CDN / WAF', header: ['x-amz-cf-id', /./] },
+  { name: 'Fastly', cat: 'CDN / WAF', header: ['x-served-by', /cache-/i] },
+  { name: 'Akamai', cat: 'CDN / WAF', header: ['server', /akamai/i] },
+  { name: 'Sucuri', cat: 'CDN / WAF', header: ['x-sucuri-id', /./] },
+  { name: 'Imperva', cat: 'CDN / WAF', header: ['x-iinfo', /./] },
+  { name: 'Vercel', cat: 'Hospedagem', header: ['server', /vercel/i] },
+  { name: 'Netlify', cat: 'Hospedagem', header: ['server', /netlify/i] },
+  { name: 'GitHub Pages', cat: 'Hospedagem', header: ['server', /github\.com/i] },
+  { name: 'Firebase Hosting', cat: 'Hospedagem', header: ['x-firebase-hosting-version', /./] },
+  // Analytics e terceiros
+  { name: 'Google Analytics', cat: 'Analytics', html: /google-analytics\.com\/(?:ga|analytics)\.js|gtag\/js\?id=(?:G|UA)-/i },
+  { name: 'Google Tag Manager', cat: 'Analytics', html: /googletagmanager\.com\/gtm\.js/i },
+  { name: 'Meta Pixel', cat: 'Analytics', html: /connect\.facebook\.net\/[^"']+\/fbevents\.js|fbq\(/i },
+  { name: 'Hotjar', cat: 'Analytics', html: /static\.hotjar\.com/i },
+  { name: 'Microsoft Clarity', cat: 'Analytics', html: /clarity\.ms\/tag/i },
+  { name: 'reCAPTCHA', cat: 'Segurança', html: /google\.com\/recaptcha/i },
+  { name: 'Cloudflare Turnstile', cat: 'Segurança', html: /challenges\.cloudflare\.com\/turnstile/i },
+  { name: 'Stripe', cat: 'Pagamentos', html: /js\.stripe\.com/i },
+  { name: 'Mercado Pago', cat: 'Pagamentos', html: /sdk\.mercadopago\.com|mercadopago\.com\.br/i },
+  { name: 'Google Fonts', cat: 'Fontes', html: /fonts\.googleapis\.com/i },
+  { name: 'Font Awesome', cat: 'Fontes', html: /font-?awesome/i },
+];
+
+/** Fingerprint passivo: cabeçalhos, cookies e HTML da página inicial. Exportada para teste. */
+export function detectTech(headers: Record<string, string>, cookies: string[], html: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const cookieNames = cookies.map((c) => c.split('=')[0]).join(' ');
+  const head = html.slice(0, 400_000);
+  for (const sig of SIGS) {
+    const hit =
+      (sig.header && sig.header[1].test(headers[sig.header[0]] ?? '')) ||
+      (sig.html && sig.html.test(head)) ||
+      (sig.cookie && sig.cookie.test(cookieNames));
+    if (hit) (out[sig.cat] ??= []).push(sig.name);
+  }
+  return out;
+}
+
+const tech: DomainCheck = {
+  id: 'tech',
+  label: 'Tecnologias',
+  description: 'CMS, frameworks, servidor, CDN/WAF, analytics e pagamentos detectados.',
+  async run(t) {
+    const r = await getPage(t);
+    const found = detectTech(Object.fromEntries(r.headers.entries()), r.headers.getSetCookie(), r.body);
+    return Object.keys(found).length ? found : skipped('Nenhuma tecnologia conhecida identificada');
+  },
+};
+
+/* ───────────────────── Portas, CPEs e CVEs (Shodan InternetDB) ───────────────────── */
+
+const exposure: DomainCheck = {
+  id: 'exposure',
+  label: 'Exposição (portas e CVEs)',
+  description: 'Portas abertas, produtos e vulnerabilidades já indexados pelo Shodan — sem tocar no alvo.',
+  async run(t) {
+    const addrs = (await assertPublicHost(t.hostname)).filter((a) => isIP(a) === 4).slice(0, 3);
+    if (!addrs.length) return skipped('O InternetDB só cobre endereços IPv4');
+    const rows = await Promise.all(addrs.map(async (addr) => {
+      const res = await fetch(`https://internetdb.shodan.io/${addr}`, { signal: AbortSignal.timeout(8000) }).catch(() => null);
+      if (!res || res.status === 404) return null;
+      if (!res.ok) throw new CheckError(`InternetDB indisponível (HTTP ${res.status})`);
+      const d = (await res.json()) as { ports: number[]; cpes: string[]; vulns: string[]; hostnames: string[]; tags: string[] };
+      return {
+        ip: addr,
+        portas: d.ports,
+        produtos: d.cpes.map((c) => c.replace(/^cpe:\/[a-z]:/, '')),
+        cves: d.vulns,
+        etiquetas: d.tags,
+        hostnames: d.hostnames.slice(0, 20),
+      };
+    }));
+    const data = rows.filter(Boolean);
+    return data.length ? { resultados: data } : skipped('O Shodan não tem dados sobre este IP');
+  },
+};
+
+/* ───────────────────────────── Histórico (Wayback Machine) ───────────────────────────── */
+
+const waybackDate = (ts: string) => `${ts.slice(0, 4)}-${ts.slice(4, 6)}-${ts.slice(6, 8)}`;
+
+const wayback: DomainCheck = {
+  id: 'wayback',
+  label: 'Histórico (Wayback Machine)',
+  description: 'Primeiro e último registro do site e documentos antigos arquivados.',
+  timeout: 45_000,
+  async run(t) {
+    if (t.isIp) return skipped('O histórico se aplica a domínios');
+    const cdx = (params: Record<string, string>) =>
+      getJson<string[][]>(`https://web.archive.org/cdx/search/cdx?${new URLSearchParams({ output: 'json', ...params })}`, 20_000);
+    const [first, last, docs] = await Promise.all([
+      cdx({ url: t.domain, fl: 'timestamp,statuscode', limit: '1' }),
+      cdx({ url: t.domain, fl: 'timestamp,statuscode', limit: '-1' }),
+      cdx({
+        url: t.domain, matchType: 'domain', collapse: 'urlkey', fl: 'original', limit: '60',
+        filter: 'original:.*\\.(pdf|docx?|xlsx?|pptx?|csv|txt|sql|bak|zip|xml|json|log|conf)$',
+      }).catch(() => [] as string[][]),
+    ]);
+    if (first.length < 2) return skipped('O Wayback Machine não tem registros deste domínio');
+    return {
+      primeiroRegistro: waybackDate(first[1][0]),
+      ultimoRegistro: waybackDate(last[1]?.[0] ?? first[1][0]),
+      linkArquivo: `https://web.archive.org/web/*/${t.domain}`,
+      documentosAntigos: docs.slice(1).map((r) => r[0]),
+    };
+  },
+};
+
 /* ──────────────────────────────── Subdomínios ──────────────────────────────── */
 
 const HOSTNAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 const SUB_SOURCES: { name: string; lookup: (d: string) => Promise<string[]> }[] = [
   {
     name: 'crt.sh',
-    lookup: async (d) => (await getJson<any[]>(`https://crt.sh/?q=${encodeURIComponent(`%.${d}`)}&output=json`, 15_000))
+    lookup: async (d) => (await getJson<any[]>(`https://crt.sh/?q=${encodeURIComponent(`%.${d}`)}&output=json`, 20_000))
       .flatMap((row) => String(row?.name_value ?? '').split('\n')),
   },
   {
     name: 'certspotter',
-    lookup: async (d) => (await getJson<any[]>(`https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(d)}&include_subdomains=true&expand=dns_names`, 10_000))
+    lookup: async (d) => (await getJson<any[]>(`https://api.certspotter.com/v1/issuances?domain=${encodeURIComponent(d)}&include_subdomains=true&expand=dns_names`, 12_000))
       .flatMap((row) => row?.dns_names ?? []),
   },
   {
     name: 'hackertarget',
     lookup: async (d) => {
-      const res = await fetch(`https://api.hackertarget.com/hostsearch/?q=${encodeURIComponent(d)}`, { signal: AbortSignal.timeout(10_000) });
+      const res = await fetch(`https://api.hackertarget.com/hostsearch/?q=${encodeURIComponent(d)}`, { signal: AbortSignal.timeout(12_000) });
       const body = await res.text();
       if (!res.ok || /error|api count|quota/i.test(body)) throw new Error('indisponível');
       return body.split('\n').map((l) => l.split(',')[0]);
     },
   },
+  {
+    name: 'urlscan',
+    lookup: async (d) => (await getJson<{ results: any[] }>(`https://urlscan.io/api/v1/search/?q=${encodeURIComponent(`domain:${d}`)}&size=100`, 12_000))
+      .results.flatMap((r) => [r?.page?.domain, r?.task?.domain]),
+  },
+  {
+    name: 'wayback',
+    lookup: async (d) => {
+      const res = await fetch(`https://web.archive.org/cdx/search/cdx?${new URLSearchParams({ url: d, matchType: 'domain', fl: 'original', collapse: 'urlkey', limit: '4000' })}`,
+        { signal: AbortSignal.timeout(20_000) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return (await res.text()).split('\n').map((u) => { try { return new URL(u).hostname; } catch { return ''; } });
+    },
+  },
 ];
+
+/** Roda `fn` sobre a lista com no máximo `limit` simultâneos. */
+async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  }));
+  return out;
+}
 
 const subdomains: DomainCheck = {
   id: 'subdomains',
   label: 'Subdomínios',
-  description: 'Subdomínios conhecidos via logs de Certificate Transparency.',
+  description: 'Descoberta passiva (5 fontes), teste de quais respondem e identificação do que há em cada um.',
+  timeout: 75_000,
   async run(t) {
     if (t.isIp) return skipped('Subdomínios se aplicam a domínios');
     const d = t.domain;
+    const settled = await Promise.allSettled(SUB_SOURCES.map((s) => s.lookup(d)));
+    const sources: Record<string, number> = {};
     const failures: string[] = [];
-    for (const source of SUB_SOURCES) {
-      try {
-        const names = [...new Set((await source.lookup(d))
-          .map((n) => String(n).trim().toLowerCase().replace(/^\*\./, ''))
-          .filter((n) => n !== d && n.endsWith(`.${d}`) && HOSTNAME_RE.test(n)))].sort();
-        if (names.length) return { fonte: source.name, total: names.length, subdominios: names.slice(0, 500) };
-      } catch (e) {
-        failures.push(`${source.name}: ${(e as Error).message}`);
-      }
+    const all = new Set<string>();
+    settled.forEach((r, i) => {
+      if (r.status === 'rejected') { failures.push(SUB_SOURCES[i].name); return; }
+      const names = r.value
+        .map((n) => String(n ?? '').trim().toLowerCase().replace(/^\*\./, ''))
+        .filter((n) => n !== d && n.endsWith(`.${d}`) && HOSTNAME_RE.test(n));
+      sources[SUB_SOURCES[i].name] = new Set(names).size;
+      names.forEach((n) => all.add(n));
+    });
+    if (!all.size) {
+      return failures.length === SUB_SOURCES.length
+        ? { error: `Fontes indisponíveis (${failures.join(', ')})` }
+        : skipped('Nenhum subdomínio encontrado nas fontes públicas');
     }
-    return failures.length === SUB_SOURCES.length
-      ? { error: `Fontes indisponíveis (${failures.join('; ')})` }
-      : skipped('Nenhum subdomínio encontrado nos logs de certificados');
+
+    // Quais resolvem em DNS (os mais curtos primeiro: costumam ser os mais relevantes).
+    const names = [...all].sort((a, b) => a.length - b.length || a.localeCompare(b));
+    const candidates = names.slice(0, 200);
+    const resolved = await pool(candidates, 16, async (host) => {
+      const addrs = await dnsPromises.lookup(host, { all: true }).then((r) => r.map((a) => a.address)).catch(() => [] as string[]);
+      return { host, addrs };
+    });
+    const live = resolved.filter((r) => r.addrs.length);
+    const internal = live.filter((r) => r.addrs.some(isPrivateIp));
+    const publicLive = live.filter((r) => !r.addrs.some(isPrivateIp));
+
+    // "httpx": status, título e servidor dos que respondem.
+    const probed = await pool(publicLive.slice(0, 40), 8, async ({ host, addrs }) => {
+      const r = await safeFetch(`https://${host}/`, { timeout: 6000, maxBytes: 120_000, maxRedirects: 3 }).catch(() => null);
+      if (!r) return { host, addrs, line: null as string | null };
+      const title = r.body.match(/<title[^>]*>([^<]{0,80})/i)?.[1]?.trim().replace(/\s+/g, ' ');
+      const server = r.headers.get('server');
+      return { host, addrs, line: [host, `HTTP ${r.status}`, title, server].filter(Boolean).join(' · ') };
+    });
+    const responding = probed.filter((p) => p.line).map((p) => p.line!);
+    const silent = [
+      ...probed.filter((p) => !p.line).map((p) => `${p.host} (${p.addrs[0]})`),
+      ...publicLive.slice(40).map((p) => `${p.host} (${p.addrs[0]})`),
+    ];
+    const liveHosts = new Set(live.map((l) => l.host));
+
+    return {
+      total: all.size,
+      fontes: sources,
+      resolvem: live.length,
+      respondemHttp: responding.length,
+      comResposta: responding,
+      resolvemSemHttp: silent,
+      apontamParaIpInterno: internal.map((r) => `${r.host} → ${r.addrs.find(isPrivateIp)}`),
+      naoResolvem: names.filter((n) => !liveHosts.has(n)).slice(0, 300),
+      ...(all.size > candidates.length ? { aviso: `Só os ${candidates.length} primeiros foram testados (de ${all.size})` } : {}),
+    };
   },
 };
 
 /* ──────────────────────────────────────────────────────────────────────────── */
 
 export const DOMAIN_CHECKS: DomainCheck[] = [
-  ip, location, dnsRecords, whois, ssl, http, httpSecurity, mail, subdomains, page, dnssec, robots, securityTxt,
+  ip, location, exposure, dnsRecords, whois, ssl, http, httpSecurity, tech, mail, subdomains, page, dnssec, robots, securityTxt, wayback,
 ];
 
 const TIMEOUT_MS = 30_000;
@@ -505,7 +710,7 @@ export async function runDomainCheck(id: string, target: Target): Promise<CheckR
   try {
     return await Promise.race([
       check.run(target),
-      new Promise<CheckResult>((resolve) => { timer = setTimeout(() => resolve({ error: 'Tempo esgotado' }), TIMEOUT_MS); }),
+      new Promise<CheckResult>((resolve) => { timer = setTimeout(() => resolve({ error: 'Tempo esgotado' }), check.timeout ?? TIMEOUT_MS); }),
     ]);
   } catch (e) {
     if (e instanceof CheckError) return { error: e.message };

@@ -120,7 +120,9 @@ npm run build        # compila backend (tsc) e frontend (vite build)
 | —    | `/api/admin/*` | admin | Gestão de usuários e logs de auditoria |
 | GET  | `/api/osint` | admin | Catálogo de verificações e categorias de sites |
 | POST | `/api/osint/domain` | admin | Varredura de domínio/IP (stream NDJSON) |
+| POST | `/api/osint/email` | admin | Investigação de e-mail (stream NDJSON) |
 | POST | `/api/osint/username` | admin | Busca de username (stream NDJSON) |
+| GET  | `/api/osint/variations` | admin | Variações sugeridas para um username |
 
 ## O Sano (Fase 2)
 
@@ -269,24 +271,37 @@ Os prompts de sistema fixos proíbem a IA de inventar exercício, série ou repe
 
 ## OSINT (Fase 4 — módulo 7)
 
-Página `/osint`, **só ADMIN** (rota, API e comando do Sano). Duas abas:
+Página `/osint`, **só ADMIN** (rota, API e comando do Sano), com três abas. Só consulta fontes públicas:
+nunca interage com contas, formulários ou serviços do alvo.
 
-- **Domínio / IP**: 13 verificações em paralelo — IPs e PTR, geolocalização, DNS, WHOIS (RDAP),
-  certificado TLS, servidor HTTP, cabeçalhos de segurança/HSTS/cookies, e-mail (MX, SPF, DMARC, DKIM),
-  subdomínios (Certificate Transparency), meta tags e perfis sociais da página, DNSSEC, `robots.txt`
-  e `security.txt`. Adaptado de `Integracoes/web-check-2.3.0` (MIT) em `backend/src/services/osint/domain.ts`,
-  sem puppeteer/cheerio/whoiser; registros DNS vão por DNS-over-HTTPS (Google/Cloudflare).
-- **Username**: ~690 sites da base `wmn-data.json` do WhatsMyName (CC BY-SA 4.0, cópia sem alterações;
-  para atualizar, substitua o arquivo). Sites adultos ficam de fora salvo opt-in.
+- **Domínio / IP** (16 verificações em paralelo, com resumo e alertas no topo): IPs/PTR, geolocalização,
+  **exposição** (portas, produtos e CVEs já indexados pelo Shodan InternetDB), DNS, WHOIS (RDAP), TLS,
+  servidor HTTP, cabeçalhos de segurança/HSTS/cookies, **tecnologias** (CMS, framework, CDN/WAF, analytics),
+  e-mail (MX, SPF, DMARC, DKIM), **subdomínios** (5 fontes, teste de quais resolvem e o que responde em cada
+  um), meta tags e redes sociais da página, DNSSEC, `robots.txt`, `security.txt` e **histórico no Wayback
+  Machine**. Adaptado de `Integracoes/web-check-2.3.0` (MIT) em `services/osint/domain.ts`, sem
+  puppeteer/cheerio/whoiser; registros DNS vão por DNS-over-HTTPS. Também gera buscas prontas (dorks).
+- **Username** (~890 sites: 691 do WhatsMyName + 248 do Sherlock que o primeiro não cobre): variações do nome
+  (`ana.silva` → `anasilva`, `ana_silva`…), filtro por categoria, perfis com nome/bio/foto, nível de confiança
+  por resultado e exportação CSV/JSON. As bases ficam em `services/osint/wmn-data.json` (CC BY-SA 4.0) e
+  `sherlock-data.json` (MIT), cópias sem alterações — para atualizar, substitua os arquivos. O Sherlock em Python
+  não é executado: só os dados dele são usados, com a lógica de detecção reescrita em TypeScript
+  (`sites.ts` unifica as duas bases, `username.ts` consulta).
+  Regras de qualidade: sites com regra fraca (só status HTTP) passam por um **controle com nome inexistente**
+  (se também "existe", é descartado como falso positivo); telas de desafio do Cloudflare não contam como perfil;
+  nova tentativa com outro User-Agent; no máximo 2 pedidos simultâneos por site. Sites com anti-bot ficam como
+  *inconclusivos* — é o limite de consultar de um servidor sem navegador real.
+- **E-mail**: domínio (MX, descartável ou não), Gravatar, contas do GitHub com o e-mail público e vazamentos
+  (XposedOrNot). Sugere usernames a partir do e-mail para continuar na aba de username.
 
-Os resultados chegam em NDJSON (`POST /api/osint/domain` e `/api/osint/username`), então a tela enche
+Os resultados chegam em NDJSON (`POST /api/osint/domain`, `/email` e `/username`), então a tela enche
 conforme cada verificação termina. Do Sano: `abrir terminal osint`, `osint exemplo.com.br`,
-`osint username fulano`.
+`osint username fulano`, `osint pessoa@exemplo.com`.
 
 Segurança: toda conexão ao alvo passa por `services/osint/net.ts`, que recusa localhost, redes privadas,
 link-local/metadados de nuvem e domínios que resolvem para elas (inclusive a cada redirecionamento);
 limite de 20 varreduras a cada 10 min; uma busca de username por vez; cada varredura vai para o audit log
-(`OSINT_DOMAIN_SCAN`, `OSINT_USERNAME_SCAN`).
+(`OSINT_DOMAIN_SCAN`, `OSINT_USERNAME_SCAN`, `OSINT_EMAIL_SCAN` — o e-mail é gravado mascarado).
 
 ## Segurança — decisões de projeto
 

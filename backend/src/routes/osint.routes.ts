@@ -10,6 +10,8 @@ r.use(requireAuth, requireRole('ADMIN'));
 
 r.get('/', c.catalog);
 r.post('/domain', osintLimiter, c.domainScan);
+r.post('/email', osintLimiter, c.emailScan);
 r.post('/username', osintLimiter, c.usernameScan);
+r.get('/variations', c.variations);
 
 export default r;
