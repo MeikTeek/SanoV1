@@ -173,8 +173,25 @@ export default function SanoAiCard() {
               </select>
               <small className="muted">
                 {prefs.stt === 'local'
-                  ? 'Na primeira vez baixa o modelo de voz (cerca de 77 MB), que fica guardado. Depois leva uns 3 segundos por frase, e o áudio não sai do aparelho.'
+                  ? 'Na primeira vez baixa o modelo de voz, que fica guardado. O áudio não sai do aparelho.'
                   : 'Precisa de uma chave da OpenRouter. O áudio vai para um modelo gratuito de lá.'}
+              </small>
+            </label>
+          )}
+          {canUseMic() && prefs.stt === 'local' && (
+            <label className="ai-field">
+              <span>Precisão do reconhecimento</span>
+              <select value={prefs.whisper} onChange={(e) => updatePrefs({ whisper: e.target.value as VoicePrefs['whisper'] })}>
+                <option value="auto">Automática — a precisa se houver placa de vídeo</option>
+                <option value="precise">Precisa — entende melhor com ruído e fala rápida</option>
+                <option value="fast">Leve — menor e mais rápida em PCs fracos</option>
+              </select>
+              <small className="muted">
+                {prefs.whisper === 'fast'
+                  ? 'Whisper base: cerca de 77 MB e 3 segundos por frase, mas erra bastante com barulho ou fala corrida.'
+                  : prefs.whisper === 'precise'
+                    ? 'Whisper small: de 250 a 410 MB. Com placa de vídeo leva uns 2 segundos por frase; só no processador, perto de 10.'
+                    : 'Com placa de vídeo usa o Whisper small (cerca de 410 MB, uns 2 segundos por frase); sem ela, o leve.'}
               </small>
             </label>
           )}

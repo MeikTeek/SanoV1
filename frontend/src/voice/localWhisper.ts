@@ -2,7 +2,7 @@
  * Transcrição de fala no próprio computador (Whisper num worker).
  * Usada pelo microfone quando o navegador não reconhece fala sozinho.
  */
-import type { WorkerIn, WorkerOut } from './whisper.worker';
+import type { WhisperQuality, WorkerIn, WorkerOut } from './whisper.worker';
 
 let worker: Worker | null = null;
 let nextId = 1;
@@ -36,15 +36,20 @@ function getWorker(): Worker {
  * O Whisper "inventa" estas frases quando o áudio é só silêncio ou ruído
  * (vêm das legendas com que ele foi treinado).
  */
-const HALLUCINATIONS = /^(legendas? (pela|por)|obrigad[oa] por assistir|inscreva-se|tchau[.!]?$|\[(m[uú]sica|sil[eê]ncio)\]|\.+$)/i;
+const HALLUCINATIONS = /^(legendas? (pela|por)|obrigad[oa] por assistir|inscreva-se|tchau[.!]?$|\[(m[uú]sica|sil[eê]ncio)\]|\.+$|e[.!]?$)/i;
+
+/** Começa a carregar o modelo já, para a transcrição não esperar por ele depois. */
+export function warmUpLocally(quality: WhisperQuality): void {
+  getWorker().postMessage({ type: 'warm', quality } satisfies WorkerIn);
+}
 
 /** Transcreve 16 kHz mono. `progress` recebe o download do modelo (só na 1ª vez). */
-export async function transcribeLocally(audio: Float32Array, progress?: (percent: number) => void): Promise<string> {
+export async function transcribeLocally(audio: Float32Array, quality: WhisperQuality, progress?: (percent: number) => void): Promise<string> {
   onProgress = progress ?? null;
   const id = nextId++;
   const text = await new Promise<string>((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    getWorker().postMessage({ id, audio } satisfies WorkerIn, [audio.buffer]);
+    getWorker().postMessage({ id, audio, quality } satisfies WorkerIn, [audio.buffer]);
   });
   return HALLUCINATIONS.test(text.trim()) ? '' : text.trim();
 }

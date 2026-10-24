@@ -3,14 +3,32 @@
  *
  * WAV porque é o formato que todo modelo de áudio aceita; o `MediaRecorder`
  * só entrega WebM/MP4, que a OpenRouter não garante. Para sozinho depois de
- * ~1,3 s de silêncio (como o reconhecimento do navegador) ou no limite de tempo.
+ * ~1,6 s de silêncio (pausas no meio da frase não cortam) ou no limite de tempo.
+ *
+ * O limiar de fala se ajusta ao ruído da sala: mede o fundo nos primeiros
+ * instantes e considera fala o que passa bem acima dele. O silêncio das pontas
+ * é cortado e o volume, nivelado — o Whisper erra menos e não "inventa" frases.
  */
 
 const TARGET_RATE = 16_000;
 const MAX_MS = 20_000;
-const SILENCE_MS = 1300;
-/** Volume (RMS) acima do qual consideramos que há fala. */
-const SPEECH_RMS = 0.02;
+const SILENCE_MS = 1600;
+/** Sem ninguém falar, desiste depois disso. */
+const NO_SPEECH_MS = 7000;
+/** Limiar mínimo de volume (RMS) e quantas vezes acima do ruído de fundo a fala precisa estar. */
+const MIN_SPEECH_RMS = 0.004;
+const NOISE_FACTOR = 2;
+/** Depois que a fala começou, basta isso acima do ruído para ela continuar (sílabas fracas não cortam). */
+const KEEP_FACTOR = 1.4;
+/** Primeiros instantes usados para medir o ruído da sala (ninguém fala tão rápido após o toque). */
+const CALIBRATE_MS = 250;
+const CALIBRATE_BLOCKS = 4;
+/** Teto do ruído medido, caso a pessoa já comece falando durante a medição. */
+const MAX_NOISE_RMS = 0.02;
+/** Blocos seguidos acima do limiar para contar como fala (um estalo não conta). */
+const SPEECH_BLOCKS = 2;
+/** Folga de áudio mantida antes e depois da fala, em ms. */
+const PAD_MS = 300;
 
 export const canRecord = () =>
   typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia) && typeof AudioContext !== 'undefined';
@@ -27,7 +45,9 @@ export async function recordWav(handlers: {
 }): Promise<WavRecording | null> {
   let stream: MediaStream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    });
   } catch {
     handlers.onError('Permita o uso do microfone para falar com o Sano.');
     return null;
@@ -36,10 +56,16 @@ export async function recordWav(handlers: {
   const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
   // ScriptProcessor é antigo, mas funciona em todo navegador e WebView sem arquivo extra.
-  const node = ctx.createScriptProcessor(4096, 1, 1);
+  const node = ctx.createScriptProcessor(2048, 1, 1);
+  const blockMs = (2048 / ctx.sampleRate) * 1000;
   const chunks: Float32Array[] = [];
   const startedAt = Date.now();
-  let heardSpeech = false;
+  /** Ruído de fundo (RMS) da sala; -1 enquanto mede. */
+  let noise = -1;
+  const calibration: number[] = [];
+  let loudRun = 0;
+  let firstSpeech = -1;
+  let lastSpeech = -1;
   let lastSpeechAt = Date.now();
   let finished = false;
 
@@ -49,24 +75,72 @@ export async function recordWav(handlers: {
     node.disconnect();
     source.disconnect();
     stream.getTracks().forEach((t) => t.stop());
+    const rate = ctx.sampleRate;
     void ctx.close();
-    handlers.onDone(heardSpeech ? toPcm16k(chunks, ctx.sampleRate) : null);
+    if (firstSpeech < 0) { handlers.onDone(null); return; }
+    const pad = Math.ceil(PAD_MS / blockMs);
+    const speech = chunks.slice(Math.max(0, firstSpeech - pad), lastSpeech + pad + 1);
+    handlers.onDone(normalize(toPcm16k(speech, rate)));
   };
 
   node.onaudioprocess = (e) => {
+    if (finished) return;
     const input = e.inputBuffer.getChannelData(0);
     chunks.push(new Float32Array(input));
     let sum = 0;
     for (let i = 0; i < input.length; i++) sum += input[i] * input[i];
+    const rms = Math.sqrt(sum / input.length);
     const now = Date.now();
-    if (Math.sqrt(sum / input.length) > SPEECH_RMS) { heardSpeech = true; lastSpeechAt = now; }
-    const silentTooLong = now - lastSpeechAt > (heardSpeech ? SILENCE_MS : 6000);
+
+    if (noise < 0 && (now - startedAt < CALIBRATE_MS || calibration.length < CALIBRATE_BLOCKS)) {
+      // O microfone costuma entregar zeros enquanto liga: não contam como sala.
+      if (rms > 1e-5) calibration.push(rms);
+      if (now - startedAt < NO_SPEECH_MS) return;
+    }
+    if (noise < 0) {
+      // Mediana da medição inicial: um estalo ou o começo da fala não a distorcem.
+      const sorted = calibration.sort((a, b) => a - b);
+      noise = Math.min(MAX_NOISE_RMS, sorted[Math.floor(sorted.length / 2)] ?? 0);
+    }
+    const threshold = Math.max(MIN_SPEECH_RMS, noise * NOISE_FACTOR);
+    const keep = Math.max(MIN_SPEECH_RMS, noise * KEEP_FACTOR);
+    if (rms > threshold) {
+      loudRun++;
+      if (loudRun >= SPEECH_BLOCKS) {
+        if (firstSpeech < 0) firstSpeech = chunks.length - SPEECH_BLOCKS;
+        lastSpeech = chunks.length - 1;
+        lastSpeechAt = now;
+      }
+    } else {
+      loudRun = 0;
+      if (firstSpeech >= 0 && rms > keep) {
+        lastSpeech = chunks.length - 1;
+        lastSpeechAt = now;
+      }
+    }
+    // O fundo cai rápido quando a sala silencia e acompanha as pausas; durante
+    // a fala quase não se mexe (senão a própria voz vira "ruído" e corta a frase).
+    const rise = rms > keep ? 0.002 : 0.05;
+    noise = rms < noise ? noise * 0.7 + rms * 0.3 : noise * (1 - rise) + rms * rise;
+
+    const heard = firstSpeech >= 0;
+    const silentTooLong = now - lastSpeechAt > (heard ? SILENCE_MS : NO_SPEECH_MS);
     if (silentTooLong || now - startedAt > MAX_MS) finish();
   };
   source.connect(node);
   node.connect(ctx.destination);
 
   return { stop: finish };
+}
+
+/** Nivela o volume: pico em ~90% (sem amplificar mais de 8×, para não estourar o chiado). */
+export function normalize(pcm: Float32Array): Float32Array {
+  let peak = 0;
+  for (let i = 0; i < pcm.length; i++) peak = Math.max(peak, Math.abs(pcm[i]));
+  if (peak === 0) return pcm;
+  const gain = Math.min(8, 0.9 / peak);
+  for (let i = 0; i < pcm.length; i++) pcm[i] *= gain;
+  return pcm;
 }
 
 /** Junta os pedaços e reduz para 16 kHz (média da janela: sem serrilhar demais). */

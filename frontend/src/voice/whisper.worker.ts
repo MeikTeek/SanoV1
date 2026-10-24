@@ -9,20 +9,49 @@
  */
 
 export const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/dist/transformers.min.js';
-const MODEL = 'onnx-community/whisper-base';
 
-export type WorkerIn = { id: number; audio: Float32Array };
+/** "precise" = whisper-small; "fast" = whisper-base; "auto" = small se houver placa de vídeo (WebGPU). */
+export type WhisperQuality = 'auto' | 'precise' | 'fast';
+
+export type WorkerIn =
+  | { id: number; audio: Float32Array; quality: WhisperQuality }
+  /** Carrega o modelo antes da fala chegar (enquanto a pessoa ainda está falando). */
+  | { type: 'warm'; quality: WhisperQuality };
 export type WorkerOut =
   | { type: 'progress'; percent: number }
   | { type: 'ready'; device: string }
   | { id: number; text: string }
   | { id: number; error: string };
 
-type Asr = (audio: Float32Array, opts: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>;
+type Asr = ((audio: Float32Array, opts: Record<string, unknown>) => Promise<{ text: string } | { text: string }[]>) & { dispose?: () => Promise<void> };
+type Dtype = string | Record<string, string>;
+interface Setup { model: string; device: 'webgpu' | 'wasm'; dtype: Dtype }
 
-let loading: Promise<Asr> | null = null;
+/**
+ * Medido com frases do Sano e ruído de fundo (erro por palavra / tempo por frase):
+ * - base q8 na CPU: ~23% / 3 s (o antigo padrão; erra muito com ruído);
+ * - small na GPU (codificador fp16, decodificador q4): ~8% / 2 s, ~410 MB;
+ * - small na GPU, tudo q4 (placa sem fp16): ~10% / 2,6 s, ~300 MB;
+ * - small q8 na CPU: ~8% / 9,5 s, ~250 MB.
+ */
+async function pickSetup(quality: WhisperQuality): Promise<Setup[]> {
+  const base: Setup = { model: 'onnx-community/whisper-base', device: 'wasm', dtype: 'q8' };
+  const smallCpu: Setup = { model: 'onnx-community/whisper-small', device: 'wasm', dtype: 'q8' };
+  if (quality === 'fast') return [base];
 
-async function load(): Promise<Asr> {
+  const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<{ features: Set<string> } | null> } }).gpu;
+  const adapter = await gpu?.requestAdapter().catch(() => null);
+  if (!adapter) return quality === 'precise' ? [smallCpu, base] : [base];
+
+  const encoder = adapter.features.has('shader-f16') ? 'fp16' : 'q4';
+  const smallGpu: Setup = { model: 'onnx-community/whisper-small', device: 'webgpu', dtype: { encoder_model: encoder, decoder_model_merged: 'q4' } };
+  // Se a placa falhar ao montar o modelo, cai para a CPU.
+  return quality === 'precise' ? [smallGpu, smallCpu] : [smallGpu, base];
+}
+
+let loading: { quality: WhisperQuality; asr: Promise<Asr> } | null = null;
+
+async function load(quality: WhisperQuality): Promise<Asr> {
   const { pipeline, env } = await import(/* @vite-ignore */ TRANSFORMERS_URL);
   env.allowLocalModels = false;
 
@@ -36,31 +65,49 @@ async function load(): Promise<Asr> {
     post({ type: 'progress', percent: Math.round((loaded / total) * 100) });
   };
 
-  // CPU + modelo quantizado (~77 MB): ~3 s por frase e funciona em qualquer
-  // aparelho. Na placa de vídeo o quantizado ficou mais lento (4 s) e o cheio
-  // passa de 290 MB de download.
-  const device = 'wasm';
-  const asr = await pipeline('automatic-speech-recognition', MODEL, {
-    device,
-    dtype: 'q8',
-    progress_callback,
-  }) as Asr;
-  post({ type: 'ready', device });
-  return asr;
+  let lastError: unknown;
+  for (const setup of await pickSetup(quality)) {
+    try {
+      files.clear();
+      const asr = await pipeline('automatic-speech-recognition', setup.model, {
+        device: setup.device,
+        dtype: setup.dtype,
+        progress_callback,
+      }) as Asr;
+      post({ type: 'ready', device: `${setup.model.split('/')[1]} (${setup.device})` });
+      return asr;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
 }
 
 const post = (msg: WorkerOut) => (self as DedicatedWorkerGlobalScope).postMessage(msg);
 
+function getAsr(quality: WhisperQuality): Promise<Asr> {
+  if (loading && loading.quality !== quality) {
+    // Trocou a precisão nos Ajustes: libera o modelo antigo (memória da placa).
+    void loading.asr.then((a) => a.dispose?.()).catch(() => {});
+    loading = null;
+  }
+  loading ??= { quality, asr: load(quality) };
+  const mine = loading;
+  // Falhou ao carregar: tenta de novo na próxima fala.
+  mine.asr.catch(() => { if (loading === mine) loading = null; });
+  return mine.asr;
+}
+
 self.onmessage = async (e: MessageEvent<WorkerIn>) => {
-  const { id, audio } = e.data;
+  const msg = e.data;
+  if ('type' in msg) { void getAsr(msg.quality).catch(() => {}); return; }
+  const { id, audio, quality } = msg;
   try {
-    loading ??= load();
-    const asr = await loading;
+    const asr = await getAsr(quality);
     const out = await asr(audio, { language: 'portuguese', task: 'transcribe' });
     const text = (Array.isArray(out) ? out.map((o) => o.text).join(' ') : out.text).trim();
     post({ id, text });
   } catch (err) {
-    loading = null; // falhou ao carregar: tenta de novo na próxima fala
     post({ id, error: (err as Error)?.message ?? String(err) });
   }
 };

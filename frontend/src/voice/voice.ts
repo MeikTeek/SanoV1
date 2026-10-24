@@ -9,7 +9,8 @@
  */
 import { api } from '../services/api';
 import { canRecord, pcmToWavBase64, recordWav } from './wavRecorder';
-import { transcribeLocally } from './localWhisper';
+import { transcribeLocally, warmUpLocally } from './localWhisper';
+import type { WhisperQuality } from './whisper.worker';
 
 export interface VoicePrefs {
   /** Ler as respostas em voz alta: sempre, só quando você falou, ou nunca. */
@@ -21,6 +22,8 @@ export interface VoicePrefs {
    * neste computador (grátis, privado) ou a OpenRouter (mais leve no celular).
    */
   stt: 'local' | 'openrouter';
+  /** Modelo do Whisper local: o preciso (small) ou o leve (base); "auto" decide pela placa de vídeo. */
+  whisper: WhisperQuality;
   /** Voz neural escolhida (ex.: "pt-BR-AntonioNeural"). */
   neuralVoice: string;
   /** `voiceURI` do navegador; vazio = a melhor pt-BR disponível. */
@@ -30,7 +33,7 @@ export interface VoicePrefs {
 }
 
 const PREFS_KEY = 'sano:voice:v1';
-const DEFAULTS: VoicePrefs = { speak: 'voice', engine: 'neural', stt: 'local', neuralVoice: 'pt-BR-AntonioNeural', voiceURI: '', rate: 1.05, pitch: 0.95 };
+const DEFAULTS: VoicePrefs = { speak: 'voice', engine: 'neural', stt: 'local', whisper: 'auto', neuralVoice: 'pt-BR-AntonioNeural', voiceURI: '', rate: 1.05, pitch: 0.95 };
 
 export function loadVoicePrefs(): VoicePrefs {
   try {
@@ -198,13 +201,14 @@ export function listen(h: ListenHandlers): Listener | null {
       return;
     }
     h.onHint?.('Ouvindo… fale e faça uma pausa para enviar');
+    const prefs = loadVoicePrefs();
+    if (prefs.stt === 'local') warmUpLocally(prefs.whisper); // carrega enquanto a pessoa fala
     void recordWav({
       onDone: (pcm) => {
         if (!pcm) { h.onHint?.(''); h.onEnd(); return; }
         h.onHint?.('Transcrevendo sua fala…');
-        const local = loadVoicePrefs().stt === 'local';
-        const job = local
-          ? transcribeLocally(pcm, (p) => h.onHint?.(p < 100 ? `Baixando o reconhecimento de voz (só na 1ª vez)… ${p}%` : 'Transcrevendo sua fala…'))
+        const job = prefs.stt === 'local'
+          ? transcribeLocally(pcm, prefs.whisper, (p) => h.onHint?.(p < 100 ? `Baixando o reconhecimento de voz (só na 1ª vez)… ${p}%` : 'Transcrevendo sua fala…'))
             .catch((e: Error) => { throw new Error(`Transcrição no computador falhou: ${e.message}`); })
           : api.post<{ text: string }>('/sano/voice/stt', { audio: pcmToWavBase64(pcm) }).then((r) => r.text);
         job
@@ -228,24 +232,37 @@ export function listen(h: ListenHandlers): Listener | null {
   return { stop: () => { stopped = true; stopCurrent(); } };
 }
 
-/** Reconhecimento nativo do navegador; `onBroken` quando o serviço dele não responde. */
+/** Silêncio depois da última palavra que encerra a frase no reconhecimento do navegador. */
+const BROWSER_PAUSE_MS = 1500;
+/** Sem nenhuma palavra, desiste depois disso. */
+const BROWSER_NO_SPEECH_MS = 8000;
+
+/**
+ * Reconhecimento nativo do navegador; `onBroken` quando o serviço dele não responde.
+ *
+ * Fica em modo contínuo e decide sozinho quando a frase acabou: no modo de uma
+ * frase só, o Chrome encerra na primeira pausa curta e corta o pedido no meio.
+ */
 function listenInBrowser(h: ListenHandlers, onBroken: () => void): () => void {
   const Ctor = recognitionCtor()!;
   const rec = new Ctor();
   rec.lang = 'pt-BR';
   rec.interimResults = true;
-  rec.continuous = false;
+  rec.continuous = true;
   let finalText = '';
   let broken = false;
+  let timer = setTimeout(() => rec.stop(), BROWSER_NO_SPEECH_MS);
+  const waitPause = () => { clearTimeout(timer); timer = setTimeout(() => rec.stop(), BROWSER_PAUSE_MS); };
 
   rec.onresult = (e) => {
     let partial = '';
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const piece = e.results[i][0].transcript;
-      if (e.results[i].isFinal) finalText += piece;
+      if (e.results[i].isFinal) finalText += (finalText && !/^\s/.test(piece) ? ' ' : '') + piece;
       else partial += piece;
     }
-    h.onPartial((finalText + partial).trim());
+    h.onPartial(`${finalText} ${partial}`.replace(/\s+/g, ' ').trim());
+    waitPause();
   };
   rec.onerror = (e) => {
     if (e.error === 'no-speech' || e.error === 'aborted') return;
@@ -258,13 +275,14 @@ function listenInBrowser(h: ListenHandlers, onBroken: () => void): () => void {
       : 'Não consegui ouvir agora. Tente de novo.');
   };
   rec.onend = () => {
+    clearTimeout(timer);
     if (broken) { onBroken(); return; }
-    if (finalText.trim()) h.onFinal(finalText.trim());
+    if (finalText.trim()) h.onFinal(finalText.replace(/\s+/g, ' ').trim());
     h.onHint?.('');
     h.onEnd();
   };
 
-  h.onHint?.('Ouvindo…');
+  h.onHint?.('Ouvindo… fale e faça uma pausa para enviar');
   rec.start();
-  return () => rec.stop();
+  return () => { clearTimeout(timer); rec.stop(); };
 }
