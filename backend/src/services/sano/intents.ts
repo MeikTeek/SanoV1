@@ -1,6 +1,7 @@
 import type { Intent } from './types';
 import { agendaIntent, trainerIntent, aiIntent } from './intents/agenda';
 import { financeIntent } from './intents/finance';
+import { systemIntent } from './intents/system';
 import { localDayBounds } from '../assistant/dateTime';
 import { listLearningPhrases } from '../assistant/learning';
 import { variedReply } from '../assistant/recovery';
@@ -344,6 +345,6 @@ export const createHelpIntent = (list: () => Intent[]): Intent => ({
 // comando de navegação, não pergunta.
 export const baseIntents: Intent[] = [
   // Finanças antes da agenda: "paguei 120 de luz amanhã" é lançamento, não compromisso.
-  greeting, admin, whoami, status, briefing, time, version, financeIntent, agendaIntent, trainerIntent,
+  greeting, admin, whoami, status, briefing, time, version, systemIntent, financeIntent, agendaIntent, trainerIntent,
   messages, people, settings, learning, osint, aiIntent, ...plannedIntents,
 ];

@@ -1,0 +1,40 @@
+{
+  "name": "sano-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sano para Windows: o site do Sano numa janela própria, com bandeja, atalho global e comandos do sistema.",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "cross-env SANO_URL=http://localhost:5173 electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.sano.desktop",
+    "productName": "Sano",
+    "files": [
+      "*.cjs", "offline.html",
+      "icon.png",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "compression": "maximum",
+    "electronLanguages": ["pt-BR"],
+    "artifactName": "Sano-Setup-${version}.${ext}",
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
+  },
+  "allowScripts": {
+    "electron@33.4.11": true
+  }
+}

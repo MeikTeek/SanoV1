@@ -10,6 +10,7 @@ import type { ChatMessage } from '../../types/sano';
 import { IconMic, IconSend } from '../ui/icons';
 import ViewRenderer from './ViewRenderer';
 import { notifyAgendaChanged } from '../../native/bridge';
+import { isDesktopApp, runDesktopCommand } from '../../native/desktop';
 import { useMusic } from '../../music/musicStore';
 import { canUseMic, listen, loadVoicePrefs, speak, stopSpeaking, type Listener } from '../../voice/voice';
 import '../../styles/chat.css';
@@ -163,6 +164,18 @@ export default function ChatTerminal() {
       setBusy(false);
       inputRef.current?.focus();
       return;
+    }
+
+    // App Windows: abrir programa, bloquear tela etc. rodam no computador e nem
+    // chegam ao servidor. Fora do app (ou se não for comando) segue o fluxo normal.
+    if (isDesktopApp()) {
+      const local = await runDesktopCommand(trimmed);
+      if (local.handled) {
+        setMessages((m) => [...m, make(local.ok === false ? 'error' : 'sano', local.reply ?? '')]);
+        setBusy(false);
+        inputRef.current?.focus();
+        return;
+      }
     }
 
     setBusy(true);

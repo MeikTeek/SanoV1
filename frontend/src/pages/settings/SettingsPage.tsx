@@ -3,6 +3,7 @@ import AppShell from '../../components/layout/AppShell';
 import DiscordLinkCard from '../../components/settings/DiscordLinkCard';
 import SanoAiCard from '../../components/settings/SanoAiCard';
 import AndroidAppCard from '../../native/AndroidAppCard';
+import WindowsAppCard from '../../native/WindowsAppCard';
 import { useAuth } from '../../context/AuthContext';
 import { fileToScaledDataUrl, getProfile, removeAvatar, setAvatar, setDisplayName, setPrivacy, type Profile } from '../../services/profile.service';
 
@@ -112,6 +113,7 @@ export default function SettingsPage() {
   return (
     <AppShell title="Configurações" status="perfil pessoal">
       <AndroidAppCard />
+      <WindowsAppCard />
       <section className="card">
         <h2>Foto de perfil</h2>
         <div className="settings-avatar-row">

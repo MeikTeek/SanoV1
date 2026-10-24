@@ -10,6 +10,7 @@ import { recordLearningPhrase } from '../assistant/learning';
 import { registerSanoIntents } from '../assistant/intents';
 import { agendaIntent, executeAgendaPending } from './intents/schedule';
 import { failureMessage } from './ai.errors';
+import { isSystemCommand } from './intents/system';
 import { fillsDraft, scheduleEvidence, wantsToDropDraft } from './agendaGate';
 
 const help = createHelpIntent(() => intents);
@@ -160,7 +161,8 @@ async function askAi(
   if ('reply' in outcome) return { intent: 'ai', reply: outcome.reply };
 
   const command = normalizeMessage(normalize(outcome.command));
-  if (CLIENT_COMMAND.test(command)) {
+  // Comandos de sistema também voltam ao navegador, que os entrega ao app Windows.
+  if (CLIENT_COMMAND.test(command) || isSystemCommand(command)) {
     return { intent: 'ai', reply: '', actions: [{ type: 'run', command: outcome.command }] };
   }
   // A IA às vezes transforma desabafo em "anotar ...". Se a frase original não

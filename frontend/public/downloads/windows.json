@@ -1,0 +1,11 @@
+{
+  "version": "0.1.0",
+  "size": 74265551,
+  "releasedAt": "2026-10-24",
+  "notes": [
+    "Sano numa janela própria, com ícone na bandeja e atalho Alt+Shift+S",
+    "Comandos do computador: abrir programas e pastas, bloquear a tela, desligar e reiniciar",
+    "Você libera seus próprios programas e pastas no arquivo de configuração",
+    "Tela de erro com nova tentativa automática quando o site não abre"
+  ]
+}
