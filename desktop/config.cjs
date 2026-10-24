@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const DEFAULT_URL = 'https://san0.discloud.app';
+const DEFAULT_URL = 'https://san0.discloud.dev';
 
 const DEFAULTS = {
   url: DEFAULT_URL,

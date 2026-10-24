@@ -44,6 +44,13 @@ function createWindow() {
     win.loadFile(path.join(__dirname, 'offline.html'), { query: { url: config.url, why: `${desc} (${code})` } });
   });
 
+  // Servidor fora do ar (502, 503...): a página "carrega", mas é só o aviso do host.
+  win.webContents.on('did-navigate', (_e, url, httpCode) => {
+    if (httpCode >= 500 && !url.startsWith('file:')) {
+      win.loadFile(path.join(__dirname, 'offline.html'), { query: { url: config.url, why: `o servidor respondeu ${httpCode}` } });
+    }
+  });
+
   if (process.env.SANO_DEBUG) {
     win.webContents.on('did-fail-load', (_e, code, desc, url) => console.log('[fail-load]', code, desc, url));
     win.webContents.on('console-message', (_e, level, message) => console.log('[console]', level, message));

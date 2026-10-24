@@ -8,7 +8,7 @@ O site do Sano numa janela própria (Electron), com ícone na bandeja, atalho gl
 ```bash
 cd desktop
 npm install          # baixa o Electron (esta pasta fica fora dos workspaces de propósito)
-npm start            # abre https://san0.discloud.app
+npm start            # abre https://san0.discloud.dev
 npm run dev          # abre http://localhost:5173 (precisa do `npm run dev` da raiz)
 npm run dist         # gera o instalador em desktop/dist; copie para frontend/public/downloads/sano-windows.exe e atualize windows.json
 ```
@@ -34,7 +34,7 @@ Edite `%APPDATA%\sano-desktop\desktop.json` (menu da bandeja → "Editar configu
 
 ```json
 {
-  "url": "https://san0.discloud.app",
+  "url": "https://san0.discloud.dev",
   "shortcut": "Alt+Shift+S",
   "apps": { "spotify": "C:\\Users\\voce\\AppData\\Roaming\\Spotify\\Spotify.exe" },
   "folders": { "projetos": "C:\\Users\\voce\\Documents\\Projetos" }
